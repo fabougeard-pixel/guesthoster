@@ -1,0 +1,16 @@
+/.git
+/.github
+/.env
+/.env.*
+!/.env.example
+/OLD_VERSION
+/node_modules
+/vendor
+/tests
+/public/hot
+/storage/*.key
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+

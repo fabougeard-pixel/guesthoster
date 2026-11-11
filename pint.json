@@ -1,0 +1,4 @@
+{
+    "preset": "laravel",
+    "exclude": ["OLD_VERSION"]
+}
