@@ -10,6 +10,7 @@ import {
     type BookingMode,
     PROPERTY_STATUS_LABELS,
     type PropertyStatus,
+    type UserRole,
 } from '@/lib/domain/enums';
 import { addDays, diffInDays, isValidIsoDate, parseDate, todayIso, toIsoDate } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
@@ -20,6 +21,7 @@ import {
 } from '@/lib/services/cloudinary';
 import { slugify } from '@/lib/utils';
 import type {
+    AdminOwnerOption,
     DateRange,
     HostFormOptions,
     HostProperty,
@@ -700,6 +702,26 @@ export async function getHostFormOptions(): Promise<HostFormOptions> {
     };
 }
 
+export function serializePropertyImages(
+    images: {
+        id: number;
+        thumbnailPath: string | null;
+        path: string | null;
+        cloudinaryPublicId: string | null;
+        processedAt: Date | null;
+    }[],
+): HostProperty['images'] {
+    return images.map((img) => ({
+        id: img.id,
+        url: resolveThumbnailUrl(
+            img.thumbnailPath,
+            img.path,
+            img.cloudinaryPublicId,
+        ),
+        is_processed: img.processedAt !== null,
+    }));
+}
+
 export async function getHostPropertyForEdit(
     slug: string,
 ): Promise<(HostProperty & { userId: number }) | null> {
@@ -721,6 +743,7 @@ export async function getHostPropertyForEdit(
     return {
         id: row.id,
         userId: row.userId,
+        user_id: row.userId,
         slug: row.slug,
         title: row.title,
         property_type_id: row.propertyTypeId,
@@ -731,6 +754,8 @@ export async function getHostPropertyForEdit(
         city_id: row.cityId,
         address: row.address,
         postal_code: row.postalCode,
+        latitude: row.latitude !== null ? Number(row.latitude) : null,
+        longitude: row.longitude !== null ? Number(row.longitude) : null,
         max_guests: row.maxGuests,
         bedrooms: row.bedrooms,
         beds: row.beds,
@@ -743,15 +768,7 @@ export async function getHostPropertyForEdit(
         check_in_time: row.checkInTime.slice(0, 5),
         check_out_time: row.checkOutTime.slice(0, 5),
         booking_mode: row.bookingMode,
-        images: row.images.map((img) => ({
-            id: img.id,
-            url: resolveThumbnailUrl(
-                img.thumbnailPath,
-                img.path,
-                img.cloudinaryPublicId,
-            ),
-            is_processed: img.processedAt !== null,
-        })),
+        images: serializePropertyImages(row.images),
         missing: missingPropertyRequirements({
             cityId: row.cityId,
             address: row.address,
@@ -759,6 +776,29 @@ export async function getHostPropertyForEdit(
             processedImagesCount: processedCount,
         }),
     };
+}
+
+export async function getAdminOwnerOptions(): Promise<AdminOwnerOption[]> {
+    const users = await prisma.user.findMany({
+        where: { suspendedAt: null },
+        orderBy: [{ name: 'asc' }],
+        select: { id: true, name: true, email: true, role: true },
+        take: 250,
+    });
+
+    const priority: Record<string, number> = { host: 0, admin: 1, client: 2 };
+    return users
+        .map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role as UserRole,
+        }))
+        .sort(
+            (a, b) =>
+                (priority[a.role] ?? 9) - (priority[b.role] ?? 9) ||
+                a.name.localeCompare(b.name, 'fr'),
+        );
 }
 
 export function reviewWindowDeadlineIso(checkOut: Date, days: number): string {

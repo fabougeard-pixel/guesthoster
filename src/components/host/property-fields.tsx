@@ -3,6 +3,30 @@ import type { HostFormOptions, HostProperty, Option } from '@/types';
 
 type Errors = Partial<Record<string, string>>;
 
+export type PropertyEditableFields = Pick<
+    HostProperty,
+    | 'title'
+    | 'property_type_id'
+    | 'description'
+    | 'city_id'
+    | 'address'
+    | 'postal_code'
+    | 'latitude'
+    | 'longitude'
+    | 'max_guests'
+    | 'bedrooms'
+    | 'beds'
+    | 'bathrooms'
+    | 'amenities'
+    | 'price_per_night'
+    | 'cleaning_fee'
+    | 'min_nights'
+    | 'max_nights'
+    | 'check_in_time'
+    | 'check_out_time'
+    | 'booking_mode'
+>;
+
 export function PropertyDetailsFields({
     errors,
     types,
@@ -10,7 +34,7 @@ export function PropertyDetailsFields({
 }: {
     errors: Errors;
     types: Option[];
-    property?: HostProperty;
+    property?: Partial<PropertyEditableFields>;
 }) {
     return (
         <>
@@ -38,7 +62,11 @@ export function PropertyDetailsFields({
                     id="property_type_id"
                     name="property_type_id"
                     required
-                    defaultValue={property?.property_type_id ?? ''}
+                    defaultValue={
+                        property?.property_type_id
+                            ? String(property.property_type_id)
+                            : ''
+                    }
                     aria-invalid={Boolean(errors.property_type_id)}
                 >
                     <option value="" disabled>
@@ -77,7 +105,10 @@ export function LocationFields({
     countries,
 }: {
     errors: Errors;
-    property: HostProperty;
+    property: Pick<
+        PropertyEditableFields,
+        'city_id' | 'address' | 'postal_code' | 'latitude' | 'longitude'
+    >;
     countries: HostFormOptions['countries'];
 }) {
     return (
@@ -87,7 +118,7 @@ export function LocationFields({
                     id="city_id"
                     name="city_id"
                     required
-                    defaultValue={property.city_id ?? ''}
+                    defaultValue={property.city_id ? String(property.city_id) : ''}
                     aria-invalid={Boolean(errors.city_id)}
                 >
                     <option value="" disabled>
@@ -132,6 +163,44 @@ export function LocationFields({
                     defaultValue={property.postal_code ?? ''}
                 />
             </Field>
+            <div className="grid gap-6 sm:grid-cols-2">
+                <Field
+                    label="Latitude"
+                    htmlFor="latitude"
+                    error={errors.latitude}
+                    hint="Optionnel (entre -90 et 90), ex. 48.8566."
+                >
+                    <Input
+                        id="latitude"
+                        name="latitude"
+                        type="number"
+                        step="any"
+                        min={-90}
+                        max={90}
+                        placeholder="ex. 48.8566"
+                        defaultValue={property.latitude ?? ''}
+                        aria-invalid={Boolean(errors.latitude)}
+                    />
+                </Field>
+                <Field
+                    label="Longitude"
+                    htmlFor="longitude"
+                    error={errors.longitude}
+                    hint="Optionnel (entre -180 et 180), ex. 2.3522."
+                >
+                    <Input
+                        id="longitude"
+                        name="longitude"
+                        type="number"
+                        step="any"
+                        min={-180}
+                        max={180}
+                        placeholder="ex. 2.3522"
+                        defaultValue={property.longitude ?? ''}
+                        aria-invalid={Boolean(errors.longitude)}
+                    />
+                </Field>
+            </div>
         </>
     );
 }
@@ -141,7 +210,10 @@ export function CapacityFields({
     property,
 }: {
     errors: Errors;
-    property: HostProperty;
+    property: Pick<
+        PropertyEditableFields,
+        'max_guests' | 'bedrooms' | 'beds' | 'bathrooms'
+    >;
 }) {
     const fields = [
         { name: 'max_guests', label: 'Voyageurs maximum', min: 1, max: 30 },
@@ -181,7 +253,7 @@ export function AmenitiesFields({
     amenities,
 }: {
     errors: Errors;
-    property: HostProperty;
+    property: Pick<PropertyEditableFields, 'amenities'>;
     amenities: HostFormOptions['amenities'];
 }) {
     return (
@@ -223,7 +295,16 @@ export function PricingFields({
     bookingModes,
 }: {
     errors: Errors;
-    property: HostProperty;
+    property: Pick<
+        PropertyEditableFields,
+        | 'price_per_night'
+        | 'cleaning_fee'
+        | 'min_nights'
+        | 'max_nights'
+        | 'check_in_time'
+        | 'check_out_time'
+        | 'booking_mode'
+    >;
     bookingModes: Option[];
 }) {
     return (

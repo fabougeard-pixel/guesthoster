@@ -20,17 +20,31 @@ import { useActionFeedback } from '@/components/use-action-feedback';
 import {
     archivePropertyAction,
     deletePropertyAction,
+    finalizeWizardPropertyAction,
+    reassignPropertyOwnerAction,
     restorePropertyAction,
     submitPropertyAction,
     updatePropertyStepAction,
     withdrawPropertyAction,
 } from '@/lib/actions/host';
 import type { FieldErrors } from '@/lib/actions/types';
-import type { PropertyFormStep } from '@/lib/domain/enums';
+import { type PropertyFormStep, USER_ROLE_LABELS } from '@/lib/domain/enums';
 import { cn } from '@/lib/utils';
-import type { HostFormOptions, HostProperty, Option } from '@/types';
+import type {
+    AdminOwnerOption,
+    HostFormOptions,
+    HostProperty,
+    Option,
+} from '@/types';
+import { Field, Select } from '@/components/form';
 
-function StatusActions({ property }: { property: HostProperty }) {
+function StatusActions({
+    property,
+    isAdminContext = false,
+}: {
+    property: HostProperty;
+    isAdminContext?: boolean;
+}) {
     const { applyResult } = useActionFeedback();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -60,21 +74,40 @@ function StatusActions({ property }: { property: HostProperty }) {
             >
                 Calendrier
             </Link>
-            {(property.status === 'draft' ||
-                property.status === 'rejected') && (
-                <Button
-                    size="sm"
-                    disabled={!canSubmit || busy}
-                    title={
-                        canSubmit ? undefined : 'Complétez les étapes signalées'
-                    }
-                    onClick={() =>
-                        void runAction(() => submitPropertyAction(property.slug))
-                    }
-                >
-                    Envoyer en validation
-                </Button>
-            )}
+            {isAdminContext &&
+                property.status !== 'published' && (
+                    <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() =>
+                            void runAction(() =>
+                                finalizeWizardPropertyAction({
+                                    slug: property.slug,
+                                    targetStatus: 'published',
+                                    isAdminContext: true,
+                                }),
+                            )
+                        }
+                    >
+                        Publier
+                    </Button>
+                )}
+            {!isAdminContext &&
+                (property.status === 'draft' ||
+                    property.status === 'rejected') && (
+                    <Button
+                        size="sm"
+                        disabled={!canSubmit || busy}
+                        title={
+                            canSubmit ? undefined : 'Complétez les étapes signalées'
+                        }
+                        onClick={() =>
+                            void runAction(() => submitPropertyAction(property.slug))
+                        }
+                    >
+                        Envoyer en validation
+                    </Button>
+                )}
             {property.status === 'pending' && (
                 <Button
                     size="sm"
@@ -148,7 +181,9 @@ function StatusActions({ property }: { property: HostProperty }) {
                         loading={busy}
                         onClick={() =>
                             void runAction(() =>
-                                deletePropertyAction(property.slug),
+                                deletePropertyAction(property.slug, {
+                                    isAdminContext,
+                                }),
                             )
                         }
                     >
@@ -165,17 +200,45 @@ export function EditPropertyClient({
     step,
     steps,
     options,
+    isAdminContext = false,
+    owners = [],
 }: {
     property: HostProperty;
     step: PropertyFormStep;
     steps: Option[];
     options: HostFormOptions;
+    isAdminContext?: boolean;
+    owners?: AdminOwnerOption[];
 }) {
     const { applyResult } = useActionFeedback();
     const [loading, setLoading] = useState(false);
+    const [reassigning, setReassigning] = useState(false);
+    const [selectedOwnerId, setSelectedOwnerId] = useState<string>(
+        property.user_id ? String(property.user_id) : '',
+    );
     const [errors, setErrors] = useState<FieldErrors>({});
 
     const currentStep = steps.find((item) => item.value === step) ?? steps[0]!;
+    const modifierBase = isAdminContext
+        ? `/admin/logements/${property.slug}/modifier`
+        : `/hote/logements/${property.slug}/modifier`;
+
+    async function handleOwnerReassign() {
+        const ownerId = Number(selectedOwnerId);
+        if (!ownerId || ownerId === property.user_id) {
+            return;
+        }
+        setReassigning(true);
+        try {
+            const res = await reassignPropertyOwnerAction({
+                slug: property.slug,
+                ownerId,
+            });
+            applyResult(res);
+        } finally {
+            setReassigning(false);
+        }
+    }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -186,10 +249,10 @@ export function EditPropertyClient({
         const values: Record<string, unknown> =
             step === 'amenities'
                 ? {
-                      amenities: fd
-                          .getAll('amenities[]')
-                          .map((val) => Number(val)),
-                  }
+                    amenities: fd
+                        .getAll('amenities[]')
+                        .map((val) => Number(val)),
+                }
                 : Object.fromEntries(fd.entries());
 
         try {
@@ -197,6 +260,7 @@ export function EditPropertyClient({
                 slug: property.slug,
                 step,
                 values,
+                isAdminContext,
             });
             applyResult(res, { setFieldErrors: setErrors });
         } finally {
@@ -218,7 +282,10 @@ export function EditPropertyClient({
                         />
                     </div>
                 </div>
-                <StatusActions property={property} />
+                <StatusActions
+                    property={property}
+                    isAdminContext={isAdminContext}
+                />
             </div>
 
             <div className="mt-6 flex flex-col gap-3">
@@ -248,7 +315,7 @@ export function EditPropertyClient({
                             return (
                                 <li key={item.value} className="shrink-0">
                                     <Link
-                                        href={`/hote/logements/${property.slug}/modifier/${item.value}`}
+                                        href={`${modifierBase}/${item.value}`}
                                         aria-current={
                                             isActive ? 'step' : undefined
                                         }
@@ -294,7 +361,60 @@ export function EditPropertyClient({
                         </p>
                     )}
 
-                    <div className="mt-6">
+                    <div className="mt-6 space-y-6">
+                        {isAdminContext &&
+                            currentStep.value === 'details' &&
+                            owners.length > 0 && (
+                                <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                        <Field
+                                            label="Propriétaire attribué (Admin)"
+                                            htmlFor="reassign_owner_id"
+                                            className="flex-1"
+                                        >
+                                            <Select
+                                                id="reassign_owner_id"
+                                                value={selectedOwnerId}
+                                                onChange={(event) =>
+                                                    setSelectedOwnerId(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            >
+                                                {owners.map((owner) => (
+                                                    <option
+                                                        key={owner.id}
+                                                        value={owner.id}
+                                                    >
+                                                        {owner.name} ({owner.email}
+                                                        ) —{' '}
+                                                        {
+                                                            USER_ROLE_LABELS[
+                                                            owner.role
+                                                            ]
+                                                        }
+                                                    </option>
+                                                ))}
+                                            </Select>
+                                        </Field>
+                                        <Button
+                                            variant="outline"
+                                            loading={reassigning}
+                                            disabled={
+                                                !selectedOwnerId ||
+                                                Number(selectedOwnerId) ===
+                                                property.user_id
+                                            }
+                                            onClick={() =>
+                                                void handleOwnerReassign()
+                                            }
+                                        >
+                                            Réattribuer
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
                         {currentStep.value === 'photos' ? (
                             <PhotoManager
                                 property={property}

@@ -1,7 +1,9 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { hashPassword } from '@/lib/auth/password';
 import { getFreshSessionUser, isHostOrAdmin } from '@/lib/auth/session';
 import {
     approvePendingBooking,
@@ -10,6 +12,7 @@ import {
 import {
     BLOCKING_BOOKING_STATUSES,
     canPropertyTransitionTo,
+    isPropertyEditable,
     nextPropertyFormStep,
     type PropertyFormStep,
     type PropertyStatus,
@@ -18,16 +21,30 @@ import {
     deletePropertyImageFiles,
     DomainError,
     generatePropertySlug,
+    getHostPropertyForEdit,
     MAX_PHOTOS,
     missingPropertyRequirements,
+    serializePropertyImages,
 } from '@/lib/domain/properties';
+import {
+    adminOwnerSchema,
+    amenitiesSchema,
+    capacitySchema,
+    detailsSchema,
+    fullPropertyDraftSchema,
+    locationSchema,
+    pricingSchema,
+} from '@/lib/domain/property-schemas';
 import { addDays, isValidIsoDate, parseDate, todayIso } from '@/lib/format';
+import { notifyPropertyPublished } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
 import {
     cloudinaryDeliveryUrls,
+    isCloudinaryConfigured,
     isValidPropertyPublicId,
     verifyCloudinaryUploadSignature,
 } from '@/lib/services/cloudinary';
+import type { HostProperty } from '@/types';
 import { type ActionResult, zodToFieldErrors } from './types';
 
 async function requireEditableHostProperty(slug: string) {
@@ -54,22 +71,14 @@ async function requireEditableHostProperty(slug: string) {
     return { user, property };
 }
 
-const detailsSchema = z.object({
-    title: z
-        .string()
-        .trim()
-        .min(10, 'Le titre doit contenir au moins 10 caractères.')
-        .max(120, 'Le titre ne doit pas dépasser 120 caractères.'),
-    property_type_id: z.coerce
-        .number()
-        .int()
-        .positive('Choisissez un type de logement.'),
-    description: z
-        .string()
-        .trim()
-        .min(80, 'La description doit contenir au moins 80 caractères.')
-        .max(5000, 'La description ne doit pas dépasser 5000 caractères.'),
-});
+function revalidatePropertyPaths(slug: string): void {
+    revalidatePath('/hote');
+    revalidatePath('/admin');
+    revalidatePath('/admin/logements');
+    revalidatePath(`/hote/logements/${slug}/modifier`, 'layout');
+    revalidatePath(`/admin/logements/${slug}/modifier`, 'layout');
+    revalidatePath(`/logements/${slug}`);
+}
 
 export async function createPropertyAction(input: {
     title: string;
@@ -121,63 +130,437 @@ export async function createPropertyAction(input: {
     };
 }
 
-const locationSchema = z.object({
-    city_id: z.coerce.number().int().positive('Choisissez une ville.'),
-    address: z
-        .string()
-        .trim()
-        .min(2, 'Saisissez l’adresse.')
-        .max(255),
-    postal_code: z.string().trim().max(20).optional().nullable(),
-});
+export async function saveWizardPropertyAction(input: {
+    mode: 'host' | 'admin';
+    draftSlug?: string | null;
+    owner?: Record<string, unknown>;
+    values: Record<string, unknown>;
+}): Promise<
+    ActionResult<{
+        slug: string;
+        property: HostProperty;
+        ownerId: number;
+    }>
+> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt || !isHostOrAdmin(user)) {
+        return { ok: false, error: 'Accès réservé aux hôtes vérifiés.' };
+    }
 
-const capacitySchema = z.object({
-    max_guests: z.coerce.number().int().min(1).max(30),
-    bedrooms: z.coerce.number().int().min(0).max(30),
-    beds: z.coerce.number().int().min(1).max(50),
-    bathrooms: z.coerce.number().int().min(0).max(20),
-});
+    if (input.mode === 'admin' && user.role !== 'admin') {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
 
-const amenitiesSchema = z.object({
-    amenities: z.array(z.coerce.number().int().positive()).default([]),
-});
+    const parsedOwner =
+        input.mode === 'admin'
+            ? adminOwnerSchema.safeParse(input.owner ?? {})
+            : null;
+    if (parsedOwner && !parsedOwner.success) {
+        return {
+            ok: false,
+            fieldErrors: zodToFieldErrors(parsedOwner.error),
+        };
+    }
 
-const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const parsed = fullPropertyDraftSchema.safeParse(input.values);
+    if (!parsed.success) {
+        return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
+    }
 
-const pricingSchema = z
-    .object({
-        price_per_night: z.coerce
-            .number()
-            .min(10, 'Le tarif minimum par nuit est de 10 €.')
-            .max(10_000, 'Le tarif maximum par nuit est de 10 000 €.'),
-        cleaning_fee: z.coerce
-            .number()
-            .min(0)
-            .max(1_000)
-            .optional()
-            .nullable(),
-        min_nights: z.coerce.number().int().min(1).max(90),
-        max_nights: z.preprocess(
-            (val) => (val === '' || val === null || val === undefined ? null : Number(val)),
-            z.number().int().min(1).max(365).nullable(),
-        ),
-        check_in_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        check_out_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        booking_mode: z.enum(['instant', 'request']),
-    })
-    .refine(
-        (d) => d.max_nights === null || d.max_nights >= d.min_nights,
-        {
-            path: ['max_nights'],
-            message:
-                'Le séjour maximum doit être supérieur ou égal au séjour minimum.',
+    const uniqueAmenityIds = [...new Set(parsed.data.amenities)];
+
+    const [propertyType, cityRow, validAmenities] = await Promise.all([
+        prisma.propertyType.findFirst({
+            where: { id: parsed.data.property_type_id, isActive: true },
+            select: { id: true },
+        }),
+        prisma.city.findFirst({
+            where: { id: parsed.data.city_id, isActive: true },
+            select: { id: true },
+        }),
+        uniqueAmenityIds.length > 0
+            ? prisma.amenity.findMany({
+                  where: { id: { in: uniqueAmenityIds } },
+                  select: { id: true },
+              })
+            : Promise.resolve([]),
+    ]);
+
+    if (!propertyType) {
+        return {
+            ok: false,
+            fieldErrors: { property_type_id: 'Type de logement indisponible.' },
+        };
+    }
+
+    if (!cityRow) {
+        return {
+            ok: false,
+            fieldErrors: { city_id: 'Cette ville n’est pas disponible.' },
+        };
+    }
+
+    let passwordHashForNewOwner: string | null = null;
+    if (parsedOwner?.success && parsedOwner.data.owner_mode === 'new') {
+        const existingEmail = await prisma.user.findUnique({
+            where: { email: parsedOwner.data.owner_email },
+            select: { id: true },
+        });
+        if (existingEmail) {
+            return {
+                ok: false,
+                fieldErrors: {
+                    owner_email:
+                        'Un compte existe déjà avec cet e-mail. Choisissez « Compte existant ».',
+                },
+            };
+        }
+        passwordHashForNewOwner = await hashPassword(
+            parsedOwner.data.owner_password,
+        );
+    }
+
+    try {
+        const saved = await prisma.$transaction(async (tx) => {
+            let resolvedOwnerId = user.id;
+
+            if (parsedOwner?.success) {
+                if (parsedOwner.data.owner_mode === 'existing') {
+                    const targetOwner = await tx.user.findUnique({
+                        where: { id: parsedOwner.data.owner_id! },
+                        select: { id: true, role: true, suspendedAt: true },
+                    });
+                    if (!targetOwner || targetOwner.suspendedAt) {
+                        throw new DomainError(
+                            'Le compte propriétaire sélectionné est introuvable ou suspendu.',
+                            422,
+                        );
+                    }
+                    if (targetOwner.role === 'client') {
+                        await tx.user.update({
+                            where: { id: targetOwner.id },
+                            data: { role: 'host' },
+                        });
+                    }
+                    resolvedOwnerId = targetOwner.id;
+                } else {
+                    const createdOwner = await tx.user.create({
+                        data: {
+                            name: parsedOwner.data.owner_name,
+                            email: parsedOwner.data.owner_email,
+                            password: passwordHashForNewOwner!,
+                            role: 'host',
+                            emailVerifiedAt: new Date(),
+                        },
+                        select: { id: true },
+                    });
+                    resolvedOwnerId = createdOwner.id;
+                }
+            }
+
+            const propertyFields = {
+                cityId: cityRow.id,
+                title: parsed.data.title,
+                propertyTypeId: propertyType.id,
+                description: parsed.data.description,
+                address: parsed.data.address,
+                postalCode: parsed.data.postal_code?.trim() || null,
+                latitude: parsed.data.latitude,
+                longitude: parsed.data.longitude,
+                maxGuests: parsed.data.max_guests,
+                bedrooms: parsed.data.bedrooms,
+                beds: parsed.data.beds,
+                bathrooms: parsed.data.bathrooms,
+                pricePerNight: Math.round(parsed.data.price_per_night * 100),
+                cleaningFee: Math.round((parsed.data.cleaning_fee ?? 0) * 100),
+                minNights: parsed.data.min_nights,
+                maxNights: parsed.data.max_nights,
+                checkInTime: parsed.data.check_in_time,
+                checkOutTime: parsed.data.check_out_time,
+                bookingMode: parsed.data.booking_mode,
+            };
+
+            let targetProperty: { id: number; slug: string };
+
+            if (input.draftSlug) {
+                const existingProperty = await tx.property.findUnique({
+                    where: { slug: input.draftSlug },
+                    select: { id: true, slug: true, userId: true, status: true },
+                });
+                if (!existingProperty) {
+                    throw new DomainError('Brouillon introuvable.', 404);
+                }
+                if (
+                    existingProperty.userId !== user.id &&
+                    user.role !== 'admin'
+                ) {
+                    throw new DomainError(
+                        'Vous n’êtes pas autorisé à modifier ce logement.',
+                        403,
+                    );
+                }
+                if (
+                    !isPropertyEditable(
+                        existingProperty.status as PropertyStatus,
+                    ) &&
+                    user.role !== 'admin'
+                ) {
+                    throw new DomainError(
+                        'Ce logement ne peut plus être modifié via cet assistant.',
+                        422,
+                    );
+                }
+
+                targetProperty = await tx.property.update({
+                    where: { id: existingProperty.id },
+                    data: {
+                        ...propertyFields,
+                        ...(input.mode === 'admin'
+                            ? { userId: resolvedOwnerId }
+                            : {}),
+                    },
+                    select: { id: true, slug: true },
+                });
+
+                await tx.amenityProperty.deleteMany({
+                    where: { propertyId: targetProperty.id },
+                });
+            } else {
+                targetProperty = await tx.property.create({
+                    data: {
+                        userId: resolvedOwnerId,
+                        slug: generatePropertySlug(parsed.data.title),
+                        status: 'draft',
+                        ...propertyFields,
+                    },
+                    select: { id: true, slug: true },
+                });
+            }
+
+            if (validAmenities.length > 0) {
+                await tx.amenityProperty.createMany({
+                    data: validAmenities.map((amenity) => ({
+                        propertyId: targetProperty.id,
+                        amenityId: amenity.id,
+                    })),
+                });
+            }
+
+            return { slug: targetProperty.slug, ownerId: resolvedOwnerId };
+        });
+
+        const property = await getHostPropertyForEdit(saved.slug);
+        if (!property) {
+            return {
+                ok: false,
+                error: 'Impossible de charger le logement enregistré.',
+            };
+        }
+
+        revalidatePropertyPaths(saved.slug);
+        if (parsedOwner?.success && parsedOwner.data.owner_mode === 'new') {
+            revalidatePath('/admin/utilisateurs');
+        }
+
+        return {
+            ok: true,
+            data: {
+                slug: saved.slug,
+                property,
+                ownerId: saved.ownerId,
+            },
+        };
+    } catch (error) {
+        if (error instanceof DomainError) {
+            return { ok: false, error: error.message };
+        }
+        if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+        ) {
+            return {
+                ok: false,
+                fieldErrors: {
+                    owner_email:
+                        'Un compte existe déjà avec cet e-mail. Choisissez « Compte existant ».',
+                },
+            };
+        }
+        throw error;
+    }
+}
+
+export async function finalizeWizardPropertyAction(input: {
+    slug: string;
+    targetStatus: 'draft' | 'pending' | 'published';
+    isAdminContext?: boolean;
+}): Promise<ActionResult> {
+    const auth = await requireEditableHostProperty(input.slug);
+    if ('error' in auth) {
+        return { ok: false, error: auth.error };
+    }
+    const { user, property } = auth;
+    const redirectTo = input.isAdminContext ? '/admin/logements' : '/hote';
+
+    if (input.targetStatus === 'draft') {
+        revalidatePropertyPaths(property.slug);
+        return {
+            ok: true,
+            redirectTo,
+            toast: {
+                type: 'success',
+                message: 'Logement enregistré en brouillon.',
+            },
+        };
+    }
+
+    const processedCount = property.images.filter(
+        (img) => img.processedAt !== null,
+    ).length;
+
+    if (input.targetStatus === 'pending') {
+        const missing = missingPropertyRequirements({
+            cityId: property.cityId,
+            address: property.address,
+            pricePerNight: property.pricePerNight,
+            processedImagesCount: isCloudinaryConfigured()
+                ? processedCount
+                : Math.max(processedCount, 3),
+        });
+        const firstMissingKey = Object.keys(missing)[0];
+        if (firstMissingKey) {
+            return { ok: false, error: missing[firstMissingKey] };
+        }
+
+        await prisma.property.update({
+            where: { id: property.id },
+            data: {
+                status: 'pending',
+                submittedAt: property.submittedAt ?? new Date(),
+                rejectionReason: null,
+            },
+        });
+
+        revalidatePropertyPaths(property.slug);
+        return {
+            ok: true,
+            redirectTo,
+            toast: {
+                type: 'success',
+                message: 'Logement enregistré et envoyé en validation.',
+            },
+        };
+    }
+
+    if (user.role !== 'admin') {
+        return {
+            ok: false,
+            error: 'Seul un administrateur peut publier un logement directement.',
+        };
+    }
+
+    const missingForPublish = missingPropertyRequirements({
+        cityId: property.cityId,
+        address: property.address,
+        pricePerNight: property.pricePerNight,
+        processedImagesCount: isCloudinaryConfigured()
+            ? processedCount
+            : Math.max(processedCount, 3),
+    });
+    const firstMissingKey = Object.keys(missingForPublish)[0];
+    if (firstMissingKey) {
+        return { ok: false, error: missingForPublish[firstMissingKey] };
+    }
+
+    await prisma.property.update({
+        where: { id: property.id },
+        data: {
+            status: 'published',
+            submittedAt: property.submittedAt ?? new Date(),
+            publishedAt: property.publishedAt ?? new Date(),
+            rejectionReason: null,
         },
-    );
+    });
+
+    if (property.userId !== user.id) {
+        await notifyPropertyPublished(property.id);
+    }
+
+    revalidatePropertyPaths(property.slug);
+    return {
+        ok: true,
+        redirectTo,
+        toast: {
+            type: 'success',
+            message:
+                processedCount === 0 && !isCloudinaryConfigured()
+                    ? 'Logement créé et publié (ajoutez des photos dès que Cloudinary sera configuré).'
+                    : 'Logement créé et publié dans le catalogue.',
+        },
+    };
+}
+
+export async function reassignPropertyOwnerAction(input: {
+    slug: string;
+    ownerId: number;
+}): Promise<ActionResult> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt || user.role !== 'admin') {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    const [property, targetOwner] = await Promise.all([
+        prisma.property.findUnique({
+            where: { slug: input.slug },
+            select: { id: true, slug: true, userId: true },
+        }),
+        prisma.user.findUnique({
+            where: { id: input.ownerId },
+            select: { id: true, name: true, role: true, suspendedAt: true },
+        }),
+    ]);
+
+    if (!property) {
+        return { ok: false, error: 'Logement introuvable.' };
+    }
+
+    if (!targetOwner || targetOwner.suspendedAt) {
+        return {
+            ok: false,
+            error: 'Compte propriétaire introuvable ou suspendu.',
+        };
+    }
+
+    await prisma.$transaction(async (tx) => {
+        if (targetOwner.role === 'client') {
+            await tx.user.update({
+                where: { id: targetOwner.id },
+                data: { role: 'host' },
+            });
+        }
+        await tx.property.update({
+            where: { id: property.id },
+            data: { userId: targetOwner.id },
+        });
+    });
+
+    revalidatePropertyPaths(property.slug);
+    revalidatePath('/admin/utilisateurs');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'success',
+            message: `Logement attribué à ${targetOwner.name}.`,
+        },
+    };
+}
 
 export async function updatePropertyStepAction(input: {
     slug: string;
     step: PropertyFormStep;
     values: Record<string, unknown>;
+    isAdminContext?: boolean;
 }): Promise<ActionResult> {
     const auth = await requireEditableHostProperty(input.slug);
     if ('error' in auth) {
@@ -232,6 +615,8 @@ export async function updatePropertyStepAction(input: {
                 cityId: cityRow.id,
                 address: parsed.data.address,
                 postalCode: parsed.data.postal_code?.trim() || null,
+                latitude: parsed.data.latitude,
+                longitude: parsed.data.longitude,
             },
         });
     } else if (input.step === 'capacity') {
@@ -293,18 +678,22 @@ export async function updatePropertyStepAction(input: {
     }
 
     const nextStep = nextPropertyFormStep(input.step) ?? input.step;
-    revalidatePath(`/hote/logements/${property.slug}/modifier`, 'layout');
-    revalidatePath(`/logements/${property.slug}`);
+    revalidatePropertyPaths(property.slug);
+
+    const modifierBase = input.isAdminContext
+        ? `/admin/logements/${property.slug}/modifier`
+        : `/hote/logements/${property.slug}/modifier`;
 
     return {
         ok: true,
-        redirectTo: `/hote/logements/${property.slug}/modifier/${nextStep}`,
+        redirectTo: `${modifierBase}/${nextStep}`,
         toast: { type: 'success', message: 'Modifications enregistrées.' },
     };
 }
 
 export async function deletePropertyAction(
     slug: string,
+    options?: { isAdminContext?: boolean },
 ): Promise<ActionResult> {
     const auth = await requireEditableHostProperty(slug);
     if ('error' in auth) {
@@ -331,9 +720,11 @@ export async function deletePropertyAction(
     await prisma.property.delete({ where: { id: property.id } });
 
     revalidatePath('/hote');
+    revalidatePath('/admin');
+    revalidatePath('/admin/logements');
     return {
         ok: true,
-        redirectTo: '/hote',
+        redirectTo: options?.isAdminContext ? '/admin/logements' : '/hote',
         toast: { type: 'info', message: 'Le logement a été supprimé.' },
     };
 }
@@ -604,12 +995,29 @@ export async function deleteBlockedPeriodAction(input: {
     };
 }
 
+async function loadSerializedPropertyImages(
+    propertyId: number,
+): Promise<HostProperty['images']> {
+    const freshImages = await prisma.propertyImage.findMany({
+        where: { propertyId },
+        orderBy: { position: 'asc' },
+        select: {
+            id: true,
+            thumbnailPath: true,
+            path: true,
+            cloudinaryPublicId: true,
+            processedAt: true,
+        },
+    });
+    return serializePropertyImages(freshImages);
+}
+
 export async function confirmPropertyPhotoAction(input: {
     slug: string;
     cloudinary_public_id: string;
     version: number;
     signature: string;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ images: HostProperty['images'] }>> {
     const auth = await requireEditableHostProperty(input.slug);
     if ('error' in auth) {
         return { ok: false, error: auth.error };
@@ -653,14 +1061,15 @@ export async function confirmPropertyPhotoAction(input: {
         },
     });
 
-    revalidatePath(`/hote/logements/${property.slug}/modifier`, 'layout');
-    return { ok: true };
+    const images = await loadSerializedPropertyImages(property.id);
+    revalidatePropertyPaths(property.slug);
+    return { ok: true, data: { images } };
 }
 
 export async function reorderPropertyPhotosAction(input: {
     slug: string;
     order: number[];
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ images: HostProperty['images'] }>> {
     const auth = await requireEditableHostProperty(input.slug);
     if ('error' in auth) {
         return { ok: false, error: auth.error };
@@ -678,10 +1087,11 @@ export async function reorderPropertyPhotosAction(input: {
         ),
     );
 
-    revalidatePath(`/hote/logements/${auth.property.slug}/modifier`, 'layout');
-    revalidatePath(`/logements/${auth.property.slug}`);
+    const images = await loadSerializedPropertyImages(auth.property.id);
+    revalidatePropertyPaths(auth.property.slug);
     return {
         ok: true,
+        data: { images },
         toast: { type: 'success', message: 'Ordre des photos enregistré.' },
     };
 }
@@ -689,7 +1099,7 @@ export async function reorderPropertyPhotosAction(input: {
 export async function deletePropertyPhotoAction(input: {
     slug: string;
     imageId: number;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ images: HostProperty['images'] }>> {
     const auth = await requireEditableHostProperty(input.slug);
     if ('error' in auth) {
         return { ok: false, error: auth.error };
@@ -703,10 +1113,11 @@ export async function deletePropertyPhotoAction(input: {
     await deletePropertyImageFiles(image);
     await prisma.propertyImage.delete({ where: { id: image.id } });
 
-    revalidatePath(`/hote/logements/${auth.property.slug}/modifier`, 'layout');
-    revalidatePath(`/logements/${auth.property.slug}`);
+    const images = await loadSerializedPropertyImages(auth.property.id);
+    revalidatePropertyPaths(auth.property.slug);
     return {
         ok: true,
+        data: { images },
         toast: { type: 'info', message: 'Photo supprimée.' },
     };
 }

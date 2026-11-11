@@ -98,11 +98,19 @@ export function AdminPropertiesClient({
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Annonces</h1>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Modération et suivi des logements publiés sur la plateforme.
-                </p>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Annonces</h1>
+                    <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        Modération, édition et attribution des logements de la plateforme.
+                    </p>
+                </div>
+                <Link
+                    href="/admin/logements/nouveau"
+                    className={buttonClasses({ size: 'sm' })}
+                >
+                    + Ajouter un logement
+                </Link>
             </div>
 
             <StatusTabs
@@ -207,6 +215,15 @@ export function AdminPropertiesClient({
                             <td className="px-4 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link
+                                        href={`/admin/logements/${property.slug}/modifier/details`}
+                                        className={buttonClasses({
+                                            variant: 'outline',
+                                            size: 'sm',
+                                        })}
+                                    >
+                                        Modifier
+                                    </Link>
+                                    <Link
                                         href={`/logements/${property.slug}`}
                                         target="_blank"
                                         className={buttonClasses({
@@ -236,7 +253,7 @@ export function AdminPropertiesClient({
                                                 setRejecting(property);
                                                 setReason(
                                                     property.rejection_reason ??
-                                                        '',
+                                                    '',
                                                 );
                                                 setErrors({});
                                             }}

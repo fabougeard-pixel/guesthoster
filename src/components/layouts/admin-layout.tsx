@@ -5,17 +5,75 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return (
         <SectionLayout
             title="Administration"
-            links={[
-                { label: 'Tableau de bord', href: '/admin', exact: true },
-                { label: 'Logements', href: '/admin/logements' },
-                { label: 'Réservations', href: '/admin/reservations' },
-                { label: 'Utilisateurs', href: '/admin/utilisateurs' },
-                { label: 'Pays', href: '/admin/pays' },
-                { label: 'Villes', href: '/admin/villes' },
-                { label: 'Équipements', href: '/admin/equipements' },
+            subtitle="Gestion de la plateforme & conciergerie"
+            workspace="admin"
+            cta={{
+                label: 'Ajouter un logement',
+                href: '/admin/logements/nouveau',
+            }}
+            sections={[
                 {
-                    label: 'Types de logement',
-                    href: '/admin/types-de-logement',
+                    heading: 'Pilotage',
+                    links: [
+                        {
+                            label: 'Tableau de bord',
+                            href: '/admin',
+                            exact: true,
+                            icon: 'dashboard',
+                        },
+                    ],
+                },
+                {
+                    heading: 'Gestion locative',
+                    links: [
+                        {
+                            label: 'Logements',
+                            href: '/admin/logements',
+                            excludePaths: ['/admin/logements/nouveau'],
+                            icon: 'home',
+                        },
+                        {
+                            label: 'Ajouter un logement',
+                            href: '/admin/logements/nouveau',
+                            exact: true,
+                            icon: 'plus',
+                        },
+                        {
+                            label: 'Réservations',
+                            href: '/admin/reservations',
+                            icon: 'calendar',
+                        },
+                        {
+                            label: 'Utilisateurs',
+                            href: '/admin/utilisateurs',
+                            icon: 'users',
+                        },
+                    ],
+                },
+                {
+                    heading: 'Référentiels',
+                    links: [
+                        {
+                            label: 'Pays',
+                            href: '/admin/pays',
+                            icon: 'globe',
+                        },
+                        {
+                            label: 'Villes',
+                            href: '/admin/villes',
+                            icon: 'map-pin',
+                        },
+                        {
+                            label: 'Équipements',
+                            href: '/admin/equipements',
+                            icon: 'sparkles',
+                        },
+                        {
+                            label: 'Types de logement',
+                            href: '/admin/types-de-logement',
+                            icon: 'tag',
+                        },
+                    ],
                 },
             ]}
         >
@@ -23,4 +81,3 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </SectionLayout>
     );
 }
-

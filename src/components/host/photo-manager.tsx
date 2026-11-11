@@ -159,11 +159,13 @@ export function PhotoManager({
     minPhotos,
     maxPhotos,
     cloudinaryDirectUpload = false,
+    onImagesChange,
 }: {
     property: HostProperty;
     minPhotos: number;
     maxPhotos: number;
     cloudinaryDirectUpload?: boolean;
+    onImagesChange?: (images: HostProperty['images']) => void;
 }) {
     const { applyResult, pushToast, router } = useActionFeedback();
     const inputRef = useRef<HTMLInputElement | null>(null);
@@ -236,6 +238,9 @@ export function PhotoManager({
                         res.error ?? 'Enregistrement de la photo impossible.',
                     );
                 }
+                if (res.data?.images) {
+                    onImagesChange?.(res.data.images);
+                }
             }
 
             setProgress(100);
@@ -273,6 +278,9 @@ export function PhotoManager({
             slug: property.slug,
             order: ids,
         });
+        if (res.ok && res.data?.images) {
+            onImagesChange?.(res.data.images);
+        }
         applyResult(res);
     }
 
@@ -284,6 +292,9 @@ export function PhotoManager({
             slug: property.slug,
             imageId,
         });
+        if (res.ok && res.data?.images) {
+            onImagesChange?.(res.data.images);
+        }
         applyResult(res);
     }
 

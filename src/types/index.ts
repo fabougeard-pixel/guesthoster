@@ -175,6 +175,9 @@ export type HostProperty = {
     city_id: number | null;
     address: string | null;
     postal_code: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    user_id?: number;
     max_guests: number;
     bedrooms: number;
     beds: number;
@@ -210,6 +213,13 @@ export type Paginated<T> = {
     total: number;
     prev_page_url: string | null;
     next_page_url: string | null;
+};
+
+export type AdminOwnerOption = {
+    id: number;
+    name: string;
+    email: string;
+    role: UserRole;
 };
 
 export type AdminProperty = {

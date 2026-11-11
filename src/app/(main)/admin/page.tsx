@@ -249,7 +249,31 @@ export default async function AdminDashboardPage() {
 
     return (
         <>
-            <h1 className="text-2xl font-semibold">Tableau de bord</h1>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-semibold">Tableau de bord</h1>
+                    <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        Vue d’ensemble de la plateforme et gestion conciergerie.
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        href="/admin/logements"
+                        className={buttonClasses({
+                            variant: 'outline',
+                            size: 'sm',
+                        })}
+                    >
+                        Gérer les logements
+                    </Link>
+                    <Link
+                        href="/admin/logements/nouveau"
+                        className={buttonClasses({ size: 'sm' })}
+                    >
+                        + Ajouter un logement
+                    </Link>
+                </div>
+            </div>
 
             <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {tiles.map((tile) => (
