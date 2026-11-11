@@ -14,6 +14,7 @@ import {
     notifyPropertyPublished,
     notifyPropertyRejected,
 } from '@/lib/notifications/service';
+import { buildUniquePropertyTypeSlug } from '@/lib/domain/taxonomy';
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { type ActionResult, zodToFieldErrors } from './types';
@@ -519,14 +520,7 @@ export async function savePropertyTypeAction(input: {
     if (input.id) {
         await prisma.propertyType.update({ where: { id: input.id }, data });
     } else {
-        let slug = slugify(parsed.data.name) || 'type';
-        const slugCollision = await prisma.propertyType.findUnique({
-            where: { slug },
-            select: { id: true },
-        });
-        if (slugCollision) {
-            slug = `${slug}-${crypto.randomBytes(2).toString('hex')}`;
-        }
+        const slug = await buildUniquePropertyTypeSlug(parsed.data.name);
         await prisma.propertyType.create({ data: { ...data, slug } });
     }
 

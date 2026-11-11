@@ -455,6 +455,10 @@ export function EditPropertyClient({
                                         errors={errors}
                                         property={property}
                                         amenities={options.amenities}
+                                        isOptional={
+                                            property.rental_duration ===
+                                            'long_term'
+                                        }
                                     />
                                 )}
                                 {currentStep.value === 'pricing' && (

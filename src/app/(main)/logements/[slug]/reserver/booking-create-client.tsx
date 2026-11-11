@@ -29,7 +29,7 @@ export function BookingCreateClient({
         max_nights: number | null;
     };
     stay: { check_in: string; check_out: string; guests: number };
-    quote: PriceLines & { lodging_total: number };
+    quote: PriceLines;
     isAvailable: boolean;
     paymentDelay: string;
     responseDelay: number;
@@ -39,15 +39,24 @@ export function BookingCreateClient({
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<FieldErrors>({});
 
-    const backToListing = `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&check_out=${encodeURIComponent(stay.check_out)}&guests=${stay.guests}`;
+    const isLongTerm = property.rental_duration === 'long_term';
+    const nights = quote.nights ?? 0;
+
+    const backToListing = isLongTerm
+        ? `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&guests=${stay.guests}`
+        : `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&check_out=${encodeURIComponent(stay.check_out)}&guests=${stay.guests}`;
 
     const blocker = property.is_owner
         ? 'Vous ne pouvez pas réserver votre propre logement.'
         : !isAvailable
-          ? 'Ces dates ne sont plus disponibles. Choisissez-en d’autres sur la page du logement.'
-          : quote.nights < property.min_nights
+          ? isLongTerm
+              ? 'Ce logement n’est plus disponible à cette date d’entrée.'
+              : 'Ces dates ne sont plus disponibles. Choisissez-en d’autres sur la page du logement.'
+          : !isLongTerm && nights < property.min_nights
             ? `Ce logement se réserve pour ${plural(property.min_nights, 'nuit')} minimum.`
-            : property.max_nights !== null && quote.nights > property.max_nights
+            : !isLongTerm &&
+                property.max_nights !== null &&
+                nights > property.max_nights
               ? `Ce logement se réserve pour ${plural(property.max_nights, 'nuit')} maximum.`
               : null;
 
@@ -61,7 +70,7 @@ export function BookingCreateClient({
             const res = await createBookingAction({
                 propertySlug: property.slug,
                 check_in: stay.check_in,
-                check_out: stay.check_out,
+                check_out: isLongTerm ? null : stay.check_out,
                 guests: Number(fd.get('guests') ?? stay.guests),
                 special_requests: String(fd.get('special_requests') ?? ''),
             });
@@ -83,49 +92,90 @@ export function BookingCreateClient({
                     </Link>
                     <h1 className="mt-3 text-2xl font-semibold">
                         {property.is_instant
-                            ? 'Confirmer et réserver'
-                            : 'Demander à réserver'}
+                            ? isLongTerm
+                                ? 'Confirmer la location et payer en ligne'
+                                : 'Confirmer et réserver'
+                            : isLongTerm
+                              ? 'Demander cette location longue durée'
+                              : 'Demander à réserver'}
                     </h1>
                 </div>
 
                 {blocker && <Alert tone="warning">{blocker}</Alert>}
 
                 <section className="flex flex-col gap-3">
-                    <h2 className="text-lg font-semibold">Votre séjour</h2>
-                    <dl className="grid gap-4 sm:grid-cols-3">
-                        <div>
-                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Arrivée
-                            </dt>
-                            <dd className="font-medium">
-                                {formatDate(stay.check_in, {
-                                    weekday: 'short',
-                                    day: 'numeric',
-                                    month: 'long',
-                                })}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Départ
-                            </dt>
-                            <dd className="font-medium">
-                                {formatDate(stay.check_out, {
-                                    weekday: 'short',
-                                    day: 'numeric',
-                                    month: 'long',
-                                })}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Durée
-                            </dt>
-                            <dd className="font-medium">
-                                {plural(quote.nights, 'nuit')}
-                            </dd>
-                        </div>
-                    </dl>
+                    <h2 className="text-lg font-semibold">
+                        {isLongTerm ? 'Votre location' : 'Votre séjour'}
+                    </h2>
+                    {isLongTerm ? (
+                        <dl className="grid gap-4 sm:grid-cols-3">
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Entrée souhaitée
+                                </dt>
+                                <dd className="font-medium">
+                                    {formatDate(stay.check_in, {
+                                        weekday: 'short',
+                                        day: 'numeric',
+                                        month: 'long',
+                                    })}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Loyer d’avance
+                                </dt>
+                                <dd className="font-medium">
+                                    {quote.advance_rent_months ?? 1} mois
+                                </dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Charges
+                                </dt>
+                                <dd className="font-medium">
+                                    {quote.charges_included
+                                        ? 'Comprises'
+                                        : 'Hors charges'}
+                                </dd>
+                            </div>
+                        </dl>
+                    ) : (
+                        <dl className="grid gap-4 sm:grid-cols-3">
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Arrivée
+                                </dt>
+                                <dd className="font-medium">
+                                    {formatDate(stay.check_in, {
+                                        weekday: 'short',
+                                        day: 'numeric',
+                                        month: 'long',
+                                    })}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Départ
+                                </dt>
+                                <dd className="font-medium">
+                                    {formatDate(stay.check_out, {
+                                        weekday: 'short',
+                                        day: 'numeric',
+                                        month: 'long',
+                                    })}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Durée
+                                </dt>
+                                <dd className="font-medium">
+                                    {plural(nights, 'nuit')}
+                                </dd>
+                            </div>
+                        </dl>
+                    )}
                 </section>
 
                 <form
@@ -133,7 +183,7 @@ export function BookingCreateClient({
                     className="flex flex-col gap-6"
                 >
                     <Field
-                        label="Voyageurs"
+                        label={isLongTerm ? 'Occupants' : 'Voyageurs'}
                         htmlFor="guests"
                         error={errors.guests}
                         className="max-w-xs"
@@ -147,17 +197,28 @@ export function BookingCreateClient({
                                 { length: property.max_guests },
                                 (_, count) => (
                                     <option key={count + 1} value={count + 1}>
-                                        {plural(count + 1, 'voyageur')}
+                                        {plural(
+                                            count + 1,
+                                            isLongTerm ? 'occupant' : 'voyageur',
+                                        )}
                                     </option>
                                 ),
                             )}
                         </Select>
                     </Field>
                     <Field
-                        label="Message à l’hôte (facultatif)"
+                        label={
+                            isLongTerm
+                                ? 'Présentation / message au propriétaire (facultatif)'
+                                : 'Message à l’hôte (facultatif)'
+                        }
                         htmlFor="special_requests"
                         error={errors.special_requests}
-                        hint="Présentez-vous, précisez l’objet du voyage ou votre heure d’arrivée."
+                        hint={
+                            isLongTerm
+                                ? 'Présentez votre situation, durée envisagée ou précisions sur votre entrée.'
+                                : 'Présentez-vous, précisez l’objet du voyage ou votre heure d’arrivée.'
+                        }
                     >
                         <Textarea
                             id="special_requests"
@@ -176,15 +237,15 @@ export function BookingCreateClient({
                     <div className="flex flex-col gap-2 rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
                         {property.is_instant ? (
                             <p>
-                                Vos dates sont bloquées dès maintenant. Vous
-                                disposerez de {paymentDelay} pour régler le
-                                séjour, sans quoi la réservation expirera.
+                                {isLongTerm
+                                    ? `Le logement est bloqué dès maintenant. Vous disposerez de ${paymentDelay} pour régler en ligne (${quote.advance_rent_months ?? 1} mois de loyer + caution).`
+                                    : `Vos dates sont bloquées dès maintenant. Vous disposerez de ${paymentDelay} pour régler le séjour, sans quoi la réservation expirera.`}
                             </p>
                         ) : (
                             <p>
-                                L’hôte a {responseDelay} heures pour répondre.
-                                Rien n’est débité avant son accord ; vous aurez
-                                ensuite {paymentDelay} pour payer.
+                                {isLongTerm
+                                    ? `Le propriétaire a ${responseDelay} heures pour valider votre demande. Rien n’est débité avant son accord ; vous aurez ensuite ${paymentDelay} pour payer en ligne.`
+                                    : `L’hôte a ${responseDelay} heures pour répondre. Rien n’est débité avant son accord ; vous aurez ensuite ${paymentDelay} pour payer.`}
                             </p>
                         )}
                         <p>{refundPolicy}</p>

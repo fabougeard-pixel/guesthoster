@@ -64,12 +64,48 @@ function FilterPanel({
 
     return (
         <div className="flex flex-col gap-8">
+            <fieldset className="flex flex-col gap-2">
+                <legend className="mb-2 font-semibold">
+                    Formule de location
+                </legend>
+                {[
+                    { value: null, label: 'Toutes les formules' },
+                    { value: 'short_term' as const, label: 'Courte durée' },
+                    { value: 'long_term' as const, label: 'Longue durée' },
+                ].map((option) => (
+                    <label
+                        key={option.label}
+                        className="flex items-center gap-2 text-sm"
+                    >
+                        <input
+                            type="radio"
+                            name={`${id}-duration`}
+                            checked={filters.rental_duration === option.value}
+                            onChange={() =>
+                                onVisit({
+                                    ...filters,
+                                    rental_duration: option.value,
+                                })
+                            }
+                            className="size-4 accent-primary-600"
+                        />
+                        {option.label}
+                    </label>
+                ))}
+            </fieldset>
+
             <form
-                key={`${filters.price_min}-${filters.price_max}`}
+                key={`${filters.price_min}-${filters.price_max}-${filters.rental_duration ?? 'all'}`}
                 onSubmit={submitPrice}
                 className="flex flex-col gap-3"
             >
-                <h3 className="font-semibold">Prix par nuit</h3>
+                <h3 className="font-semibold">
+                    {filters.rental_duration === 'long_term'
+                        ? 'Loyer mensuel'
+                        : filters.rental_duration === 'short_term'
+                          ? 'Prix par nuit'
+                          : 'Budget (€)'}
+                </h3>
                 <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                         <Label htmlFor={`${id}-price-min`}>Minimum (€)</Label>
@@ -193,6 +229,7 @@ export function CatalogClient({
     const activeFilters =
         filters.types.length +
         filters.amenities.length +
+        (filters.rental_duration ? 1 : 0) +
         (filters.instant ? 1 : 0) +
         (filters.price_min !== null || filters.price_max !== null ? 1 : 0);
 

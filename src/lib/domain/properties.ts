@@ -10,6 +10,9 @@ import {
     type BookingMode,
     PROPERTY_STATUS_LABELS,
     type PropertyStatus,
+    RENTAL_DURATION_OPTIONS,
+    RENTAL_DURATIONS,
+    type RentalDuration,
     type UserRole,
 } from '@/lib/domain/enums';
 import { addDays, diffInDays, isValidIsoDate, parseDate, todayIso, toIsoDate } from '@/lib/format';
@@ -93,7 +96,9 @@ export function generatePropertySlug(title: string): string {
 export function missingPropertyRequirements(input: {
     cityId: number | null;
     address: string | null;
+    rentalDuration?: RentalDuration | string;
     pricePerNight: number;
+    monthlyRent?: number;
     processedImagesCount: number;
 }): Partial<Record<string, string>> {
     const missing: Partial<Record<string, string>> = {};
@@ -102,7 +107,12 @@ export function missingPropertyRequirements(input: {
         missing.location = 'Indiquez la ville et l’adresse du logement.';
     }
 
-    if (input.pricePerNight <= 0) {
+    const isLongTerm = input.rentalDuration === 'long_term';
+    if (isLongTerm) {
+        if ((input.monthlyRent ?? 0) <= 0) {
+            missing.pricing = 'Fixez un loyer mensuel.';
+        }
+    } else if (input.pricePerNight <= 0) {
         missing.pricing = 'Fixez un prix par nuit.';
     }
 
@@ -123,12 +133,15 @@ type PropertyCardRecord = Prisma.PropertyGetPayload<{
 
 export function serializePropertyCard(property: PropertyCardRecord): PropertyCard {
     const cover = property.images[0];
+    const rentalDuration: RentalDuration =
+        property.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
 
     return {
         id: property.id,
         slug: property.slug,
         title: property.title,
         type: property.propertyType.name,
+        rental_duration: rentalDuration,
         city: property.city?.name ?? '',
         country: property.city?.country.name ?? '',
         cover_url: cover
@@ -139,6 +152,8 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
               )
             : null,
         price_per_night: property.pricePerNight,
+        monthly_rent: property.monthlyRent,
+        charges_included: property.chargesIncluded,
         max_guests: property.maxGuests,
         bedrooms: property.bedrooms,
         is_instant: property.bookingMode === 'instant',
@@ -210,8 +225,17 @@ export function parseSearchFilters(
     const instant =
         instantRaw === '1' || instantRaw === 'true' || instantRaw === 'on';
 
+    const durationRaw = Array.isArray(raw.rental_duration)
+        ? raw.rental_duration[0]
+        : raw.rental_duration;
+    const rental_duration =
+        durationRaw && (RENTAL_DURATIONS as readonly string[]).includes(durationRaw)
+            ? (durationRaw as RentalDuration)
+            : null;
+
     return {
         destination,
+        rental_duration,
         check_in: datesValid ? rawCheckIn : null,
         check_out: datesValid ? rawCheckOut : null,
         guests: toOptionalPositiveInt(raw.guests, 1, 30),
@@ -275,12 +299,14 @@ export function buildPaginated<T>(
 
 function buildPropertyOrderBy(
     sort: string,
+    rentalDuration?: RentalDuration | null,
 ): Prisma.PropertyOrderByWithRelationInput[] {
+    const priceColumn = rentalDuration === 'long_term' ? 'monthlyRent' : 'pricePerNight';
     switch (sort) {
         case 'price_asc':
-            return [{ pricePerNight: 'asc' }, { id: 'desc' }];
+            return [{ [priceColumn]: 'asc' }, { id: 'desc' }];
         case 'price_desc':
-            return [{ pricePerNight: 'desc' }, { id: 'desc' }];
+            return [{ [priceColumn]: 'desc' }, { id: 'desc' }];
         case 'top_rated':
             return [
                 { ratingAverage: { sort: 'desc', nulls: 'last' } },
@@ -336,16 +362,44 @@ export async function searchPublishedProperties(
         });
     }
 
+    if (filters.rental_duration) {
+        andClauses.push({ rentalDuration: filters.rental_duration });
+    }
+
     if (filters.guests !== null) {
         andClauses.push({ maxGuests: { gte: filters.guests } });
     }
 
     if (filters.price_min !== null) {
-        andClauses.push({ pricePerNight: { gte: filters.price_min * 100 } });
+        const minCents = filters.price_min * 100;
+        if (filters.rental_duration === 'long_term') {
+            andClauses.push({ monthlyRent: { gte: minCents } });
+        } else if (filters.rental_duration === 'short_term') {
+            andClauses.push({ pricePerNight: { gte: minCents } });
+        } else {
+            andClauses.push({
+                OR: [
+                    { rentalDuration: 'short_term', pricePerNight: { gte: minCents } },
+                    { rentalDuration: 'long_term', monthlyRent: { gte: minCents } },
+                ],
+            });
+        }
     }
 
     if (filters.price_max !== null) {
-        andClauses.push({ pricePerNight: { lte: filters.price_max * 100 } });
+        const maxCents = filters.price_max * 100;
+        if (filters.rental_duration === 'long_term') {
+            andClauses.push({ monthlyRent: { lte: maxCents } });
+        } else if (filters.rental_duration === 'short_term') {
+            andClauses.push({ pricePerNight: { lte: maxCents } });
+        } else {
+            andClauses.push({
+                OR: [
+                    { rentalDuration: 'short_term', pricePerNight: { lte: maxCents } },
+                    { rentalDuration: 'long_term', monthlyRent: { lte: maxCents } },
+                ],
+            });
+        }
     }
 
     if (filters.instant) {
@@ -378,9 +432,16 @@ export async function searchPublishedProperties(
         const startDate = parseDate(filters.check_in);
         const endDate = parseDate(filters.check_out);
 
-        andClauses.push({ minNights: { lte: nights } });
         andClauses.push({
-            OR: [{ maxNights: null }, { maxNights: { gte: nights } }],
+            OR: [
+                { rentalDuration: 'long_term' },
+                {
+                    AND: [
+                        { minNights: { lte: nights } },
+                        { OR: [{ maxNights: null }, { maxNights: { gte: nights } }] },
+                    ],
+                },
+            ],
         });
         andClauses.push({
             bookings: {
@@ -417,7 +478,7 @@ export async function searchPublishedProperties(
                     take: 1,
                 },
             },
-            orderBy: buildPropertyOrderBy(filters.sort),
+            orderBy: buildPropertyOrderBy(filters.sort, filters.rental_duration),
             skip: (safePage - 1) * perPage,
             take: perPage,
         }),
@@ -426,6 +487,7 @@ export async function searchPublishedProperties(
     const cards = rows.map(serializePropertyCard);
     const paginated = buildPaginated(cards, total, safePage, perPage, '/logements', {
         destination: filters.destination,
+        rental_duration: filters.rental_duration,
         check_in: filters.check_in,
         check_out: filters.check_out,
         guests: filters.guests,
@@ -588,6 +650,8 @@ export async function getPropertyDetailForViewer(
 
     const status = row.status as PropertyStatus;
     const bookingMode = row.bookingMode as BookingMode;
+    const rentalDuration: RentalDuration =
+        row.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
 
     const property: PropertyDetail = {
         id: row.id,
@@ -595,6 +659,7 @@ export async function getPropertyDetailForViewer(
         title: row.title,
         description: row.description,
         type: row.propertyType.name,
+        rental_duration: rentalDuration,
         status,
         status_label: PROPERTY_STATUS_LABELS[status] ?? status,
         is_instant: bookingMode === 'instant',
@@ -616,6 +681,11 @@ export async function getPropertyDetailForViewer(
         cleaning_fee: row.cleaningFee,
         min_nights: row.minNights,
         max_nights: row.maxNights,
+        monthly_rent: row.monthlyRent,
+        security_deposit: row.securityDeposit,
+        monthly_charges: row.monthlyCharges,
+        charges_included: row.chargesIncluded,
+        advance_rent_months: row.advanceRentMonths,
         check_in_time: row.checkInTime.slice(0, 5),
         check_out_time: row.checkOutTime.slice(0, 5),
         images,
@@ -683,6 +753,7 @@ export async function getHostFormOptions(): Promise<HostFormOptions> {
 
     return {
         types: types.map((t) => ({ value: String(t.id), label: t.name })),
+        rentalDurations: RENTAL_DURATION_OPTIONS,
         bookingModes: BOOKING_MODE_OPTIONS,
         countries: countries
             .filter((c) => c.cities.length > 0)
@@ -739,6 +810,8 @@ export async function getHostPropertyForEdit(
 
     const processedCount = row.images.filter((i) => i.processedAt !== null).length;
     const status = row.status as PropertyStatus;
+    const rentalDuration: RentalDuration =
+        row.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
 
     return {
         id: row.id,
@@ -747,6 +820,7 @@ export async function getHostPropertyForEdit(
         slug: row.slug,
         title: row.title,
         property_type_id: row.propertyTypeId,
+        rental_duration: rentalDuration,
         description: row.description,
         status,
         status_label: PROPERTY_STATUS_LABELS[status] ?? status,
@@ -765,6 +839,11 @@ export async function getHostPropertyForEdit(
         cleaning_fee: row.cleaningFee,
         min_nights: row.minNights,
         max_nights: row.maxNights,
+        monthly_rent: row.monthlyRent,
+        security_deposit: row.securityDeposit,
+        monthly_charges: row.monthlyCharges,
+        charges_included: row.chargesIncluded,
+        advance_rent_months: row.advanceRentMonths,
         check_in_time: row.checkInTime.slice(0, 5),
         check_out_time: row.checkOutTime.slice(0, 5),
         booking_mode: row.bookingMode,
@@ -772,7 +851,9 @@ export async function getHostPropertyForEdit(
         missing: missingPropertyRequirements({
             cityId: row.cityId,
             address: row.address,
+            rentalDuration,
             pricePerNight: row.pricePerNight,
+            monthlyRent: row.monthlyRent,
             processedImagesCount: processedCount,
         }),
     };

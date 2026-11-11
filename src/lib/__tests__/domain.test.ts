@@ -4,7 +4,7 @@ import {
     canPropertyTransitionTo,
     isPropertyEditable,
 } from '@/lib/domain/enums';
-import { quotePrice } from '@/lib/domain/pricing';
+import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     calculateRefundAmount,
     describeRefundPolicy,
@@ -47,6 +47,48 @@ describe('Pricing calculator', () => {
         expect(quote.nights).toBe(0);
         expect(quote.lodging_total).toBe(0);
         expect(quote.total_price).toBe(0);
+    });
+
+    it('computes long-term upfront payment with charges included vs excluded and configurable advance months', () => {
+        const included = quoteLongTermUpfront({
+            monthlyRent: 85_000,
+            securityDeposit: 85_000,
+            monthlyCharges: 9_000,
+            chargesIncluded: true,
+            advanceRentMonths: 1,
+        });
+
+        expect(included).toEqual({
+            monthly_rent: 85_000,
+            monthly_charges: 0,
+            charges_included: true,
+            advance_rent_months: 1,
+            upfront_rent: 85_000,
+            upfront_charges: 0,
+            security_deposit: 85_000,
+            service_fee: 0,
+            total_price: 170_000,
+        });
+
+        const excludedMultiMonths = quoteLongTermUpfront({
+            monthlyRent: 90_000,
+            securityDeposit: 120_000,
+            monthlyCharges: 8_000,
+            chargesIncluded: false,
+            advanceRentMonths: 2,
+        });
+
+        expect(excludedMultiMonths).toEqual({
+            monthly_rent: 90_000,
+            monthly_charges: 8_000,
+            charges_included: false,
+            advance_rent_months: 2,
+            upfront_rent: 180_000,
+            upfront_charges: 16_000,
+            security_deposit: 120_000,
+            service_fee: 0,
+            total_price: 316_000,
+        });
     });
 });
 

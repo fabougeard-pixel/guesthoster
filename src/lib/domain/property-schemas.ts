@@ -1,22 +1,7 @@
 import { z } from 'zod';
-import type { PropertyStatus } from '@/lib/domain/enums';
+import type { PropertyStatus, RentalDuration } from '@/lib/domain/enums';
 
-export const detailsSchema = z.object({
-    title: z
-        .string()
-        .trim()
-        .min(10, 'Le titre doit contenir au moins 10 caractères.')
-        .max(120, 'Le titre ne doit pas dépasser 120 caractères.'),
-    property_type_id: z.coerce
-        .number()
-        .int()
-        .positive('Choisissez un type de logement.'),
-    description: z
-        .string()
-        .trim()
-        .min(80, 'La description doit contenir au moins 80 caractères.')
-        .max(5000, 'La description ne doit pas dépasser 5000 caractères.'),
-});
+export const CUSTOM_PROPERTY_TYPE_OPTION = 'other';
 
 function parseOptionalCoordinate(val: unknown): unknown {
     if (val === '' || val === null || val === undefined) {
@@ -25,6 +10,99 @@ function parseOptionalCoordinate(val: unknown): unknown {
     const parsed = Number(val);
     return Number.isNaN(parsed) ? val : parsed;
 }
+
+function parseOptionalNumber(val: unknown, fallback: number | null): unknown {
+    if (val === '' || val === null || val === undefined) {
+        return fallback;
+    }
+    const parsed = Number(val);
+    return Number.isNaN(parsed) ? val : parsed;
+}
+
+function parseBooleanInput(val: unknown, fallback = true): boolean {
+    if (typeof val === 'boolean') {
+        return val;
+    }
+    if (val === 'false' || val === '0' || val === 'without_charges') {
+        return false;
+    }
+    if (val === 'true' || val === '1' || val === 'charges_included') {
+        return true;
+    }
+    return fallback;
+}
+
+function parsePropertyTypeSelection(val: unknown): number | null {
+    if (val === CUSTOM_PROPERTY_TYPE_OPTION || val === '' || val === null || val === undefined) {
+        return null;
+    }
+    const parsed = Number(val);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : -1;
+}
+
+function refinePropertyTypeSelection(
+    data: {
+        property_type_id: number | null;
+        custom_property_type?: string | null;
+    },
+    ctx: z.RefinementCtx,
+): void {
+    const customName = data.custom_property_type?.trim() ?? '';
+    if (data.property_type_id === null) {
+        if (customName.length === 0) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['property_type_id'],
+                message: 'Choisissez un type de logement.',
+            });
+            return;
+        }
+        if (customName.length < 2 || customName.length > 80) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['custom_property_type'],
+                message: 'Saisissez un nom de type entre 2 et 80 caractères.',
+            });
+        }
+        return;
+    }
+
+    if (data.property_type_id < 1) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['property_type_id'],
+            message: 'Choisissez un type de logement.',
+        });
+    }
+}
+
+export const detailsSchema = z
+    .object({
+        rental_duration: z
+            .enum(['short_term', 'long_term'])
+            .default('short_term'),
+        title: z
+            .string()
+            .trim()
+            .min(10, 'Le titre doit contenir au moins 10 caractères.')
+            .max(120, 'Le titre ne doit pas dépasser 120 caractères.'),
+        property_type_id: z.preprocess(
+            parsePropertyTypeSelection,
+            z.number().int().nullable(),
+        ),
+        custom_property_type: z
+            .string()
+            .trim()
+            .max(80, 'Le nom du type ne doit pas dépasser 80 caractères.')
+            .optional()
+            .default(''),
+        description: z
+            .string()
+            .trim()
+            .min(80, 'La description doit contenir au moins 80 caractères.')
+            .max(5000, 'La description ne doit pas dépasser 5000 caractères.'),
+    })
+    .superRefine(refinePropertyTypeSelection);
 
 export const locationSchema = z
     .object({
@@ -78,7 +156,7 @@ export const locationSchema = z
 export const capacitySchema = z.object({
     max_guests: z.coerce.number().int().min(1).max(30),
     bedrooms: z.coerce.number().int().min(0).max(30),
-    beds: z.coerce.number().int().min(1).max(50),
+    beds: z.coerce.number().int().min(0).max(50),
     bathrooms: z.coerce.number().int().min(0).max(20),
 });
 
@@ -88,42 +166,183 @@ export const amenitiesSchema = z.object({
 
 export const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const pricingFieldsObject = {
+    rental_duration: z.enum(['short_term', 'long_term']).default('short_term'),
+    price_per_night: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z.number({ message: 'Montant invalide.' }),
+    ),
+    cleaning_fee: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z.number({ message: 'Montant invalide.' }),
+    ),
+    min_nights: z.preprocess(
+        (v) => parseOptionalNumber(v, 1),
+        z.number({ message: 'Valeur invalide.' }).int(),
+    ),
+    max_nights: z.preprocess(
+        (v) => parseOptionalNumber(v, null),
+        z.number({ message: 'Valeur invalide.' }).int().nullable(),
+    ),
+    check_in_time: z
+        .string()
+        .optional()
+        .default('15:00'),
+    check_out_time: z
+        .string()
+        .optional()
+        .default('11:00'),
+    monthly_rent: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z.number({ message: 'Montant invalide.' }),
+    ),
+    security_deposit: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z.number({ message: 'Montant invalide.' }),
+    ),
+    monthly_charges: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z.number({ message: 'Montant invalide.' }),
+    ),
+    charges_included: z.preprocess(
+        (v) => parseBooleanInput(v, true),
+        z.boolean(),
+    ),
+    advance_rent_months: z.preprocess(
+        (v) => parseOptionalNumber(v, 1),
+        z.number({ message: 'Nombre de mois invalide.' }).int(),
+    ),
+    booking_mode: z.enum(['instant', 'request']),
+};
+
+function refinePricingFields(
+    data: {
+        rental_duration: RentalDuration;
+        price_per_night: number;
+        cleaning_fee: number;
+        min_nights: number;
+        max_nights: number | null;
+        check_in_time: string;
+        check_out_time: string;
+        monthly_rent: number;
+        security_deposit: number;
+        monthly_charges: number;
+        charges_included: boolean;
+        advance_rent_months: number;
+    },
+    ctx: z.RefinementCtx,
+): void {
+    if (data.rental_duration === 'long_term') {
+        if (data.monthly_rent < 50) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['monthly_rent'],
+                message: 'Le loyer mensuel minimum est de 50 €.',
+            });
+        } else if (data.monthly_rent > 50_000) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['monthly_rent'],
+                message: 'Le loyer mensuel maximum est de 50 000 €.',
+            });
+        }
+
+        if (data.security_deposit < 0 || data.security_deposit > 100_000) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['security_deposit'],
+                message: 'La caution doit être comprise entre 0 € et 100 000 €.',
+            });
+        }
+
+        if (data.advance_rent_months < 1 || data.advance_rent_months > 12) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['advance_rent_months'],
+                message: 'Choisissez entre 1 et 12 mois de loyer à l’entrée.',
+            });
+        }
+
+        if (!data.charges_included) {
+            if (data.monthly_charges < 0 || data.monthly_charges > 10_000) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['monthly_charges'],
+                    message:
+                        'Les charges mensuelles doivent être comprises entre 0 € et 10 000 €.',
+                });
+            }
+        }
+        return;
+    }
+
+    if (data.price_per_night < 10) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['price_per_night'],
+            message: 'Le tarif minimum par nuit est de 10 €.',
+        });
+    } else if (data.price_per_night > 10_000) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['price_per_night'],
+            message: 'Le tarif maximum par nuit est de 10 000 €.',
+        });
+    }
+
+    if (data.cleaning_fee < 0 || data.cleaning_fee > 1_000) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['cleaning_fee'],
+            message: 'Les frais de ménage doivent être compris entre 0 € et 1 000 €.',
+        });
+    }
+
+    if (data.min_nights < 1 || data.min_nights > 90) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['min_nights'],
+            message: 'Le séjour minimum doit être compris entre 1 et 90 nuits.',
+        });
+    }
+
+    if (data.max_nights !== null) {
+        if (data.max_nights < 1 || data.max_nights > 365) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['max_nights'],
+                message: 'Le séjour maximum ne peut pas dépasser 365 nuits.',
+            });
+        } else if (data.max_nights < data.min_nights) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['max_nights'],
+                message:
+                    'Le séjour maximum doit être supérieur ou égal au séjour minimum.',
+            });
+        }
+    }
+
+    if (!timePattern.test(data.check_in_time)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['check_in_time'],
+            message: 'Format HH:MM attendu.',
+        });
+    }
+
+    if (!timePattern.test(data.check_out_time)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['check_out_time'],
+            message: 'Format HH:MM attendu.',
+        });
+    }
+}
+
 export const pricingSchema = z
-    .object({
-        price_per_night: z.coerce
-            .number()
-            .min(10, 'Le tarif minimum par nuit est de 10 €.')
-            .max(10_000, 'Le tarif maximum par nuit est de 10 000 €.'),
-        cleaning_fee: z.preprocess(
-            (val) =>
-                val === '' || val === null || val === undefined
-                    ? 0
-                    : Number(val),
-            z
-                .number({ message: 'Montant invalide.' })
-                .min(0, 'Les frais de ménage doivent être positifs.')
-                .max(1_000, 'Les frais de ménage ne peuvent pas dépasser 1 000 €.'),
-        ),
-        min_nights: z.coerce.number().int().min(1).max(90),
-        max_nights: z.preprocess(
-            (val) =>
-                val === '' || val === null || val === undefined
-                    ? null
-                    : Number(val),
-            z.number().int().min(1).max(365).nullable(),
-        ),
-        check_in_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        check_out_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        booking_mode: z.enum(['instant', 'request']),
-    })
-    .refine(
-        (d) => d.max_nights === null || d.max_nights >= d.min_nights,
-        {
-            path: ['max_nights'],
-            message:
-                'Le séjour maximum doit être supérieur ou égal au séjour minimum.',
-        },
-    );
+    .object(pricingFieldsObject)
+    .superRefine(refinePricingFields);
 
 export const ADMIN_CREATE_STATUSES: readonly PropertyStatus[] = [
     'draft',
@@ -195,6 +414,7 @@ export const fullPropertyDraftSchema = z
     .object({
         title: detailsSchema.shape.title,
         property_type_id: detailsSchema.shape.property_type_id,
+        custom_property_type: detailsSchema.shape.custom_property_type,
         description: detailsSchema.shape.description,
         city_id: z.coerce.number().int().positive('Choisissez une ville.'),
         address: z
@@ -224,33 +444,11 @@ export const fullPropertyDraftSchema = z
         beds: capacitySchema.shape.beds,
         bathrooms: capacitySchema.shape.bathrooms,
         amenities: amenitiesSchema.shape.amenities,
-        price_per_night: z.coerce
-            .number()
-            .min(10, 'Le tarif minimum par nuit est de 10 €.')
-            .max(10_000, 'Le tarif maximum par nuit est de 10 000 €.'),
-        cleaning_fee: z.preprocess(
-            (val) =>
-                val === '' || val === null || val === undefined
-                    ? 0
-                    : Number(val),
-            z
-                .number({ message: 'Montant invalide.' })
-                .min(0, 'Les frais de ménage doivent être positifs.')
-                .max(1_000, 'Les frais de ménage ne peuvent pas dépasser 1 000 €.'),
-        ),
-        min_nights: z.coerce.number().int().min(1).max(90),
-        max_nights: z.preprocess(
-            (val) =>
-                val === '' || val === null || val === undefined
-                    ? null
-                    : Number(val),
-            z.number().int().min(1).max(365).nullable(),
-        ),
-        check_in_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        check_out_time: z.string().regex(timePattern, 'Format HH:MM attendu.'),
-        booking_mode: z.enum(['instant', 'request']),
+        ...pricingFieldsObject,
     })
     .superRefine((data, ctx) => {
+        refinePropertyTypeSelection(data, ctx);
+
         const hasLat = data.latitude !== null;
         const hasLng = data.longitude !== null;
         if (hasLat !== hasLng) {
@@ -271,14 +469,8 @@ export const fullPropertyDraftSchema = z
                 });
             }
         }
-        if (data.max_nights !== null && data.max_nights < data.min_nights) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['max_nights'],
-                message:
-                    'Le séjour maximum doit être supérieur ou égal au séjour minimum.',
-            });
-        }
+
+        refinePricingFields(data, ctx);
     });
 
 export type PropertyWizardDraftValues = {
@@ -288,8 +480,10 @@ export type PropertyWizardDraftValues = {
     owner_email: string;
     owner_password: string;
     initial_status: 'draft' | 'pending' | 'published';
+    rental_duration: RentalDuration;
     title: string;
     property_type_id: string;
+    custom_property_type: string;
     description: string;
     city_id: string;
     address: string;
@@ -305,6 +499,11 @@ export type PropertyWizardDraftValues = {
     cleaning_fee: number;
     min_nights: number;
     max_nights: number | null;
+    monthly_rent: number;
+    security_deposit: number;
+    monthly_charges: number;
+    charges_included: boolean;
+    advance_rent_months: number;
     check_in_time: string;
     check_out_time: string;
     booking_mode: 'instant' | 'request';
@@ -317,8 +516,10 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     owner_email: '',
     owner_password: '',
     initial_status: 'draft',
+    rental_duration: 'short_term',
     title: '',
     property_type_id: '',
+    custom_property_type: '',
     description: '',
     city_id: '',
     address: '',
@@ -334,8 +535,12 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     cleaning_fee: 0,
     min_nights: 1,
     max_nights: null,
+    monthly_rent: 85000,
+    security_deposit: 85000,
+    monthly_charges: 0,
+    charges_included: true,
+    advance_rent_months: 1,
     check_in_time: '15:00',
     check_out_time: '11:00',
     booking_mode: 'request',
 };
-

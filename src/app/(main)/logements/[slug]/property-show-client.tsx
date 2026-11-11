@@ -12,6 +12,7 @@ import { Modal } from '@/components/modal';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { ReviewCard } from '@/components/review-card';
 import { RatingSummary } from '@/components/star-rating';
+import { quoteLongTermUpfront } from '@/lib/domain/pricing';
 import { diffInDays, formatDate, formatPrice, plural } from '@/lib/format';
 import type { DateRange, PropertyDetail, Review } from '@/types';
 
@@ -84,7 +85,9 @@ function BookingCard({
     property,
     stay,
     guests,
+    unavailableRanges,
     onGuestsChange,
+    onMoveInChange,
     onClear,
     serviceFeeRate,
 }: {
@@ -92,9 +95,130 @@ function BookingCard({
     property: PropertyDetail;
     stay: StaySelection;
     guests: number;
+    unavailableRanges: DateRange[];
     onGuestsChange: (guests: number) => void;
+    onMoveInChange: (checkIn: string) => void;
     onClear: () => void;
 }) {
+    if (property.rental_duration === 'long_term') {
+        const quote = quoteLongTermUpfront({
+            monthlyRent: property.monthly_rent,
+            securityDeposit: property.security_deposit,
+            monthlyCharges: property.monthly_charges,
+            chargesIncluded: property.charges_included,
+            advanceRentMonths: property.advance_rent_months,
+        });
+        const isMoveInUnavailable = Boolean(
+            stay.checkIn &&
+                unavailableRanges.some(
+                    (range) =>
+                        stay.checkIn! >= range.start &&
+                        stay.checkIn! < range.end,
+                ),
+        );
+        const reserveHref = stay.checkIn
+            ? `/logements/${property.slug}/reserver?check_in=${encodeURIComponent(stay.checkIn)}&guests=${guests}`
+            : '#';
+
+        return (
+            <Card className="flex flex-col gap-5 p-6 lg:sticky lg:top-24">
+                <div className="flex flex-col gap-1">
+                    <p>
+                        <span className="text-2xl font-semibold">
+                            {formatPrice(property.monthly_rent)}
+                        </span>{' '}
+                        <span className="text-zinc-500 dark:text-zinc-400">
+                            / mois
+                        </span>
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {property.charges_included
+                            ? 'Charges comprises'
+                            : property.monthly_charges > 0
+                              ? `Hors charges (+${formatPrice(property.monthly_charges)} / mois)`
+                              : 'Hors charges'}
+                    </p>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <Label htmlFor="move-in-date">
+                        Date d’entrée souhaitée
+                    </Label>
+                    <input
+                        id="move-in-date"
+                        type="date"
+                        value={stay.checkIn ?? ''}
+                        onChange={(event) => onMoveInChange(event.target.value)}
+                        className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                    {isMoveInUnavailable && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                            Ce logement est indisponible à cette date.
+                        </p>
+                    )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <Label htmlFor="guests">Occupants</Label>
+                    <select
+                        id="guests"
+                        value={guests}
+                        onChange={(event) =>
+                            onGuestsChange(Number(event.target.value))
+                        }
+                        className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    >
+                        {Array.from(
+                            { length: property.max_guests },
+                            (_, count) => (
+                                <option key={count + 1} value={count + 1}>
+                                    {plural(count + 1, 'occupant')}
+                                </option>
+                            ),
+                        )}
+                    </select>
+                </div>
+
+                <PriceBreakdown
+                    price={{ ...quote, rental_duration: 'long_term' }}
+                    totalLabel="Total à payer à l’entrée"
+                    className="border-t border-zinc-200 pt-4 dark:border-zinc-800"
+                />
+
+                {stay.checkIn && !isMoveInUnavailable ? (
+                    <Link
+                        href={reserveHref}
+                        className={buttonClasses({ size: 'lg' })}
+                    >
+                        {property.is_instant
+                            ? 'Réserver et payer en ligne'
+                            : 'Demander cette location'}
+                    </Link>
+                ) : (
+                    <Button size="lg" disabled>
+                        {isMoveInUnavailable
+                            ? 'Date indisponible'
+                            : 'Choisissez une date d’entrée'}
+                    </Button>
+                )}
+                <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+                    {property.is_instant
+                        ? 'Paiement sécurisé en ligne, confirmation immédiate.'
+                        : 'Le propriétaire valide votre dossier avant le paiement en ligne.'}
+                </p>
+                {stay.checkIn && (
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        className="text-sm font-medium text-zinc-600 underline underline-offset-4 dark:text-zinc-300"
+                    >
+                        Effacer la date
+                    </button>
+                )}
+            </Card>
+        );
+    }
+
     const nights =
         stay.checkIn && stay.checkOut
             ? diffInDays(stay.checkIn, stay.checkOut)
@@ -212,6 +336,16 @@ export function PropertyShowClient({
     const [stay, setStay] = useState<StaySelection>(initialStay);
     const [guests, setGuests] = useState(initialGuests);
     const location = property.location;
+    const isLongTerm = property.rental_duration === 'long_term';
+    const longTermQuote = isLongTerm
+        ? quoteLongTermUpfront({
+              monthlyRent: property.monthly_rent,
+              securityDeposit: property.security_deposit,
+              monthlyCharges: property.monthly_charges,
+              chargesIncluded: property.charges_included,
+              advanceRentMonths: property.advance_rent_months,
+          })
+        : null;
 
     return (
         <Container className="flex flex-col gap-8 py-8">
@@ -247,6 +381,9 @@ export function PropertyShowClient({
                     <span>
                         {property.type} · {property.city}, {property.country}
                     </span>
+                    {isLongTerm && (
+                        <Badge tone="secondary">Location longue durée</Badge>
+                    )}
                     <Badge tone={property.is_instant ? 'primary' : 'neutral'}>
                         {property.booking_mode_label}
                     </Badge>
@@ -259,21 +396,30 @@ export function PropertyShowClient({
                 <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 [&>section]:py-8 [&>section:first-child]:pt-0">
                     <section className="flex flex-col gap-3">
                         <h2 className="text-lg font-semibold">
-                            Hébergé par {property.host.name}
+                            {isLongTerm
+                                ? `Proposé par ${property.host.name}`
+                                : `Hébergé par ${property.host.name}`}
                         </h2>
                         <p className="text-zinc-600 dark:text-zinc-400">
                             {[
-                                plural(property.max_guests, 'voyageur'),
+                                plural(
+                                    property.max_guests,
+                                    isLongTerm ? 'occupant' : 'voyageur',
+                                ),
                                 property.bedrooms > 0
                                     ? plural(property.bedrooms, 'chambre')
                                     : 'Studio',
-                                plural(property.beds, 'lit'),
+                                property.beds > 0
+                                    ? plural(property.beds, 'lit')
+                                    : null,
                                 plural(
                                     property.bathrooms,
                                     'salle de bain',
                                     'salles de bain',
                                 ),
-                            ].join(' · ')}
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}
                         </p>
                         {property.host.member_since && (
                             <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -281,6 +427,52 @@ export function PropertyShowClient({
                             </p>
                         )}
                     </section>
+
+                    {isLongTerm && longTermQuote && (
+                        <section className="flex flex-col gap-4">
+                            <h2 className="text-lg font-semibold">
+                                Conditions financières
+                            </h2>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <Card className="p-4">
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Loyer mensuel
+                                    </p>
+                                    <p className="mt-1 text-lg font-semibold">
+                                        {formatPrice(property.monthly_rent)}
+                                    </p>
+                                </Card>
+                                <Card className="p-4">
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Charges
+                                    </p>
+                                    <p className="mt-1 text-lg font-semibold">
+                                        {property.charges_included
+                                            ? 'Comprises'
+                                            : `${formatPrice(property.monthly_charges)} / mois`}
+                                    </p>
+                                </Card>
+                                <Card className="p-4">
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Caution (hors charges)
+                                    </p>
+                                    <p className="mt-1 text-lg font-semibold">
+                                        {formatPrice(property.security_deposit)}
+                                    </p>
+                                </Card>
+                                <Card className="border-primary-200 bg-primary-50/50 p-4 dark:border-primary-900 dark:bg-primary-950/30">
+                                    <p className="text-xs text-primary-700 dark:text-primary-300">
+                                        Total à payer à l’entrée (
+                                        {property.advance_rent_months} mois +
+                                        caution)
+                                    </p>
+                                    <p className="mt-1 text-lg font-bold text-primary-700 dark:text-primary-300">
+                                        {formatPrice(longTermQuote.total_price)}
+                                    </p>
+                                </Card>
+                            </div>
+                        </section>
+                    )}
 
                     <section className="flex flex-col gap-3">
                         <h2 className="text-lg font-semibold">
@@ -336,20 +528,50 @@ export function PropertyShowClient({
                                 Disponibilités
                             </h2>
                             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {property.min_nights > 1
-                                    ? `Séjour de ${plural(property.min_nights, 'nuit')} minimum. `
-                                    : ''}
-                                Arrivée à partir de {property.check_in_time},
-                                départ avant {property.check_out_time}.
+                                {isLongTerm ? (
+                                    <>
+                                        Location longue durée : sélectionnez
+                                        votre date d’entrée souhaitée pour
+                                        réserver en ligne ({property.advance_rent_months}{' '}
+                                        mois de loyer + caution).
+                                    </>
+                                ) : (
+                                    <>
+                                        {property.min_nights > 1
+                                            ? `Séjour de ${plural(property.min_nights, 'nuit')} minimum. `
+                                            : ''}
+                                        Arrivée à partir de{' '}
+                                        {property.check_in_time}, départ avant{' '}
+                                        {property.check_out_time}.
+                                    </>
+                                )}
                             </p>
                         </div>
-                        <AvailabilityCalendar
-                            unavailableRanges={unavailableRanges}
-                            value={stay}
-                            onChange={setStay}
-                            minNights={property.min_nights}
-                            maxNights={property.max_nights}
-                        />
+                        {isLongTerm ? (
+                            unavailableRanges.length > 0 ? (
+                                <ul className="flex flex-col gap-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+                                    {unavailableRanges.map((range, idx) => (
+                                        <li key={idx}>
+                                            Indisponible du{' '}
+                                            {formatDate(range.start)} au{' '}
+                                            {formatDate(range.end)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                                    Disponible immédiatement à la location.
+                                </p>
+                            )
+                        ) : (
+                            <AvailabilityCalendar
+                                unavailableRanges={unavailableRanges}
+                                value={stay}
+                                onChange={setStay}
+                                minNights={property.min_nights}
+                                maxNights={property.max_nights}
+                            />
+                        )}
                     </section>
 
                     {location && (
@@ -408,7 +630,11 @@ export function PropertyShowClient({
                         property={property}
                         stay={stay}
                         guests={guests}
+                        unavailableRanges={unavailableRanges}
                         onGuestsChange={setGuests}
+                        onMoveInChange={(checkIn) =>
+                            setStay({ checkIn: checkIn || null, checkOut: null })
+                        }
                         serviceFeeRate={serviceFeeRate}
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })

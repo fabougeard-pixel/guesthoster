@@ -7,7 +7,7 @@ import { BookingResponse } from '@/components/booking-response';
 import { BookingReview } from '@/components/booking-review';
 import { BookingStatusBadge } from '@/components/booking-status-badge';
 import { Button, buttonClasses } from '@/components/button';
-import { Card, Container } from '@/components/card';
+import { Badge, Card, Container } from '@/components/card';
 import { Alert, Field, Textarea } from '@/components/form';
 import { Modal } from '@/components/modal';
 import { PriceBreakdown } from '@/components/price-breakdown';
@@ -163,6 +163,9 @@ export function BookingShowClient({
                                 status={booking.status}
                                 label={booking.status_label}
                             />
+                            {booking.rental_duration === 'long_term' && (
+                                <Badge tone="secondary">Longue durée</Badge>
+                            )}
                         </div>
                         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                             Réservation {booking.reference}
@@ -174,49 +177,97 @@ export function BookingShowClient({
                     <StatusMessage booking={booking} />
 
                     <dl className="grid gap-6 sm:grid-cols-2">
+                        {booking.rental_duration === 'long_term' ? (
+                            <>
+                                <div>
+                                    <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        Date d’entrée prévue
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {formatDate(booking.check_in, {
+                                            weekday: 'long',
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        Première période couverte
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {booking.advance_rent_months} mois d’avance
+                                    </dd>
+                                    <dd className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        jusqu’au{' '}
+                                        {formatDate(booking.check_out, {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </dd>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        Arrivée
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {formatDate(booking.check_in, {
+                                            weekday: 'long',
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </dd>
+                                    <dd className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        à partir de{' '}
+                                        {booking.property.check_in_time}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        Départ
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {formatDate(booking.check_out, {
+                                            weekday: 'long',
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </dd>
+                                    <dd className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        avant {booking.property.check_out_time}
+                                    </dd>
+                                </div>
+                            </>
+                        )}
                         <div>
                             <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Arrivée
+                                {booking.rental_duration === 'long_term'
+                                    ? 'Occupants'
+                                    : 'Voyageurs'}
                             </dt>
                             <dd className="font-medium">
-                                {formatDate(booking.check_in, {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}
-                            </dd>
-                            <dd className="text-sm text-zinc-500 dark:text-zinc-400">
-                                à partir de {booking.property.check_in_time}
+                                {plural(
+                                    booking.guests,
+                                    booking.rental_duration === 'long_term'
+                                        ? 'occupant'
+                                        : 'voyageur',
+                                )}
                             </dd>
                         </div>
                         <div>
                             <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Départ
-                            </dt>
-                            <dd className="font-medium">
-                                {formatDate(booking.check_out, {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}
-                            </dd>
-                            <dd className="text-sm text-zinc-500 dark:text-zinc-400">
-                                avant {booking.property.check_out_time}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Voyageurs
-                            </dt>
-                            <dd className="font-medium">
-                                {plural(booking.guests, 'voyageur')}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {isHost ? 'Voyageur' : 'Hôte'}
+                                {isHost
+                                    ? booking.rental_duration === 'long_term'
+                                        ? 'Locataire'
+                                        : 'Voyageur'
+                                    : 'Hôte'}
                             </dt>
                             <dd className="font-medium">
                                 {isHost

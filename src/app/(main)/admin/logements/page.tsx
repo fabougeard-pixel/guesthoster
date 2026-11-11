@@ -8,6 +8,7 @@ import {
     PROPERTY_STATUSES,
     type BookingMode,
     type PropertyStatus,
+    type RentalDuration,
 } from '@/lib/domain/enums';
 import {
     buildPaginated,
@@ -132,6 +133,7 @@ export default async function AdminPropertiesPage({
             slug: row.slug,
             title: row.title,
             type: row.propertyType.name,
+            rental_duration: row.rentalDuration as RentalDuration,
             booking_mode: BOOKING_MODE_LABELS[bookingMode] ?? row.bookingMode,
             cover_url: cover
                 ? resolveThumbnailUrl(
@@ -142,6 +144,7 @@ export default async function AdminPropertiesPage({
                 : null,
             city: row.city?.name ?? null,
             price_per_night: row.pricePerNight,
+            monthly_rent: row.monthlyRent,
             photos: row._count.images,
             status: propertyStatus,
             status_label: PROPERTY_STATUS_LABELS[propertyStatus] ?? row.status,

@@ -16,9 +16,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     const sp = await searchParams;
     const filters = parseSearchFilters(sp);
-    const heading = filters.destination
-        ? `Logements à ${filters.destination.charAt(0).toUpperCase()}${filters.destination.slice(1)}`
-        : 'Tous les logements';
+    const cityLabel = filters.destination
+        ? `${filters.destination.charAt(0).toUpperCase()}${filters.destination.slice(1)}`
+        : null;
+    const heading =
+        filters.rental_duration === 'long_term'
+            ? cityLabel
+                ? `Locations longue durée à ${cityLabel}`
+                : 'Locations longue durée'
+            : cityLabel
+              ? `Logements à ${cityLabel}`
+              : 'Tous les logements';
 
     return {
         title: heading,
@@ -54,9 +62,17 @@ export default async function PropertiesPage({
         }),
     ]);
 
-    const heading = filters.destination
-        ? `Logements à ${filters.destination.charAt(0).toUpperCase()}${filters.destination.slice(1)}`
-        : 'Tous les logements';
+    const cityLabel = filters.destination
+        ? `${filters.destination.charAt(0).toUpperCase()}${filters.destination.slice(1)}`
+        : null;
+    const heading =
+        filters.rental_duration === 'long_term'
+            ? cityLabel
+                ? `Locations longue durée à ${cityLabel}`
+                : 'Locations longue durée'
+            : cityLabel
+              ? `Logements à ${cityLabel}`
+              : 'Tous les logements';
 
     return (
         <CatalogClient

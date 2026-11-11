@@ -16,6 +16,7 @@ import {
     nextPropertyFormStep,
     type PropertyFormStep,
     type PropertyStatus,
+    type RentalDuration,
 } from '@/lib/domain/enums';
 import {
     deletePropertyImageFiles,
@@ -35,6 +36,7 @@ import {
     locationSchema,
     pricingSchema,
 } from '@/lib/domain/property-schemas';
+import { resolveOrCreatePropertyType } from '@/lib/domain/taxonomy';
 import { addDays, isValidIsoDate, parseDate, todayIso } from '@/lib/format';
 import { notifyPropertyPublished } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
@@ -78,11 +80,146 @@ function revalidatePropertyPaths(slug: string): void {
     revalidatePath(`/hote/logements/${slug}/modifier`, 'layout');
     revalidatePath(`/admin/logements/${slug}/modifier`, 'layout');
     revalidatePath(`/logements/${slug}`);
+    revalidatePath('/logements');
+    revalidatePath('/');
+}
+
+async function resolvePropertyTypeForSave(input: {
+    propertyTypeId: number | null;
+    customPropertyType?: string;
+    existingPropertyTypeId?: number;
+}): Promise<{ id: number; name: string; created: boolean } | null> {
+    if (input.propertyTypeId === null) {
+        const customName = input.customPropertyType?.trim();
+        if (!customName) {
+            return null;
+        }
+        const resolved = await resolveOrCreatePropertyType(customName);
+        if (resolved.created) {
+            revalidatePath('/admin/types-de-logement');
+            revalidatePath('/logements');
+        }
+        return { id: resolved.id, name: resolved.name, created: resolved.created };
+    }
+
+    const found = await prisma.propertyType.findFirst({
+        where: {
+            id: input.propertyTypeId,
+            ...(input.existingPropertyTypeId
+                ? {
+                      OR: [
+                          { isActive: true },
+                          { id: input.existingPropertyTypeId },
+                      ],
+                  }
+                : { isActive: true }),
+        },
+        select: { id: true, name: true },
+    });
+
+    return found ? { ...found, created: false } : null;
+}
+
+function mapPricingToDbFields(input: {
+    rental_duration: RentalDuration;
+    price_per_night: number;
+    cleaning_fee: number;
+    min_nights: number;
+    max_nights: number | null;
+    monthly_rent: number;
+    security_deposit: number;
+    monthly_charges: number;
+    charges_included: boolean;
+    advance_rent_months: number;
+    check_in_time: string;
+    check_out_time: string;
+    booking_mode: 'instant' | 'request';
+}) {
+    if (input.rental_duration === 'long_term') {
+        return {
+            rentalDuration: 'long_term',
+            pricePerNight: 0,
+            cleaningFee: 0,
+            minNights: 1,
+            maxNights: null,
+            monthlyRent: Math.round(input.monthly_rent * 100),
+            securityDeposit: Math.round(input.security_deposit * 100),
+            monthlyCharges: input.charges_included
+                ? 0
+                : Math.round(input.monthly_charges * 100),
+            chargesIncluded: input.charges_included,
+            advanceRentMonths: Math.max(1, input.advance_rent_months),
+            checkInTime: '15:00',
+            checkOutTime: '11:00',
+            bookingMode: input.booking_mode,
+        };
+    }
+
+    return {
+        rentalDuration: 'short_term',
+        pricePerNight: Math.round(input.price_per_night * 100),
+        cleaningFee: Math.round(input.cleaning_fee * 100),
+        minNights: input.min_nights,
+        maxNights: input.max_nights,
+        monthlyRent: 0,
+        securityDeposit: 0,
+        monthlyCharges: 0,
+        chargesIncluded: true,
+        advanceRentMonths: 1,
+        checkInTime: input.check_in_time,
+        checkOutTime: input.check_out_time,
+        bookingMode: input.booking_mode,
+    };
+}
+
+export async function createCustomPropertyTypeAction(
+    name: string,
+): Promise<ActionResult<{ id: number; name: string; slug: string; created: boolean }>> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt || !isHostOrAdmin(user)) {
+        return { ok: false, error: 'Accès réservé aux hôtes vérifiés.' };
+    }
+
+    const parsed = z
+        .string()
+        .trim()
+        .min(2, 'Saisissez un nom de type entre 2 et 80 caractères.')
+        .max(80, 'Saisissez un nom de type entre 2 et 80 caractères.')
+        .safeParse(name);
+
+    if (!parsed.success) {
+        return {
+            ok: false,
+            fieldErrors: {
+                custom_property_type:
+                    parsed.error.issues[0]?.message ?? 'Nom invalide.',
+            },
+        };
+    }
+
+    const resolved = await resolveOrCreatePropertyType(parsed.data);
+    if (resolved.created) {
+        revalidatePath('/admin/types-de-logement');
+        revalidatePath('/logements');
+    }
+
+    return {
+        ok: true,
+        data: resolved,
+        toast: {
+            type: 'success',
+            message: resolved.created
+                ? `Type « ${resolved.name} » ajouté à la taxonomie.`
+                : `Type « ${resolved.name} » sélectionné.`,
+        },
+    };
 }
 
 export async function createPropertyAction(input: {
+    rental_duration?: RentalDuration;
     title: string;
-    property_type_id: number;
+    property_type_id: number | string;
+    custom_property_type?: string;
     description: string;
 }): Promise<ActionResult> {
     const user = await getFreshSessionUser();
@@ -95,9 +232,9 @@ export async function createPropertyAction(input: {
         return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
     }
 
-    const propertyType = await prisma.propertyType.findFirst({
-        where: { id: parsed.data.property_type_id, isActive: true },
-        select: { id: true },
+    const propertyType = await resolvePropertyTypeForSave({
+        propertyTypeId: parsed.data.property_type_id,
+        customPropertyType: parsed.data.custom_property_type,
     });
     if (!propertyType) {
         return {
@@ -109,6 +246,7 @@ export async function createPropertyAction(input: {
     const created = await prisma.property.create({
         data: {
             userId: user.id,
+            rentalDuration: parsed.data.rental_duration,
             title: parsed.data.title,
             slug: generatePropertySlug(parsed.data.title),
             propertyTypeId: propertyType.id,
@@ -170,9 +308,9 @@ export async function saveWizardPropertyAction(input: {
     const uniqueAmenityIds = [...new Set(parsed.data.amenities)];
 
     const [propertyType, cityRow, validAmenities] = await Promise.all([
-        prisma.propertyType.findFirst({
-            where: { id: parsed.data.property_type_id, isActive: true },
-            select: { id: true },
+        resolvePropertyTypeForSave({
+            propertyTypeId: parsed.data.property_type_id,
+            customPropertyType: parsed.data.custom_property_type,
         }),
         prisma.city.findFirst({
             where: { id: parsed.data.city_id, isActive: true },
@@ -271,13 +409,7 @@ export async function saveWizardPropertyAction(input: {
                 bedrooms: parsed.data.bedrooms,
                 beds: parsed.data.beds,
                 bathrooms: parsed.data.bathrooms,
-                pricePerNight: Math.round(parsed.data.price_per_night * 100),
-                cleaningFee: Math.round((parsed.data.cleaning_fee ?? 0) * 100),
-                minNights: parsed.data.min_nights,
-                maxNights: parsed.data.max_nights,
-                checkInTime: parsed.data.check_in_time,
-                checkOutTime: parsed.data.check_out_time,
-                bookingMode: parsed.data.booking_mode,
+                ...mapPricingToDbFields(parsed.data),
             };
 
             let targetProperty: { id: number; slug: string };
@@ -422,7 +554,9 @@ export async function finalizeWizardPropertyAction(input: {
         const missing = missingPropertyRequirements({
             cityId: property.cityId,
             address: property.address,
+            rentalDuration: property.rentalDuration,
             pricePerNight: property.pricePerNight,
+            monthlyRent: property.monthlyRent,
             processedImagesCount: isCloudinaryConfigured()
                 ? processedCount
                 : Math.max(processedCount, 3),
@@ -462,7 +596,9 @@ export async function finalizeWizardPropertyAction(input: {
     const missingForPublish = missingPropertyRequirements({
         cityId: property.cityId,
         address: property.address,
+        rentalDuration: property.rentalDuration,
         pricePerNight: property.pricePerNight,
+        monthlyRent: property.monthlyRent,
         processedImagesCount: isCloudinaryConfigured()
             ? processedCount
             : Math.max(processedCount, 3),
@@ -573,12 +709,10 @@ export async function updatePropertyStepAction(input: {
         if (!parsed.success) {
             return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
         }
-        const typeRow = await prisma.propertyType.findFirst({
-            where: {
-                id: parsed.data.property_type_id,
-                OR: [{ isActive: true }, { id: property.propertyTypeId }],
-            },
-            select: { id: true },
+        const typeRow = await resolvePropertyTypeForSave({
+            propertyTypeId: parsed.data.property_type_id,
+            customPropertyType: parsed.data.custom_property_type,
+            existingPropertyTypeId: property.propertyTypeId,
         });
         if (!typeRow) {
             return {
@@ -589,6 +723,7 @@ export async function updatePropertyStepAction(input: {
         await prisma.property.update({
             where: { id: property.id },
             data: {
+                rentalDuration: parsed.data.rental_duration,
                 title: parsed.data.title,
                 propertyTypeId: typeRow.id,
                 description: parsed.data.description,
@@ -659,21 +794,17 @@ export async function updatePropertyStepAction(input: {
                 : []),
         ]);
     } else if (input.step === 'pricing') {
-        const parsed = pricingSchema.safeParse(input.values);
+        const parsed = pricingSchema.safeParse({
+            ...input.values,
+            rental_duration:
+                input.values.rental_duration ?? property.rentalDuration,
+        });
         if (!parsed.success) {
             return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
         }
         await prisma.property.update({
             where: { id: property.id },
-            data: {
-                pricePerNight: Math.round(parsed.data.price_per_night * 100),
-                cleaningFee: Math.round((parsed.data.cleaning_fee ?? 0) * 100),
-                minNights: parsed.data.min_nights,
-                maxNights: parsed.data.max_nights,
-                checkInTime: parsed.data.check_in_time,
-                checkOutTime: parsed.data.check_out_time,
-                bookingMode: parsed.data.booking_mode,
-            },
+            data: mapPricingToDbFields(parsed.data),
         });
     }
 
@@ -748,7 +879,9 @@ async function transitionHostProperty(
         const missing = missingPropertyRequirements({
             cityId: property.cityId,
             address: property.address,
+            rentalDuration: property.rentalDuration,
             pricePerNight: property.pricePerNight,
+            monthlyRent: property.monthlyRent,
             processedImagesCount: processedCount,
         });
         const firstMissingKey = Object.keys(missing)[0];
@@ -1017,6 +1150,7 @@ export async function confirmPropertyPhotoAction(input: {
     cloudinary_public_id: string;
     version: number;
     signature: string;
+    setAsCover?: boolean;
 }): Promise<ActionResult<{ images: HostProperty['images'] }>> {
     const auth = await requireEditableHostProperty(input.slug);
     if ('error' in auth) {
@@ -1050,16 +1184,35 @@ export async function confirmPropertyPhotoAction(input: {
         -1,
     );
 
-    await prisma.propertyImage.create({
-        data: {
-            propertyId: property.id,
-            path: url,
-            thumbnailPath: thumbnail_url,
-            cloudinaryPublicId: input.cloudinary_public_id,
-            processedAt: new Date(),
-            position: maxPos + 1,
-        },
-    });
+    if (input.setAsCover) {
+        await prisma.$transaction([
+            prisma.propertyImage.updateMany({
+                where: { propertyId: property.id },
+                data: { position: { increment: 1 } },
+            }),
+            prisma.propertyImage.create({
+                data: {
+                    propertyId: property.id,
+                    path: url,
+                    thumbnailPath: thumbnail_url,
+                    cloudinaryPublicId: input.cloudinary_public_id,
+                    processedAt: new Date(),
+                    position: 0,
+                },
+            }),
+        ]);
+    } else {
+        await prisma.propertyImage.create({
+            data: {
+                propertyId: property.id,
+                path: url,
+                thumbnailPath: thumbnail_url,
+                cloudinaryPublicId: input.cloudinary_public_id,
+                processedAt: new Date(),
+                position: maxPos + 1,
+            },
+        });
+    }
 
     const images = await loadSerializedPropertyImages(property.id);
     revalidatePropertyPaths(property.slug);

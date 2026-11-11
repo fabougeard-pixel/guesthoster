@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { requireVerifiedUser } from '@/lib/auth/session';
-import { quotePrice } from '@/lib/domain/pricing';
+import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     isPropertyAvailableBetween,
     serializePropertyCard,
 } from '@/lib/domain/properties';
 import { describeRefundPolicy } from '@/lib/domain/refund-policy';
 import { env } from '@/lib/env';
-import { isValidIsoDate, plural, todayIso } from '@/lib/format';
+import { addDays, isValidIsoDate, plural, todayIso } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
 import { BookingCreateClient } from './booking-create-client';
 
@@ -67,24 +67,37 @@ export default async function BookingCreatePage({
     }
 
     const checkIn = Array.isArray(sp.check_in) ? sp.check_in[0] : sp.check_in;
-    const checkOut = Array.isArray(sp.check_out) ? sp.check_out[0] : sp.check_out;
+    const rawCheckOut = Array.isArray(sp.check_out)
+        ? sp.check_out[0]
+        : sp.check_out;
+    const isLongTerm = property.rentalDuration === 'long_term';
 
-    if (
+    if (isLongTerm) {
+        if (!isValidIsoDate(checkIn) || checkIn < todayIso()) {
+            redirect(`/logements/${property.slug}`);
+        }
+    } else if (
         !isValidIsoDate(checkIn) ||
-        !isValidIsoDate(checkOut) ||
+        !isValidIsoDate(rawCheckOut) ||
         checkIn < todayIso() ||
-        checkOut <= checkIn
+        rawCheckOut <= checkIn
     ) {
         redirect(`/logements/${property.slug}`);
     }
+
+    const checkOut = isLongTerm
+        ? isValidIsoDate(rawCheckOut) && rawCheckOut > checkIn
+            ? rawCheckOut
+            : addDays(checkIn, Math.max(1, property.advanceRentMonths) * 30)
+        : rawCheckOut!;
 
     const rawGuests = Number(
         Array.isArray(sp.guests) ? sp.guests[0] : sp.guests,
     );
     const guests =
         Number.isFinite(rawGuests) &&
-        rawGuests >= 1 &&
-        rawGuests <= property.maxGuests
+            rawGuests >= 1 &&
+            rawGuests <= property.maxGuests
             ? rawGuests
             : 1;
 
@@ -92,13 +105,27 @@ export default async function BookingCreatePage({
         isPropertyAvailableBetween(property.id, checkIn, checkOut),
     ]);
 
-    const quote = quotePrice({
-        pricePerNight: property.pricePerNight,
-        cleaningFee: property.cleaningFee,
-        checkIn,
-        checkOut,
-        serviceFeeRate: env.booking.serviceFeeRate,
-    });
+    const quote = isLongTerm
+        ? {
+            rental_duration: 'long_term' as const,
+            ...quoteLongTermUpfront({
+                monthlyRent: property.monthlyRent,
+                securityDeposit: property.securityDeposit,
+                monthlyCharges: property.monthlyCharges,
+                chargesIncluded: property.chargesIncluded,
+                advanceRentMonths: property.advanceRentMonths,
+            }),
+        }
+        : {
+            rental_duration: 'short_term' as const,
+            ...quotePrice({
+                pricePerNight: property.pricePerNight,
+                cleaningFee: property.cleaningFee,
+                checkIn,
+                checkOut,
+                serviceFeeRate: env.booking.serviceFeeRate,
+            }),
+        };
 
     const isInstant = property.bookingMode === 'instant';
     const paymentDelay = isInstant

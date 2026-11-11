@@ -195,6 +195,84 @@ describe('Property wizard Zod schemas', () => {
 
         expect(res.success).toBe(true);
     });
+
+    it('validates custom taxonomy creation via "other" property_type_id', () => {
+        expect(
+            detailsSchema.safeParse({
+                rental_duration: 'long_term',
+                title: 'Loft d’architecte au calme en centre-ville',
+                property_type_id: 'other',
+                custom_property_type: '',
+                description: validDescription,
+            }).success,
+        ).toBe(false);
+
+        const validCustom = detailsSchema.safeParse({
+            rental_duration: 'long_term',
+            title: 'Loft d’architecte au calme en centre-ville',
+            property_type_id: 'other',
+            custom_property_type: 'Loft / Atelier',
+            description: validDescription,
+        });
+        expect(validCustom.success).toBe(true);
+        if (validCustom.success) {
+            expect(validCustom.data.property_type_id).toBeNull();
+            expect(validCustom.data.custom_property_type).toBe('Loft / Atelier');
+        }
+    });
+
+    it('validates conditional long-term pricing, advance months and full long-term draft', () => {
+        const missingRent = pricingSchema.safeParse({
+            rental_duration: 'long_term',
+            monthly_rent: '',
+            security_deposit: 900,
+            monthly_charges: 80,
+            charges_included: false,
+            advance_rent_months: 1,
+            booking_mode: 'request',
+        });
+        expect(missingRent.success).toBe(false);
+
+        const validLongTermPricing = pricingSchema.safeParse({
+            rental_duration: 'long_term',
+            monthly_rent: 950,
+            security_deposit: 1200,
+            monthly_charges: 75,
+            charges_included: 'false',
+            advance_rent_months: 2,
+            booking_mode: 'instant',
+        });
+        expect(validLongTermPricing.success).toBe(true);
+        if (validLongTermPricing.success) {
+            expect(validLongTermPricing.data.charges_included).toBe(false);
+            expect(validLongTermPricing.data.advance_rent_months).toBe(2);
+        }
+
+        const fullLongTerm = fullPropertyDraftSchema.safeParse({
+            rental_duration: 'long_term',
+            title: 'Maison familiale avec jardin et garage proche commodités',
+            property_type_id: 'other',
+            custom_property_type: 'Maison de ville',
+            description: validDescription,
+            city_id: 5,
+            address: '12 Rue des Lilas',
+            postal_code: '69003',
+            latitude: '',
+            longitude: '',
+            max_guests: 4,
+            bedrooms: 2,
+            beds: 0,
+            bathrooms: 1,
+            amenities: [],
+            monthly_rent: 1100,
+            security_deposit: 1100,
+            monthly_charges: 90,
+            charges_included: true,
+            advance_rent_months: 2,
+            booking_mode: 'request',
+        });
+        expect(fullLongTerm.success).toBe(true);
+    });
 });
 
 describe('Sidebar active link matching', () => {

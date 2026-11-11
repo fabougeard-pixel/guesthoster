@@ -1,10 +1,11 @@
 import type {
     BookingStatus,
     PropertyStatus,
+    RentalDuration,
     UserRole,
 } from '@/lib/domain/enums';
 
-export type { BookingStatus, PropertyStatus, UserRole };
+export type { BookingStatus, PropertyStatus, RentalDuration, UserRole };
 
 export type Option = { value: string; label: string };
 export type CountedOption = Option & { count: number };
@@ -36,10 +37,13 @@ export type PropertyCard = {
     slug: string;
     title: string;
     type: string;
+    rental_duration: RentalDuration;
     city: string;
     country: string;
     cover_url: string | null;
     price_per_night: number;
+    monthly_rent: number;
+    charges_included: boolean;
     max_guests: number;
     bedrooms: number;
     is_instant: boolean;
@@ -63,6 +67,7 @@ export type PropertyDetail = {
     title: string;
     description: string;
     type: string;
+    rental_duration: RentalDuration;
     status: string;
     status_label: string;
     is_instant: boolean;
@@ -80,6 +85,11 @@ export type PropertyDetail = {
     cleaning_fee: number;
     min_nights: number;
     max_nights: number | null;
+    monthly_rent: number;
+    security_deposit: number;
+    monthly_charges: number;
+    charges_included: boolean;
+    advance_rent_months: number;
     check_in_time: string;
     check_out_time: string;
     images: { id: number; url: string; alt: string }[];
@@ -92,6 +102,7 @@ export type PropertyDetail = {
 
 export type SearchFilters = {
     destination: string | null;
+    rental_duration: RentalDuration | null;
     check_in: string | null;
     check_out: string | null;
     guests: number | null;
@@ -108,6 +119,7 @@ export type Booking = {
     status: BookingStatus;
     status_label: string;
     is_instant: boolean;
+    rental_duration: RentalDuration;
     check_in: string;
     check_out: string;
     nights: number;
@@ -116,6 +128,11 @@ export type Booking = {
     lodging_total: number;
     cleaning_fee: number;
     service_fee: number;
+    monthly_rent: number;
+    security_deposit: number;
+    monthly_charges: number;
+    charges_included: boolean;
+    advance_rent_months: number;
     total_price: number;
     special_requests: string | null;
     cancellation_reason: string | null;
@@ -154,11 +171,13 @@ export type HostPropertySummary = {
     id: number;
     slug: string;
     title: string;
+    rental_duration: RentalDuration;
     city: string | null;
     cover_url: string | null;
     status: PropertyStatus;
     status_label: string;
     price_per_night: number;
+    monthly_rent: number;
     upcoming_bookings: number;
     updated_at: string | null;
 };
@@ -168,6 +187,7 @@ export type HostProperty = {
     slug: string;
     title: string;
     property_type_id: number;
+    rental_duration: RentalDuration;
     description: string;
     status: PropertyStatus;
     status_label: string;
@@ -187,6 +207,11 @@ export type HostProperty = {
     cleaning_fee: number;
     min_nights: number;
     max_nights: number | null;
+    monthly_rent: number;
+    security_deposit: number;
+    monthly_charges: number;
+    charges_included: boolean;
+    advance_rent_months: number;
     check_in_time: string;
     check_out_time: string;
     booking_mode: string;
@@ -196,6 +221,7 @@ export type HostProperty = {
 
 export type HostFormOptions = {
     types: Option[];
+    rentalDurations: Option[];
     bookingModes: Option[];
     countries: { name: string; cities: { id: number; name: string }[] }[];
     amenities: { category: string; items: { id: number; name: string }[] }[];
@@ -227,10 +253,12 @@ export type AdminProperty = {
     slug: string;
     title: string;
     type: string;
+    rental_duration: RentalDuration;
     booking_mode: string;
     cover_url: string | null;
     city: string | null;
     price_per_night: number;
+    monthly_rent: number;
     photos: number;
     status: PropertyStatus;
     status_label: string;

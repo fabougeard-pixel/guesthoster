@@ -165,6 +165,11 @@ export function AdminPropertiesClient({
                                         </p>
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
                                             {property.type} ·{' '}
+                                            {property.rental_duration ===
+                                            'long_term'
+                                                ? 'Longue durée'
+                                                : 'Courte durée'}{' '}
+                                            ·{' '}
                                             {property.city ?? 'Ville non définie'}{' '}
                                             · {plural(property.photos, 'photo')}
                                         </p>
@@ -196,7 +201,9 @@ export function AdminPropertiesClient({
                                 {property.booking_mode}
                             </td>
                             <td className="px-4 py-3 text-xs font-medium whitespace-nowrap tabular-nums">
-                                {formatPrice(property.price_per_night)} / nuit
+                                {property.rental_duration === 'long_term'
+                                    ? `${formatPrice(property.monthly_rent)} / mois`
+                                    : `${formatPrice(property.price_per_night)} / nuit`}
                             </td>
                             <td className="px-4 py-3">
                                 <PropertyStatusBadge

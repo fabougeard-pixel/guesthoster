@@ -33,13 +33,26 @@ export function PropertyCard({
                         Pas encore de photo
                     </div>
                 )}
-                {property.is_instant && (
-                    <Badge
-                        tone="primary"
-                        className="absolute top-3 left-3 bg-white/95 shadow-sm dark:bg-zinc-900/95"
-                    >
-                        Réservation instantanée
-                    </Badge>
+                {(property.rental_duration === 'long_term' ||
+                    property.is_instant) && (
+                    <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                        {property.rental_duration === 'long_term' && (
+                            <Badge
+                                tone="secondary"
+                                className="bg-white/95 shadow-sm dark:bg-zinc-900/95"
+                            >
+                                Longue durée
+                            </Badge>
+                        )}
+                        {property.is_instant && (
+                            <Badge
+                                tone="primary"
+                                className="bg-white/95 shadow-sm dark:bg-zinc-900/95"
+                            >
+                                Réservation instantanée
+                            </Badge>
+                        )}
+                    </div>
                 )}
                 <FavoriteButton
                     propertyId={property.id}
@@ -68,18 +81,34 @@ export function PropertyCard({
                     </Link>
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {plural(property.max_guests, 'voyageur')}
+                    {property.rental_duration === 'long_term'
+                        ? plural(property.max_guests, 'occupant')
+                        : plural(property.max_guests, 'voyageur')}
                     {property.bedrooms > 0 &&
                         ` · ${plural(property.bedrooms, 'chambre')}`}
                 </p>
-                <p className="mt-1 text-sm">
-                    <span className="font-semibold">
-                        {formatPrice(property.price_per_night)}
-                    </span>{' '}
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                        / nuit
-                    </span>
-                </p>
+                {property.rental_duration === 'long_term' ? (
+                    <p className="mt-1 text-sm">
+                        <span className="font-semibold">
+                            {formatPrice(property.monthly_rent)}
+                        </span>{' '}
+                        <span className="text-zinc-500 dark:text-zinc-400">
+                            / mois{' '}
+                            {property.charges_included
+                                ? '· charges comprises'
+                                : '· hors charges'}
+                        </span>
+                    </p>
+                ) : (
+                    <p className="mt-1 text-sm">
+                        <span className="font-semibold">
+                            {formatPrice(property.price_per_night)}
+                        </span>{' '}
+                        <span className="text-zinc-500 dark:text-zinc-400">
+                            / nuit
+                        </span>
+                    </p>
+                )}
             </div>
         </article>
     );

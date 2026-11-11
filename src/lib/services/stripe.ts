@@ -44,6 +44,9 @@ export async function createCheckoutSession({
         expiresAt: Date | null;
         guestEmail: string;
         propertyTitle: string;
+        rentalDuration?: string;
+        advanceRentMonths?: number;
+        chargesIncluded?: boolean;
     };
     successUrl: string;
     cancelUrl: string;
@@ -57,6 +60,15 @@ export async function createCheckoutSession({
         ? Math.floor(booking.expiresAt.getTime() / 1000)
         : maxExp;
     const expiresAt = Math.max(minExp, Math.min(maxExp, targetExp));
+    const isLongTerm = booking.rentalDuration === 'long_term';
+    const months = booking.advanceRentMonths ?? 1;
+
+    const productName = isLongTerm
+        ? `Location longue durée · ${booking.propertyTitle}`
+        : `Séjour · ${booking.propertyTitle}`;
+    const productDescription = isLongTerm
+        ? `Entrée le ${booking.checkIn} · ${months} mois de loyer${booking.chargesIncluded ? ' (charges comprises)' : ' + charges'} + caution · référence ${booking.reference}`
+        : `Du ${formatLongDateFr(booking.checkIn)} au ${formatLongDateFr(booking.checkOut)} · ${booking.nights} nuit(s) · réservation ${booking.reference}`;
 
     const session = await stripe.checkout.sessions.create(
         {
@@ -75,8 +87,8 @@ export async function createCheckoutSession({
                         currency: env.stripeCurrency,
                         unit_amount: booking.totalPrice,
                         product_data: {
-                            name: `Séjour · ${booking.propertyTitle}`,
-                            description: `Du ${formatLongDateFr(booking.checkIn)} au ${formatLongDateFr(booking.checkOut)} · ${booking.nights} nuit(s) · réservation ${booking.reference}`,
+                            name: productName,
+                            description: productDescription,
                         },
                     },
                 },

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BookingStatusBadge } from '@/components/booking-status-badge';
-import { Card } from '@/components/card';
+import { Badge, Card } from '@/components/card';
 import { formatDate, formatPrice, plural } from '@/lib/format';
 import type { Booking } from '@/types';
 
@@ -38,12 +38,14 @@ export function BookingSummary({
                         status={booking.status}
                         label={booking.status_label}
                     />
+                    {booking.rental_duration === 'long_term' && (
+                        <Badge tone="secondary">Longue durée</Badge>
+                    )}
                 </div>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {formatDate(booking.check_in)} →{' '}
-                    {formatDate(booking.check_out)} ·{' '}
-                    {plural(booking.nights, 'nuit')} ·{' '}
-                    {plural(booking.guests, 'voyageur')}
+                    {booking.rental_duration === 'long_term'
+                        ? `Entrée le ${formatDate(booking.check_in)} · ${booking.advance_rent_months} mois d'avance · ${plural(booking.guests, 'occupant')}`
+                        : `${formatDate(booking.check_in)} → ${formatDate(booking.check_out)} · ${plural(booking.nights, 'nuit')} · ${plural(booking.guests, 'voyageur')}`}
                 </p>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     {booking.viewer === 'host'

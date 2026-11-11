@@ -55,6 +55,19 @@ export function isPropertyEditable(status: PropertyStatus): boolean {
     return status === 'draft' || status === 'rejected';
 }
 
+export const RENTAL_DURATIONS = ['short_term', 'long_term'] as const;
+export type RentalDuration = (typeof RENTAL_DURATIONS)[number];
+
+export const RENTAL_DURATION_LABELS: Record<RentalDuration, string> = {
+    short_term: 'Location courte durée',
+    long_term: 'Location longue durée',
+};
+
+export const RENTAL_DURATION_OPTIONS: Option[] = RENTAL_DURATIONS.map((value) => ({
+    value,
+    label: RENTAL_DURATION_LABELS[value],
+}));
+
 export const BOOKING_MODES = ['instant', 'request'] as const;
 export type BookingMode = (typeof BOOKING_MODES)[number];
 

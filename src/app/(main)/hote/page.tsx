@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
-import { Card } from '@/components/card';
+import { Badge, Card } from '@/components/card';
 import { PropertyStatusBadge } from '@/components/status-badge';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import {
     PROPERTY_STATUS_LABELS,
     type PropertyStatus,
+    type RentalDuration,
 } from '@/lib/domain/enums';
 import { resolveThumbnailUrl } from '@/lib/domain/properties';
 import { formatPrice, parseDate, plural, todayIso } from '@/lib/format';
@@ -49,10 +50,12 @@ export default async function HostDashboardPage() {
             id: row.id,
             slug: row.slug,
             title: row.title,
+            rental_duration: row.rentalDuration as RentalDuration,
             city: row.city?.name ?? null,
             status,
             status_label: PROPERTY_STATUS_LABELS[status] ?? status,
             price_per_night: row.pricePerNight,
+            monthly_rent: row.monthlyRent,
             cover_url: cover
                 ? resolveThumbnailUrl(
                       cover.thumbnailPath,
@@ -145,11 +148,20 @@ export default async function HostDashboardPage() {
                                             status={property.status}
                                             label={property.status_label}
                                         />
+                                        {property.rental_duration ===
+                                            'long_term' && (
+                                            <Badge tone="secondary">
+                                                Longue durée
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                         {property.city ?? 'Ville à préciser'}
-                                        {property.price_per_night > 0 &&
-                                            ` · ${formatPrice(property.price_per_night)} / nuit`}
+                                        {property.rental_duration === 'long_term'
+                                            ? property.monthly_rent > 0 &&
+                                              ` · ${formatPrice(property.monthly_rent)} / mois`
+                                            : property.price_per_night > 0 &&
+                                              ` · ${formatPrice(property.price_per_night)} / nuit`}
                                         {property.upcoming_bookings > 0 &&
                                             ` · ${plural(property.upcoming_bookings, 'séjour à venir', 'séjours à venir')}`}
                                     </p>

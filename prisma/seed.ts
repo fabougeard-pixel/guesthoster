@@ -116,6 +116,7 @@ const PROPERTY_TYPES: Record<string, string> = {
     appartement: 'Appartement',
     maison: 'Maison',
     gite: 'Gîte',
+    chalet: 'Chalet',
     studio: 'Studio',
     chambre: 'Chambre',
     villa: 'Villa',

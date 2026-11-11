@@ -11,7 +11,7 @@ import {
 } from '@/lib/domain/bookings';
 import { DomainError } from '@/lib/domain/properties';
 import { env } from '@/lib/env';
-import { formatLongDateFr, isValidIsoDate, todayIso } from '@/lib/format';
+import { addDays, formatLongDateFr, isValidIsoDate, todayIso } from '@/lib/format';
 import { notifyNewMessage } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
 import {
@@ -35,11 +35,13 @@ const createBookingSchema = z
             .refine(isValidIsoDate, 'Date d’arrivée invalide.'),
         check_out: z
             .string()
-            .refine(isValidIsoDate, 'Date de départ invalide.'),
+            .optional()
+            .nullable()
+            .default(''),
         guests: z.coerce
             .number()
             .int()
-            .min(1, 'Au moins 1 voyageur.')
+            .min(1, 'Au moins 1 occupant.')
             .max(30),
         special_requests: z
             .string()
@@ -49,17 +51,13 @@ const createBookingSchema = z
     })
     .refine((d) => d.check_in >= todayIso(), {
         path: ['check_in'],
-        message: 'La date d’arrivée doit être aujourd’hui ou ultérieure.',
-    })
-    .refine((d) => d.check_out > d.check_in, {
-        path: ['check_out'],
-        message: 'La date de départ doit être postérieure à la date d’arrivée.',
+        message: 'La date doit être aujourd’hui ou ultérieure.',
     });
 
 export async function createBookingAction(input: {
     propertySlug: string;
     check_in: string;
-    check_out: string;
+    check_out?: string | null;
     guests: number;
     special_requests?: string | null;
 }): Promise<ActionResult> {
@@ -81,11 +79,33 @@ export async function createBookingAction(input: {
 
     const property = await prisma.property.findUnique({
         where: { slug: parsed.data.propertySlug },
-        select: { id: true, slug: true },
+        select: {
+            id: true,
+            slug: true,
+            rentalDuration: true,
+            advanceRentMonths: true,
+        },
     });
 
     if (!property) {
         return { ok: false, error: 'Logement introuvable.' };
+    }
+
+    let checkOutIso = (parsed.data.check_out ?? '').trim();
+    if (property.rentalDuration === 'long_term') {
+        if (!checkOutIso || !isValidIsoDate(checkOutIso) || checkOutIso <= parsed.data.check_in) {
+            checkOutIso = addDays(
+                parsed.data.check_in,
+                Math.max(1, property.advanceRentMonths) * 30,
+            );
+        }
+    } else if (!isValidIsoDate(checkOutIso) || checkOutIso <= parsed.data.check_in) {
+        return {
+            ok: false,
+            fieldErrors: {
+                check_out: 'La date de départ doit être postérieure à la date d’arrivée.',
+            },
+        };
     }
 
     try {
@@ -93,7 +113,7 @@ export async function createBookingAction(input: {
             propertyId: property.id,
             guestId: user.id,
             checkInIso: parsed.data.check_in,
-            checkOutIso: parsed.data.check_out,
+            checkOutIso,
             guests: parsed.data.guests,
             specialRequests: parsed.data.special_requests,
         });
@@ -108,8 +128,10 @@ export async function createBookingAction(input: {
                 type: 'success',
                 message:
                     result.mode === 'instant'
-                        ? 'Dates bloquées ! Réglez maintenant votre réservation.'
-                        : 'Demande envoyée à l’hôte.',
+                        ? property.rentalDuration === 'long_term'
+                            ? 'Dossier enregistré ! Procédez maintenant au règlement.'
+                            : 'Dates bloquées ! Réglez maintenant votre réservation.'
+                        : 'Demande envoyée au propriétaire.',
             },
         };
     } catch (error) {
@@ -208,6 +230,9 @@ export async function initiateBookingPaymentAction(
             expiresAt: booking.expiresAt,
             guestEmail: user.email,
             propertyTitle: booking.property.title,
+            rentalDuration: booking.rentalDuration,
+            advanceRentMonths: booking.advanceRentMonths,
+            chargesIncluded: booking.chargesIncluded,
         },
         successUrl: `${env.appUrl}/reservations/${booking.reference}/paiement/retour?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${env.appUrl}/reservations/${booking.reference}`,

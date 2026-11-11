@@ -6,8 +6,9 @@ import {
     type BookingMode,
     type BookingStatus,
     canBookingTransitionTo,
+    type RentalDuration,
 } from '@/lib/domain/enums';
-import { quotePrice } from '@/lib/domain/pricing';
+import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     DomainError,
     isPropertyAvailableBetween,
@@ -152,19 +153,31 @@ export function serializeBooking(
         isActualHost &&
         Boolean(record.review && record.review.hostReply === null);
 
+    const rentalDuration: RentalDuration =
+        record.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
+
     return {
         reference: record.reference,
         status,
         status_label: BOOKING_STATUS_LABELS[status] ?? status,
         is_instant: (record.bookingMode as BookingMode) === 'instant',
+        rental_duration: rentalDuration,
         check_in: checkInIso,
         check_out: toIsoDate(record.checkOut),
         nights: record.nights,
         guests: record.guests,
         price_per_night: record.pricePerNight,
-        lodging_total: record.nights * record.pricePerNight,
+        lodging_total:
+            rentalDuration === 'long_term'
+                ? record.monthlyRent * Math.max(1, record.advanceRentMonths)
+                : record.nights * record.pricePerNight,
         cleaning_fee: record.cleaningFee,
         service_fee: record.serviceFee,
+        monthly_rent: record.monthlyRent,
+        security_deposit: record.securityDeposit,
+        monthly_charges: record.monthlyCharges,
+        charges_included: record.chargesIncluded,
+        advance_rent_months: record.advanceRentMonths,
         total_price: record.totalPrice,
         special_requests: record.specialRequests,
         cancellation_reason: record.cancellationReason,
@@ -254,16 +267,20 @@ export async function createBookingForProperty(input: {
             );
         }
 
-        if (nights < property.minNights) {
-            throw new DomainError(
-                `La durée minimale du séjour est de ${property.minNights} nuit(s).`,
-            );
-        }
+        const isLongTerm = property.rentalDuration === 'long_term';
 
-        if (property.maxNights !== null && nights > property.maxNights) {
-            throw new DomainError(
-                `La durée maximale du séjour est de ${property.maxNights} nuit(s).`,
-            );
+        if (!isLongTerm) {
+            if (nights < property.minNights) {
+                throw new DomainError(
+                    `La durée minimale du séjour est de ${property.minNights} nuit(s).`,
+                );
+            }
+
+            if (property.maxNights !== null && nights > property.maxNights) {
+                throw new DomainError(
+                    `La durée maximale du séjour est de ${property.maxNights} nuit(s).`,
+                );
+            }
         }
 
         const [overlappingBooking, overlappingBlock] = await Promise.all([
@@ -293,13 +310,25 @@ export async function createBookingForProperty(input: {
             );
         }
 
-        const quote = quotePrice({
-            pricePerNight: property.pricePerNight,
-            cleaningFee: property.cleaningFee,
-            checkIn: input.checkInIso,
-            checkOut: input.checkOutIso,
-            serviceFeeRate: env.booking.serviceFeeRate,
-        });
+        const longTermQuote = isLongTerm
+            ? quoteLongTermUpfront({
+                  monthlyRent: property.monthlyRent,
+                  securityDeposit: property.securityDeposit,
+                  monthlyCharges: property.monthlyCharges,
+                  chargesIncluded: property.chargesIncluded,
+                  advanceRentMonths: property.advanceRentMonths,
+              })
+            : null;
+
+        const shortTermQuote = !isLongTerm
+            ? quotePrice({
+                  pricePerNight: property.pricePerNight,
+                  cleaningFee: property.cleaningFee,
+                  checkIn: input.checkInIso,
+                  checkOut: input.checkOutIso,
+                  serviceFeeRate: env.booking.serviceFeeRate,
+              })
+            : null;
 
         const mode = property.bookingMode as BookingMode;
         const isInstant = mode === 'instant';
@@ -316,11 +345,26 @@ export async function createBookingForProperty(input: {
                 checkIn: start,
                 checkOut: end,
                 guests: input.guests,
-                nights: quote.nights,
-                pricePerNight: quote.price_per_night,
-                cleaningFee: quote.cleaning_fee,
-                serviceFee: quote.service_fee,
-                totalPrice: quote.total_price,
+                nights: isLongTerm ? nights : shortTermQuote!.nights,
+                pricePerNight: isLongTerm
+                    ? property.monthlyRent
+                    : shortTermQuote!.price_per_night,
+                cleaningFee: isLongTerm ? 0 : shortTermQuote!.cleaning_fee,
+                serviceFee: isLongTerm ? 0 : shortTermQuote!.service_fee,
+                totalPrice: isLongTerm
+                    ? longTermQuote!.total_price
+                    : shortTermQuote!.total_price,
+                rentalDuration: isLongTerm ? 'long_term' : 'short_term',
+                monthlyRent: isLongTerm ? property.monthlyRent : 0,
+                securityDeposit: isLongTerm ? property.securityDeposit : 0,
+                monthlyCharges:
+                    isLongTerm && !property.chargesIncluded
+                        ? property.monthlyCharges
+                        : 0,
+                chargesIncluded: isLongTerm ? property.chargesIncluded : true,
+                advanceRentMonths: isLongTerm
+                    ? Math.max(1, property.advanceRentMonths)
+                    : 1,
                 bookingMode: mode,
                 status: isInstant ? 'awaiting_payment' : 'pending',
                 specialRequests: input.specialRequests?.trim() || null,
