@@ -115,14 +115,15 @@ describe('Resend HTML email rendering', () => {
 });
 
 describe('Supabase PostgreSQL URL normalization', () => {
-    it('adds pgbouncer=true, connection_limit=1 and sslmode=require for pooler port 6543', () => {
+    it('adds pgbouncer=true, connection_limit=5, pool_timeout=20 and sslmode=require for pooler port 6543', () => {
         const normalized = normalizeDatabaseUrl(
-            'postgresql://postgres.demo:secret@aws-1-eu-west-1.pooler.supabase.com:6543/postgres',
+            'postgresql://postgres.demo:secret@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?connection_limit=1',
         );
         expect(normalized).toBeDefined();
         const url = new URL(normalized!);
         expect(url.searchParams.get('pgbouncer')).toBe('true');
-        expect(url.searchParams.get('connection_limit')).toBe('1');
+        expect(url.searchParams.get('connection_limit')).toBe('5');
+        expect(url.searchParams.get('pool_timeout')).toBe('20');
         expect(url.searchParams.get('sslmode')).toBe('require');
     });
 

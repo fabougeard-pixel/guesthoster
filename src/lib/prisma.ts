@@ -12,8 +12,21 @@ export function normalizeDatabaseUrl(raw: string | undefined): string | undefine
             if (!url.searchParams.has('pgbouncer')) {
                 url.searchParams.set('pgbouncer', 'true');
             }
-            if (!url.searchParams.has('connection_limit')) {
-                url.searchParams.set('connection_limit', '1');
+            const currentLimit = Number(url.searchParams.get('connection_limit'));
+            if (
+                !url.searchParams.has('connection_limit') ||
+                !Number.isFinite(currentLimit) ||
+                currentLimit < 5
+            ) {
+                url.searchParams.set('connection_limit', '5');
+            }
+            const currentTimeout = Number(url.searchParams.get('pool_timeout'));
+            if (
+                !url.searchParams.has('pool_timeout') ||
+                !Number.isFinite(currentTimeout) ||
+                currentTimeout < 20
+            ) {
+                url.searchParams.set('pool_timeout', '20');
             }
         }
         const isLocal =
@@ -30,9 +43,9 @@ export function normalizeDatabaseUrl(raw: string | undefined): string | undefine
 export function resolveRuntimeDatabaseUrl(): string | undefined {
     return normalizeDatabaseUrl(
         process.env.DATABASE_URL ||
-            process.env.POSTGRES_PRISMA_URL ||
-            process.env.POSTGRES_URL ||
-            process.env.DB_URL,
+        process.env.POSTGRES_PRISMA_URL ||
+        process.env.POSTGRES_URL ||
+        process.env.DB_URL,
     );
 }
 
@@ -52,6 +65,4 @@ export const prisma =
                 : ['error'],
     });
 
-if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;

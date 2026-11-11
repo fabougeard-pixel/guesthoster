@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorView } from '@/components/error-view';
-import { hasAdminUser, requireAdminAccess } from '@/lib/auth/session';
+import { resolveAdminAccess } from '@/lib/auth/session';
 import { formatDateTime, formatPrice, parseDate, plural, todayIso } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
 import { AdminSetupForm } from './admin-setup-form';
@@ -60,12 +60,11 @@ function RevenueChart({
 }
 
 export default async function AdminDashboardPage() {
-    if (!(await hasAdminUser())) {
+    const access = await resolveAdminAccess('/admin');
+    if (access === 'setup') {
         return <AdminSetupForm />;
     }
-
-    const admin = await requireAdminAccess('/admin');
-    if (!admin) {
+    if (access === 'forbidden') {
         return <ErrorView status={403} />;
     }
 
@@ -87,32 +86,30 @@ export default async function AdminDashboardPage() {
     const twelveMonthsAgo = new Date(now.getTime() - 365 * 86_400_000);
 
     const [
-        published,
-        pendingReview,
-        pendingRequests,
-        awaitingPayment,
+        propertyStatusGroups,
+        bookingStatusGroups,
         upcomingStays,
-        hostsCount,
-        travelersCount,
-        paidSixMonths,
+        userRoleGroups,
         paidTwelveMonths,
         reviewQueueRows,
     ] = await Promise.all([
-        prisma.property.count({ where: { status: 'published' } }),
-        prisma.property.count({ where: { status: 'pending' } }),
-        prisma.booking.count({ where: { status: 'pending' } }),
-        prisma.booking.count({ where: { status: 'awaiting_payment' } }),
+        prisma.property.groupBy({
+            by: ['status'],
+            where: { status: { in: ['published', 'pending'] } },
+            _count: { _all: true },
+        }),
+        prisma.booking.groupBy({
+            by: ['status'],
+            where: { status: { in: ['pending', 'awaiting_payment'] } },
+            _count: { _all: true },
+        }),
         prisma.booking.count({
             where: { status: 'confirmed', checkOut: { gt: todayDate } },
         }),
-        prisma.user.count({ where: { role: 'host' } }),
-        prisma.user.count({ where: { role: 'client' } }),
-        prisma.booking.findMany({
-            where: {
-                status: { in: ['confirmed', 'completed'] },
-                paidAt: { not: null, gte: sixMonthsStart },
-            },
-            select: { paidAt: true, totalPrice: true, serviceFee: true },
+        prisma.user.groupBy({
+            by: ['role'],
+            where: { role: { in: ['host', 'client'] } },
+            _count: { _all: true },
         }),
         prisma.booking.findMany({
             where: {
@@ -120,7 +117,9 @@ export default async function AdminDashboardPage() {
                 paidAt: { not: null, gte: twelveMonthsAgo },
             },
             select: {
+                paidAt: true,
                 totalPrice: true,
+                serviceFee: true,
                 property: {
                     select: {
                         owner: {
@@ -152,11 +151,28 @@ export default async function AdminDashboardPage() {
         }),
     ]);
 
+    const published =
+        propertyStatusGroups.find((g) => g.status === 'published')?._count._all ??
+        0;
+    const pendingReview =
+        propertyStatusGroups.find((g) => g.status === 'pending')?._count._all ??
+        0;
+    const pendingRequests =
+        bookingStatusGroups.find((g) => g.status === 'pending')?._count._all ??
+        0;
+    const awaitingPayment =
+        bookingStatusGroups.find((g) => g.status === 'awaiting_payment')?._count
+            ._all ?? 0;
+    const hostsCount =
+        userRoleGroups.find((g) => g.role === 'host')?._count._all ?? 0;
+    const travelersCount =
+        userRoleGroups.find((g) => g.role === 'client')?._count._all ?? 0;
+
     const monthTotals = new Map(
         monthKeys.map((m) => [m, { volume: 0, fees: 0 }]),
     );
-    for (const row of paidSixMonths) {
-        if (!row.paidAt) {
+    for (const row of paidTwelveMonths) {
+        if (!row.paidAt || row.paidAt < sixMonthsStart) {
             continue;
         }
         const ym = `${row.paidAt.getUTCFullYear()}-${String(row.paidAt.getUTCMonth() + 1).padStart(2, '0')}`;

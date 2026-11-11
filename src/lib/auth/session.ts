@@ -185,22 +185,50 @@ export const hasAdminUser = cache(async (): Promise<boolean> => {
 });
 
 /**
- * Protects /admin routes: redirects to /admin if setup is still pending,
+ * Resolves admin access without an extra DB query when the active session already belongs to a verified admin.
+ */
+export async function resolveAdminAccess(
+    currentPath = '/admin',
+): Promise<'setup' | 'forbidden' | PrismaUser> {
+    const user = await getSessionUserRecord();
+    if (user && isAdmin(user)) {
+        if (!user.emailVerifiedAt) {
+            redirect('/email/verify');
+        }
+        return user;
+    }
+
+    if (!(await hasAdminUser())) {
+        return 'setup';
+    }
+
+    if (!user) {
+        redirect(`/login?redirect=${encodeURIComponent(currentPath)}`);
+    }
+
+    if (!user.emailVerifiedAt) {
+        redirect('/email/verify');
+    }
+
+    return 'forbidden';
+}
+
+/**
+ * Protects /admin subpages: redirects to /admin if setup is still pending,
  * to /login if unauthenticated, or returns null when the verified user is not an admin.
  */
 export async function requireAdminAccess(
     currentPath = '/admin',
 ): Promise<PrismaUser | null> {
-    if (!(await hasAdminUser())) {
+    const access = await resolveAdminAccess(currentPath);
+    if (access === 'setup') {
         redirect('/admin');
     }
-
-    const user = await requireVerifiedUser(currentPath);
-    if (!isAdmin(user)) {
+    if (access === 'forbidden') {
         return null;
     }
 
-    return user;
+    return access;
 }
 
 export function sha256Hex(value: string): string {
