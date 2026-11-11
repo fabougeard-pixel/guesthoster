@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import type { Prisma } from '@prisma/client';
+import { ErrorView } from '@/components/error-view';
+import { requireAdminAccess } from '@/lib/auth/session';
 import {
     BOOKING_MODE_LABELS,
     BOOKING_STATUS_LABELS,
@@ -25,6 +27,11 @@ export default async function AdminBookingsPage({
 }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+    const admin = await requireAdminAccess('/admin/reservations');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
     const sp = await searchParams;
     const search = firstParam(sp.search).trim();
     const rawStatus = firstParam(sp.status).trim();

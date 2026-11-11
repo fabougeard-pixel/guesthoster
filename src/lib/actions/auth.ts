@@ -2,6 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import {
+    type AdminSetupInput,
+    createInitialAdminUser,
+} from '@/lib/auth/admin-setup';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import {
     clearSessionCookie,
@@ -102,7 +106,40 @@ export async function loginAction(input: {
 
     return {
         ok: true,
-        redirectTo: safeInternalPath(parsed.data.redirectTo, '/'),
+        redirectTo: safeInternalPath(
+            parsed.data.redirectTo,
+            user.role === 'admin' ? '/admin' : '/',
+        ),
+    };
+}
+
+export async function setupInitialAdminAction(
+    input: AdminSetupInput,
+): Promise<ActionResult> {
+    const outcome = await createInitialAdminUser(input, prisma);
+    if (!outcome.ok) {
+        if (outcome.alreadyConfigured) {
+            revalidatePath('/admin', 'layout');
+        }
+        return {
+            ok: false,
+            error: outcome.error,
+            fieldErrors: outcome.fieldErrors,
+        };
+    }
+
+    await clearSessionCookie();
+    revalidatePath('/', 'layout');
+    revalidatePath('/admin', 'layout');
+
+    return {
+        ok: true,
+        redirectTo: '/login?redirect=%2Fadmin&admin_setup=1',
+        toast: {
+            type: 'success',
+            message:
+                'Compte administrateur créé. Connectez-vous pour accéder à l’administration.',
+        },
     };
 }
 

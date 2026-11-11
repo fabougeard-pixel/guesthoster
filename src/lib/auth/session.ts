@@ -139,17 +139,24 @@ export async function getFreshSessionUser(): Promise<PrismaUser | null> {
     return fetchActiveUserFromCookies();
 }
 
-export async function requireAuthenticatedUser(): Promise<PrismaUser> {
+export async function requireAuthenticatedUser(
+    redirectTo?: string,
+): Promise<PrismaUser> {
     const user = await getSessionUserRecord();
     if (!user) {
-        redirect('/login');
+        const target = redirectTo
+            ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+            : '/login';
+        redirect(target);
     }
 
     return user;
 }
 
-export async function requireVerifiedUser(): Promise<PrismaUser> {
-    const user = await requireAuthenticatedUser();
+export async function requireVerifiedUser(
+    redirectTo?: string,
+): Promise<PrismaUser> {
+    const user = await requireAuthenticatedUser(redirectTo);
     if (!user.emailVerifiedAt) {
         redirect('/email/verify');
     }
@@ -163,6 +170,37 @@ export function isHostOrAdmin(user: Pick<PrismaUser, 'role'>): boolean {
 
 export function isAdmin(user: Pick<PrismaUser, 'role'>): boolean {
     return user.role === 'admin';
+}
+
+/**
+ * Per-request memoized check for whether at least one admin account exists.
+ */
+export const hasAdminUser = cache(async (): Promise<boolean> => {
+    const admin = await prisma.user.findFirst({
+        where: { role: 'admin' },
+        select: { id: true },
+    });
+
+    return admin !== null;
+});
+
+/**
+ * Protects /admin routes: redirects to /admin if setup is still pending,
+ * to /login if unauthenticated, or returns null when the verified user is not an admin.
+ */
+export async function requireAdminAccess(
+    currentPath = '/admin',
+): Promise<PrismaUser | null> {
+    if (!(await hasAdminUser())) {
+        redirect('/admin');
+    }
+
+    const user = await requireVerifiedUser(currentPath);
+    if (!isAdmin(user)) {
+        return null;
+    }
+
+    return user;
 }
 
 export function sha256Hex(value: string): string {

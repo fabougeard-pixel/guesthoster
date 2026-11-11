@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { ErrorView } from '@/components/error-view';
+import { requireAdminAccess } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import type { AdminPropertyType } from '@/types';
 import { AdminPropertyTypesClient } from './admin-property-types-client';
@@ -10,6 +12,11 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPropertyTypesPage() {
+    const admin = await requireAdminAccess('/admin/types-de-logement');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
     const rows = await prisma.propertyType.findMany({
         include: { _count: { select: { properties: true } } },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],

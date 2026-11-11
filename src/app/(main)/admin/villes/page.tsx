@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import type { Prisma } from '@prisma/client';
+import { ErrorView } from '@/components/error-view';
+import { requireAdminAccess } from '@/lib/auth/session';
 import { buildPaginated } from '@/lib/domain/properties';
 import { prisma } from '@/lib/prisma';
 import { firstParam, parsePageParam } from '@/lib/search-params';
@@ -17,6 +19,11 @@ export default async function AdminCitiesPage({
 }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+    const admin = await requireAdminAccess('/admin/villes');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
     const sp = await searchParams;
     const search = firstParam(sp.search).trim();
     const rawCountry = firstParam(sp.country).trim();

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { Prisma } from '@prisma/client';
-import { getCurrentUser } from '@/lib/auth/session';
+import { ErrorView } from '@/components/error-view';
+import { requireAdminAccess } from '@/lib/auth/session';
 import {
     USER_ROLE_LABELS,
     USER_ROLES,
@@ -23,7 +24,12 @@ export default async function AdminUsersPage({
 }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-    const [viewer, sp] = await Promise.all([getCurrentUser(), searchParams]);
+    const admin = await requireAdminAccess('/admin/utilisateurs');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
+    const sp = await searchParams;
     const search = firstParam(sp.search).trim();
     const rawRole = firstParam(sp.role).trim();
     const role = (USER_ROLES as readonly string[]).includes(rawRole)
@@ -77,7 +83,7 @@ export default async function AdminUsersPage({
             created_at: row.createdAt?.toISOString() ?? null,
             properties: row._count.properties,
             bookings: row._count.bookings,
-            is_self: row.id === viewer?.id,
+            is_self: row.id === admin.id,
         };
     });
 

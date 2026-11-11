@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { ErrorView } from '@/components/error-view';
+import { requireAdminAccess } from '@/lib/auth/session';
 import {
     AMENITY_CATEGORY_LABELS,
     type AmenityCategory,
@@ -14,6 +16,11 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminAmenitiesPage() {
+    const admin = await requireAdminAccess('/admin/equipements');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
     const rows = await prisma.amenity.findMany({
         include: { _count: { select: { properties: true } } },
         orderBy: [

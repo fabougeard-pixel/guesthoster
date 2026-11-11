@@ -22,6 +22,7 @@ export default async function LoginPage({
     const sp = await searchParams;
     const verified = sp.verified === '1';
     const reset = sp.reset === '1';
+    const adminSetup = sp.admin_setup === '1';
     const redirectParam =
         typeof sp.redirect === 'string' ? sp.redirect : undefined;
 
@@ -29,7 +30,9 @@ export default async function LoginPage({
         ? 'Votre adresse e-mail est confirmée. Connectez-vous pour continuer.'
         : reset
           ? 'Votre mot de passe a été réinitialisé.'
-          : undefined;
+          : adminSetup
+            ? 'Compte administrateur créé. Connectez-vous pour accéder à l’administration.'
+            : undefined;
 
     return <LoginForm status={status} redirectTo={redirectParam} />;
 }

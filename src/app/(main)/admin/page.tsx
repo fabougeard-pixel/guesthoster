@@ -2,8 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
 import { Card } from '@/components/card';
+import { ErrorView } from '@/components/error-view';
+import { hasAdminUser, requireAdminAccess } from '@/lib/auth/session';
 import { formatDateTime, formatPrice, parseDate, plural, todayIso } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
+import { AdminSetupForm } from './admin-setup-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +60,15 @@ function RevenueChart({
 }
 
 export default async function AdminDashboardPage() {
+    if (!(await hasAdminUser())) {
+        return <AdminSetupForm />;
+    }
+
+    const admin = await requireAdminAccess('/admin');
+    if (!admin) {
+        return <ErrorView status={403} />;
+    }
+
     const todayDate = parseDate(todayIso());
     const now = new Date();
 
