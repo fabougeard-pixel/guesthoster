@@ -273,6 +273,52 @@ describe('Property wizard Zod schemas', () => {
         });
         expect(fullLongTerm.success).toBe(true);
     });
+
+    it('accepts FormData null values on unmounted conditional inputs', () => {
+        const detailsWithNulls = detailsSchema.safeParse({
+            rental_duration: null,
+            title: 'Appartement calme',
+            property_type_id: '1',
+            custom_property_type: null,
+            description: validDescription,
+        });
+        expect(detailsWithNulls.success).toBe(true);
+        if (detailsWithNulls.success) {
+            expect(detailsWithNulls.data.rental_duration).toBe('short_term');
+            expect(detailsWithNulls.data.custom_property_type).toBe('');
+        }
+
+        const longTermPricingWithNulls = pricingSchema.safeParse({
+            rental_duration: 'long_term',
+            monthly_rent: 900,
+            security_deposit: 900,
+            monthly_charges: null,
+            charges_included: 'true',
+            advance_rent_months: '1',
+            check_in_time: null,
+            check_out_time: null,
+            price_per_night: null,
+            cleaning_fee: null,
+            min_nights: null,
+            max_nights: null,
+            booking_mode: 'request',
+        });
+        expect(longTermPricingWithNulls.success).toBe(true);
+        if (longTermPricingWithNulls.success) {
+            expect(longTermPricingWithNulls.data.check_in_time).toBe('15:00');
+            expect(longTermPricingWithNulls.data.check_out_time).toBe('11:00');
+        }
+
+        const adminOwnerWithNulls = adminOwnerSchema.safeParse({
+            owner_mode: 'existing',
+            owner_id: '3',
+            owner_name: null,
+            owner_email: null,
+            owner_password: null,
+            initial_status: 'published',
+        });
+        expect(adminOwnerWithNulls.success).toBe(true);
+    });
 });
 
 describe('Sidebar active link matching', () => {

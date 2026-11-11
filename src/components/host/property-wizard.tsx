@@ -372,29 +372,43 @@ function validateStep(
     }
 
     const fd = form ? new FormData(form) : null;
+    const getStr = (key: string, fallback: unknown = ''): string => {
+        if (!fd) {
+            return typeof fallback === 'string'
+                ? fallback
+                : fallback == null
+                  ? ''
+                  : String(fallback);
+        }
+        const v = fd.get(key);
+        return typeof v === 'string' ? v : '';
+    };
 
     switch (step) {
         case 'details': {
             const res = detailsSchema.safeParse({
-                rental_duration: fd
-                    ? fd.get('rental_duration')
-                    : values.rental_duration,
-                title: fd ? fd.get('title') : values.title,
-                property_type_id: fd
-                    ? fd.get('property_type_id')
-                    : values.property_type_id,
-                custom_property_type: fd
-                    ? fd.get('custom_property_type')
-                    : values.custom_property_type,
-                description: fd ? fd.get('description') : values.description,
+                rental_duration: getStr(
+                    'rental_duration',
+                    values.rental_duration,
+                ),
+                title: getStr('title', values.title),
+                property_type_id: getStr(
+                    'property_type_id',
+                    values.property_type_id,
+                ),
+                custom_property_type: getStr(
+                    'custom_property_type',
+                    values.custom_property_type,
+                ),
+                description: getStr('description', values.description),
             });
             return res.success ? null : zodToFieldErrors(res.error);
         }
         case 'location': {
             const res = locationSchema.safeParse({
                 city_id: fd ? fd.get('city_id') : values.city_id,
-                address: fd ? fd.get('address') : values.address,
-                postal_code: fd ? fd.get('postal_code') : values.postal_code,
+                address: getStr('address', values.address),
+                postal_code: getStr('postal_code', values.postal_code),
                 latitude: fd ? fd.get('latitude') : values.latitude,
                 longitude: fd ? fd.get('longitude') : values.longitude,
             });
@@ -419,7 +433,10 @@ function validateStep(
         }
         case 'pricing': {
             const res = pricingSchema.safeParse({
-                rental_duration: values.rental_duration,
+                rental_duration: getStr(
+                    'rental_duration',
+                    values.rental_duration,
+                ) || values.rental_duration,
                 price_per_night: fd
                     ? fd.get('price_per_night')
                     : values.price_per_night > 0
@@ -448,12 +465,12 @@ function validateStep(
                     ? fd.get('advance_rent_months')
                     : values.advance_rent_months,
                 check_in_time: fd
-                    ? fd.get('check_in_time')
+                    ? (fd.get('check_in_time') ?? values.check_in_time)
                     : values.check_in_time,
                 check_out_time: fd
-                    ? fd.get('check_out_time')
+                    ? (fd.get('check_out_time') ?? values.check_out_time)
                     : values.check_out_time,
-                booking_mode: fd ? fd.get('booking_mode') : values.booking_mode,
+                booking_mode: getStr('booking_mode', values.booking_mode),
             });
             return res.success ? null : zodToFieldErrors(res.error);
         }
@@ -712,7 +729,38 @@ export function PropertyWizard({
             formRef.current,
         );
         if (stepErrors && Object.keys(stepErrors).length > 0) {
+            const firstError = Object.values(stepErrors).find(
+                (msg) => typeof msg === 'string' && msg.trim() !== '',
+            );
             setErrors(stepErrors);
+            setGeneralError(
+                firstError
+                    ? `Impossible de passer à l’étape suivante : ${firstError}`
+                    : 'Veuillez corriger les champs signalés avant de continuer.',
+            );
+            requestAnimationFrame(() => {
+                const formEl = formRef.current;
+                if (!formEl) {
+                    return;
+                }
+                const invalidEl = formEl.querySelector<HTMLElement>(
+                    '[aria-invalid="true"]',
+                );
+                if (invalidEl) {
+                    invalidEl.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                    });
+                    invalidEl.focus?.();
+                    return;
+                }
+                formEl
+                    .querySelector<HTMLElement>('[role="alert"]')
+                    ?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                    });
+            });
             return;
         }
 

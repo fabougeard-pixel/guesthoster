@@ -76,31 +76,52 @@ function refinePropertyTypeSelection(
     }
 }
 
+function parseTextInput(val: unknown): string {
+    return typeof val === 'string' ? val : '';
+}
+
+function parseOptionalEnumInput(val: unknown): unknown {
+    return val === null || val === undefined || val === '' ? undefined : val;
+}
+
+function parseOptionalTimeInput(val: unknown, fallback: string): string {
+    return typeof val === 'string' && val.trim() !== '' ? val : fallback;
+}
+
 export const detailsSchema = z
     .object({
-        rental_duration: z
-            .enum(['short_term', 'long_term'])
-            .default('short_term'),
-        title: z
-            .string()
-            .trim()
-            .min(10, 'Le titre doit contenir au moins 10 caractères.')
-            .max(120, 'Le titre ne doit pas dépasser 120 caractères.'),
+        rental_duration: z.preprocess(
+            parseOptionalEnumInput,
+            z.enum(['short_term', 'long_term']).default('short_term'),
+        ),
+        title: z.preprocess(
+            parseTextInput,
+            z
+                .string()
+                .trim()
+                .min(10, 'Le titre doit contenir au moins 10 caractères.')
+                .max(120, 'Le titre ne doit pas dépasser 120 caractères.'),
+        ),
         property_type_id: z.preprocess(
             parsePropertyTypeSelection,
             z.number().int().nullable(),
         ),
-        custom_property_type: z
-            .string()
-            .trim()
-            .max(80, 'Le nom du type ne doit pas dépasser 80 caractères.')
-            .optional()
-            .default(''),
-        description: z
-            .string()
-            .trim()
-            .min(80, 'La description doit contenir au moins 80 caractères.')
-            .max(5000, 'La description ne doit pas dépasser 5000 caractères.'),
+        custom_property_type: z.preprocess(
+            parseTextInput,
+            z
+                .string()
+                .trim()
+                .max(80, 'Le nom du type ne doit pas dépasser 80 caractères.')
+                .default(''),
+        ),
+        description: z.preprocess(
+            parseTextInput,
+            z
+                .string()
+                .trim()
+                .min(80, 'La description doit contenir au moins 80 caractères.')
+                .max(5000, 'La description ne doit pas dépasser 5000 caractères.'),
+        ),
     })
     .superRefine(refinePropertyTypeSelection);
 
@@ -167,7 +188,10 @@ export const amenitiesSchema = z.object({
 export const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const pricingFieldsObject = {
-    rental_duration: z.enum(['short_term', 'long_term']).default('short_term'),
+    rental_duration: z.preprocess(
+        parseOptionalEnumInput,
+        z.enum(['short_term', 'long_term']).default('short_term'),
+    ),
     price_per_night: z.preprocess(
         (v) => parseOptionalNumber(v, 0),
         z.number({ message: 'Montant invalide.' }),
@@ -184,14 +208,14 @@ const pricingFieldsObject = {
         (v) => parseOptionalNumber(v, null),
         z.number({ message: 'Valeur invalide.' }).int().nullable(),
     ),
-    check_in_time: z
-        .string()
-        .optional()
-        .default('15:00'),
-    check_out_time: z
-        .string()
-        .optional()
-        .default('11:00'),
+    check_in_time: z.preprocess(
+        (v) => parseOptionalTimeInput(v, '15:00'),
+        z.string().default('15:00'),
+    ),
+    check_out_time: z.preprocess(
+        (v) => parseOptionalTimeInput(v, '11:00'),
+        z.string().default('11:00'),
+    ),
     monthly_rent: z.preprocess(
         (v) => parseOptionalNumber(v, 0),
         z.number({ message: 'Montant invalide.' }),
@@ -212,7 +236,12 @@ const pricingFieldsObject = {
         (v) => parseOptionalNumber(v, 1),
         z.number({ message: 'Nombre de mois invalide.' }).int(),
     ),
-    booking_mode: z.enum(['instant', 'request']),
+    booking_mode: z.preprocess(
+        parseOptionalEnumInput,
+        z.enum(['instant', 'request'], {
+            message: 'Veuillez choisir un mode de réservation.',
+        }),
+    ),
 };
 
 function refinePricingFields(
@@ -360,16 +389,22 @@ export const adminOwnerSchema = z
                     : Number(val),
             z.number().int().positive().nullable(),
         ),
-        owner_name: z.string().trim().max(120).optional().default(''),
-        owner_email: z
-            .string()
-            .trim()
-            .toLowerCase()
-            .max(255)
-            .optional()
-            .default(''),
-        owner_password: z.string().max(128).optional().default(''),
-        initial_status: z.enum(['draft', 'pending', 'published']).default('draft'),
+        owner_name: z.preprocess(
+            parseTextInput,
+            z.string().trim().max(120).default(''),
+        ),
+        owner_email: z.preprocess(
+            parseTextInput,
+            z.string().trim().toLowerCase().max(255).default(''),
+        ),
+        owner_password: z.preprocess(
+            parseTextInput,
+            z.string().max(128).default(''),
+        ),
+        initial_status: z.preprocess(
+            parseOptionalEnumInput,
+            z.enum(['draft', 'pending', 'published']).default('draft'),
+        ),
     })
     .superRefine((data, ctx) => {
         if (data.owner_mode === 'existing') {
