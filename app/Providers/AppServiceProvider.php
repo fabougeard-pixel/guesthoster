@@ -46,15 +46,21 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureMail(): void
     {
-        Mail::extend('resend', function (array $config): ResendApiTransport {
-            $apiKey = $config['key'] ?? config('services.resend.key');
+        Mail::extend('resend', $this->createResendTransport(...));
+    }
 
-            if (! is_string($apiKey) || $apiKey === '') {
-                throw new RuntimeException('La clé API Resend (RESEND_API_KEY) est manquante.');
-            }
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    protected function createResendTransport(array $config): ResendApiTransport
+    {
+        $apiKey = $config['key'] ?? config('services.resend.key');
 
-            return new ResendApiTransport($apiKey);
-        });
+        if (! is_string($apiKey) || $apiKey === '') {
+            throw new RuntimeException('La clé API Resend (RESEND_API_KEY) est manquante.');
+        }
+
+        return new ResendApiTransport($apiKey);
     }
 
     protected function configureHttps(): void
