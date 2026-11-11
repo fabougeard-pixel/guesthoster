@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
 import { Badge, Card, Container } from '@/components/card';
+import { HeroSlider } from '@/components/hero-slider';
 import { PropertyCard } from '@/components/property-card';
-import { SearchBar } from '@/components/search-bar';
 import { serializePropertyCard } from '@/lib/domain/properties';
 import { plural } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
@@ -310,57 +310,7 @@ export default async function HomePage() {
 
     return (
         <>
-            <section className="relative overflow-hidden bg-linear-to-br from-secondary-800 via-secondary-900 to-secondary-950 text-white">
-                <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -top-24 -right-24 size-96 rounded-full bg-primary-500/20 blur-3xl"
-                />
-                <Container className="relative py-16 sm:py-24">
-                    <span className="inline-flex items-center rounded-full border border-primary-400/30 bg-primary-500/15 px-3 py-1 text-xs font-semibold tracking-wide text-primary-200 uppercase">
-                        Séjours & locations longue durée
-                    </span>
-                    <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-                        Appartements, chalets et locations longue durée en
-                        quelques clics.
-                    </h1>
-                    <p className="mt-5 max-w-2xl text-lg text-secondary-100">
-                        Réservez votre prochain séjour à la nuitée ou louez au
-                        mois en toute transparence. Propriétaires : gérez vos
-                        biens ou confiez-les en conciergerie.
-                    </p>
-                    <SearchBar destinations={destinations} className="mt-10" />
-
-                    <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-secondary-200">
-                            Accès rapide :
-                        </span>
-                        <Link
-                            href="/logements?types[]=appartement"
-                            className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 font-medium text-white transition hover:border-primary-400 hover:bg-primary-500"
-                        >
-                            Appartements
-                        </Link>
-                        <Link
-                            href="/logements?types[]=chalet"
-                            className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 font-medium text-white transition hover:border-primary-400 hover:bg-primary-500"
-                        >
-                            Chalets
-                        </Link>
-                        <Link
-                            href="/logements?rental_duration=long_term"
-                            className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 font-medium text-white transition hover:border-primary-400 hover:bg-primary-500"
-                        >
-                            Locations longue durée
-                        </Link>
-                        <Link
-                            href="/logements"
-                            className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 font-medium text-white transition hover:border-primary-400 hover:bg-primary-500"
-                        >
-                            Toutes les annonces
-                        </Link>
-                    </div>
-                </Container>
-            </section>
+            <HeroSlider destinations={destinations} />
 
             {featuredCities.length > 0 && (
                 <section
