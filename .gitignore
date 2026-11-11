@@ -1,26 +1,25 @@
-/.phpunit.cache
-/bootstrap/ssr
+# Dependencies & build Next.js
 /node_modules
-/public/build
-/public/fonts-manifest.dev.json
-/public/hot
-/public/storage
-/resources/js/actions
-/resources/js/routes
-/resources/js/wayfinder
-/storage/*.key
-/storage/pail
-/vendor
+/.next
+/out
+/build
+/coverage
+/next-env.d.ts
+/tsconfig.tsbuildinfo
+
+# Vercel & environment secrets
+/.vercel
 .env
-.env.backup
-.env.production
-.phpactor.json
-.phpunit.result.cache
-Homestead.json
-Homestead.yaml
-npm-debug.log
-yarn-error.log
-/auth.json
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors & agent tooling
 /.fleet
 /.idea
 /.nova
@@ -40,7 +39,6 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
-/.vercel
 
 # Ancienne version (référence locale, contient des secrets)
 /OLD_VERSION
