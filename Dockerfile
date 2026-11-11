@@ -31,8 +31,17 @@ RUN sed -i 's/\r$//' /app/deploy/docker-entrypoint.sh \
     && chmod +x /app/deploy/docker-entrypoint.sh \
     && chmod -R 775 /app/storage /app/bootstrap/cache
 
-ENV APP_ENV=production \
+ENV APP_NAME=GuestHoster \
+    APP_ENV=production \
+    APP_LOCALE=fr \
     LOG_CHANNEL=stderr \
+    DB_CONNECTION=pgsql \
+    DB_SSLMODE=require \
+    SESSION_DRIVER=database \
+    CACHE_STORE=database \
+    BROADCAST_CONNECTION=null \
+    QUEUE_CONNECTION=sync \
+    INERTIA_SSR_ENABLED=false \
     VIEW_COMPILED_PATH=/tmp/storage/framework/views \
     SERVER_NAME=:80
 

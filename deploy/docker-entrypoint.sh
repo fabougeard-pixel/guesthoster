@@ -12,5 +12,9 @@ mkdir -p \
     /tmp/storage/framework/views \
     /tmp/storage/logs
 
+if [ "${RUN_MIGRATIONS:-true}" = "true" ] && [ "${DB_CONNECTION:-pgsql}" = "pgsql" ] && { [ -n "${DB_URL:-}" ] || [ -n "${DB_HOST:-}" ]; }; then
+    php artisan app:bootstrap-database --no-interaction || true
+fi
+
 exec "$@"
 
