@@ -3,6 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { createSignedToken, verifySignedToken } from '@/lib/auth/tokens';
 import {
+    normalizeDatabaseUrl,
+    resolveRuntimeDatabaseUrl,
+} from '@/lib/prisma';
+import {
     cloudinaryDeliveryUrls,
     isValidPropertyPublicId,
     signPropertyUpload,
@@ -107,6 +111,33 @@ describe('Resend HTML email rendering', () => {
         expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
         expect(html).toContain('&quot;sécurisé&quot; &amp; vérifié');
         expect(html).toContain('a=1&amp;b=2');
+    });
+});
+
+describe('Supabase PostgreSQL URL normalization', () => {
+    it('adds pgbouncer=true, connection_limit=1 and sslmode=require for pooler port 6543', () => {
+        const normalized = normalizeDatabaseUrl(
+            'postgresql://postgres.demo:secret@aws-1-eu-west-1.pooler.supabase.com:6543/postgres',
+        );
+        expect(normalized).toBeDefined();
+        const url = new URL(normalized!);
+        expect(url.searchParams.get('pgbouncer')).toBe('true');
+        expect(url.searchParams.get('connection_limit')).toBe('1');
+        expect(url.searchParams.get('sslmode')).toBe('require');
+    });
+
+    it('falls back to DB_URL when DATABASE_URL is absent', () => {
+        vi.stubEnv('DATABASE_URL', '');
+        vi.stubEnv('POSTGRES_PRISMA_URL', '');
+        vi.stubEnv('POSTGRES_URL', '');
+        vi.stubEnv(
+            'DB_URL',
+            'postgresql://postgres:pw@aws-1-eu-west-1.pooler.supabase.com:6543/postgres',
+        );
+
+        const resolved = resolveRuntimeDatabaseUrl();
+        expect(resolved).toContain('pgbouncer=true');
+        expect(resolved).toContain('sslmode=require');
     });
 });
 

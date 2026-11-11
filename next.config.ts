@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+    serverExternalPackages: ['@prisma/client', 'bcryptjs'],
+    outputFileTracingIncludes: {
+        '/**': ['./node_modules/.prisma/client/**/*'],
+    },
     images: {
         remotePatterns: [
             {
@@ -21,4 +25,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-

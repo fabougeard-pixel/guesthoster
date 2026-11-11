@@ -78,39 +78,47 @@ function StepList({
 }
 
 export default async function HomePage() {
-    const [activeCities, latestRows] = await Promise.all([
-        prisma.city.findMany({
-            where: { isActive: true },
-            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-            include: {
-                country: { select: { name: true } },
-                properties: {
-                    where: {
-                        status: 'published',
-                        owner: { is: { suspendedAt: null } },
+    let activeCities;
+    let latestRows;
+
+    try {
+        [activeCities, latestRows] = await Promise.all([
+            prisma.city.findMany({
+                where: { isActive: true },
+                orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+                include: {
+                    country: { select: { name: true } },
+                    properties: {
+                        where: {
+                            status: 'published',
+                            owner: { is: { suspendedAt: null } },
+                        },
+                        select: { id: true },
                     },
-                    select: { id: true },
                 },
-            },
-        }),
-        prisma.property.findMany({
-            where: {
-                status: 'published',
-                owner: { is: { suspendedAt: null } },
-            },
-            include: {
-                city: { include: { country: true } },
-                propertyType: true,
-                images: {
-                    where: { processedAt: { not: null } },
-                    orderBy: { position: 'asc' },
-                    take: 1,
+            }),
+            prisma.property.findMany({
+                where: {
+                    status: 'published',
+                    owner: { is: { suspendedAt: null } },
                 },
-            },
-            orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
-            take: 8,
-        }),
-    ]);
+                include: {
+                    city: { include: { country: true } },
+                    propertyType: true,
+                    images: {
+                        where: { processedAt: { not: null } },
+                        orderBy: { position: 'asc' },
+                        take: 1,
+                    },
+                },
+                orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+                take: 8,
+            }),
+        ]);
+    } catch (error) {
+        console.error('[HomePage] Database query failed:', error);
+        throw error;
+    }
 
     const destinations = activeCities.map((city) => city.name);
     const popularCities = activeCities

@@ -19,7 +19,13 @@ const messages: Record<number, { title: string; description: string }> = {
     },
 };
 
-export function ErrorView({ status }: { status: number }) {
+export function ErrorView({
+    status,
+    digest,
+}: {
+    status: number;
+    digest?: string;
+}) {
     const info = messages[status] ?? messages[500]!;
 
     return (
@@ -31,10 +37,14 @@ export function ErrorView({ status }: { status: number }) {
             <p className="mt-2 max-w-md text-zinc-600 dark:text-zinc-400">
                 {info.description}
             </p>
+            {digest && (
+                <p className="mt-3 font-mono text-xs text-zinc-400">
+                    Référence : {digest}
+                </p>
+            )}
             <Link href="/" className={buttonClasses({ className: 'mt-8' })}>
                 Retour à l’accueil
             </Link>
         </Container>
     );
 }
-
