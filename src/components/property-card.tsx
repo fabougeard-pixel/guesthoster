@@ -26,53 +26,71 @@ export function PropertyCard({
                         src={property.cover_url}
                         alt=""
                         loading="lazy"
-                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                 ) : (
                     <div className="flex size-full items-center justify-center text-sm text-zinc-400">
                         Pas encore de photo
                     </div>
                 )}
-                {(property.rental_duration === 'long_term' ||
-                    property.is_instant) && (
-                    <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        {property.rental_duration === 'long_term' && (
-                            <Badge
-                                tone="secondary"
-                                className="bg-white/95 shadow-sm dark:bg-zinc-900/95"
-                            >
-                                Longue durée
-                            </Badge>
-                        )}
-                        {property.is_instant && (
-                            <Badge
-                                tone="primary"
-                                className="bg-white/95 shadow-sm dark:bg-zinc-900/95"
-                            >
-                                Réservation instantanée
-                            </Badge>
-                        )}
-                    </div>
-                )}
+
+                {/* Badges en superposition */}
+                <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
+                    {property.rental_duration === 'long_term' ? (
+                        <Badge
+                            tone="secondary"
+                            className="bg-white/95 text-secondary-900 shadow-md backdrop-blur-xs font-semibold dark:bg-zinc-900/95 dark:text-zinc-100"
+                        >
+                            Longue durée
+                        </Badge>
+                    ) : (
+                        <Badge
+                            tone="neutral"
+                            className="bg-white/90 text-zinc-800 shadow-sm backdrop-blur-xs dark:bg-zinc-900/90 dark:text-zinc-200"
+                        >
+                            Séjour vacances
+                        </Badge>
+                    )}
+                    {property.is_instant && (
+                        <Badge
+                            tone="primary"
+                            className="bg-primary-500/95 text-white shadow-md backdrop-blur-xs font-medium"
+                        >
+                            ⚡ Instantané
+                        </Badge>
+                    )}
+                </div>
+
+                {/* Type de bien affiché en bas de photo */}
+                <div className="absolute bottom-2.5 left-2.5 pointer-events-none">
+                    <span className="inline-flex items-center rounded-lg bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-xs">
+                        {property.type}
+                    </span>
+                </div>
+
                 <FavoriteButton
                     propertyId={property.id}
                     slug={property.slug}
                     title={property.title}
-                    className="absolute top-2 right-2"
+                    className="absolute top-2.5 right-2.5 shadow-md"
                 />
             </div>
-            <div className="flex flex-col gap-0.5">
-                <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {property.type} · {property.city}, {property.country}
+
+            <div className="flex flex-col gap-1">
+                {/* Ville & Avis */}
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-zinc-500 truncate dark:text-zinc-400">
+                        {property.city}, {property.country}
                     </p>
                     <RatingSummary
                         average={property.rating_average}
                         count={property.reviews_count}
-                        className="shrink-0"
+                        className="shrink-0 text-xs"
                     />
                 </div>
-                <h3 className="line-clamp-1 font-medium">
+
+                {/* Titre */}
+                <h3 className="line-clamp-1 text-sm font-semibold text-zinc-900 transition group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
                     <Link
                         href={href}
                         className="after:absolute after:inset-0 focus-visible:outline-none after:focus-visible:rounded-2xl after:focus-visible:outline-2 after:focus-visible:outline-primary-500"
@@ -80,34 +98,78 @@ export function PropertyCard({
                         {property.title}
                     </Link>
                 </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {property.rental_duration === 'long_term'
-                        ? plural(property.max_guests, 'occupant')
-                        : plural(property.max_guests, 'voyageur')}
-                    {property.bedrooms > 0 &&
-                        ` · ${plural(property.bedrooms, 'chambre')}`}
-                </p>
+
+                {/* Configuration complète : Voyageurs · Chambres · Lits · Salle de bain */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span>
+                        {property.rental_duration === 'long_term'
+                            ? plural(property.max_guests, 'occupant')
+                            : plural(property.max_guests, 'voyageur')}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                        {property.bedrooms > 0
+                            ? plural(property.bedrooms, 'chambre')
+                            : 'Studio'}
+                    </span>
+                    {property.beds > 0 && (
+                        <>
+                            <span aria-hidden="true">·</span>
+                            <span>{plural(property.beds, 'lit')}</span>
+                        </>
+                    )}
+                    {property.bathrooms > 0 && (
+                        <>
+                            <span aria-hidden="true">·</span>
+                            <span>{plural(property.bathrooms, 'sdb')}</span>
+                        </>
+                    )}
+                </div>
+
+                {/* Tarifs et conditions financières */}
                 {property.rental_duration === 'long_term' ? (
-                    <p className="mt-1 text-sm">
-                        <span className="font-semibold">
-                            {formatPrice(property.monthly_rent)}
-                        </span>{' '}
-                        <span className="text-zinc-500 dark:text-zinc-400">
-                            / mois{' '}
-                            {property.charges_included
-                                ? '· charges comprises'
-                                : '· hors charges'}
-                        </span>
-                    </p>
+                    <div className="mt-1 flex flex-col gap-0.5 border-t border-zinc-100 pt-1.5 dark:border-zinc-800">
+                        <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-sm">
+                                <span className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                                    {formatPrice(property.monthly_rent)}
+                                </span>{' '}
+                                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    / mois
+                                </span>
+                            </p>
+                            <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                                {property.charges_included
+                                    ? 'Charges comprises'
+                                    : `+${formatPrice(property.monthly_charges)} charges`}
+                            </span>
+                        </div>
+                        {property.security_deposit > 0 && (
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                Caution : {formatPrice(property.security_deposit)}
+                            </p>
+                        )}
+                    </div>
                 ) : (
-                    <p className="mt-1 text-sm">
-                        <span className="font-semibold">
-                            {formatPrice(property.price_per_night)}
-                        </span>{' '}
-                        <span className="text-zinc-500 dark:text-zinc-400">
-                            / nuit
-                        </span>
-                    </p>
+                    <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-zinc-100 pt-1.5 dark:border-zinc-800">
+                        <p className="text-sm">
+                            <span className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                                {formatPrice(property.price_per_night)}
+                            </span>{' '}
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                / nuit
+                            </span>
+                        </p>
+                        {property.cleaning_fee > 0 ? (
+                            <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                Ménage : {formatPrice(property.cleaning_fee)}
+                            </span>
+                        ) : (
+                            <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                                Ménage inclus
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
         </article>

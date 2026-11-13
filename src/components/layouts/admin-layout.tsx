@@ -24,10 +24,15 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                     ],
                 },
                 {
-                    heading: 'Gestion locative',
+                    heading: 'Gestions',
                     links: [
                         {
-                            label: 'Logements',
+                            label: 'Propriétaires',
+                            href: '/admin/proprietaires',
+                            icon: 'users',
+                        },
+                        {
+                            label: 'Logements en gestion',
                             href: '/admin/logements',
                             excludePaths: ['/admin/logements/nouveau'],
                             icon: 'home',
@@ -44,9 +49,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             icon: 'calendar',
                         },
                         {
-                            label: 'Utilisateurs',
+                            label: 'Tous les utilisateurs',
                             href: '/admin/utilisateurs',
-                            icon: 'users',
+                            icon: 'shield',
                         },
                     ],
                 },

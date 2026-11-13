@@ -27,6 +27,9 @@ export default async function AdminCreatePropertyPage({
 
     const sp = await searchParams;
     const draftSlug = firstParam(sp.draft).trim();
+    const rawOwnerId = Number(firstParam(sp.owner_id));
+    const defaultOwnerId =
+        Number.isFinite(rawOwnerId) && rawOwnerId > 0 ? rawOwnerId : null;
 
     const [options, owners, initialDraft] = await Promise.all([
         getHostFormOptions(),
@@ -41,6 +44,7 @@ export default async function AdminCreatePropertyPage({
             owners={owners}
             currentUserId={admin.id}
             initialDraft={initialDraft}
+            defaultOwnerId={defaultOwnerId}
         />
     );
 }

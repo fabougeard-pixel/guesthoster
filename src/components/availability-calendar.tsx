@@ -51,18 +51,33 @@ export function AvailabilityCalendar({
     onChange,
     minNights = 1,
     maxNights = null,
+    monthsCount = 1,
+    mode = 'all',
+    onDatePick,
 }: {
     unavailableRanges: DateRange[];
     value: StaySelection;
     onChange?: (value: StaySelection) => void;
     minNights?: number;
     maxNights?: number | null;
+    monthsCount?: 1 | 2;
+    mode?: 'all' | 'checkIn' | 'checkOut';
+    onDatePick?: (day: string) => void;
 }) {
     const today = todayIso();
     const [firstMonth, setFirstMonth] = useState(
-        monthStart(value.checkIn ?? today),
+        monthStart(
+            mode === 'checkOut' && value.checkIn
+                ? value.checkIn
+                : value.checkIn ?? today,
+        ),
     );
-    const selecting = value.checkIn !== null && value.checkOut === null;
+
+    const selecting =
+        mode === 'checkOut' ||
+        (mode === 'all' &&
+            value.checkIn !== null &&
+            value.checkOut === null);
 
     function canCheckOut(day: string): boolean {
         if (value.checkIn === null || day <= value.checkIn) {
@@ -97,9 +112,17 @@ export function AvailabilityCalendar({
             value.checkOut !== null &&
             day > value.checkIn &&
             day < value.checkOut;
-        const selectable = onChange
-            ? !past && (selecting ? canCheckOut(day) || !taken : !taken)
-            : false;
+
+        let selectable = false;
+        if (onChange && !past) {
+            if (mode === 'checkIn') {
+                selectable = !taken;
+            } else if (mode === 'checkOut') {
+                selectable = canCheckOut(day);
+            } else {
+                selectable = selecting ? canCheckOut(day) || !taken : !taken;
+            }
+        }
 
         return { past, taken, isCheckIn, isCheckOut, inRange, selectable };
     }
@@ -109,17 +132,53 @@ export function AvailabilityCalendar({
             return;
         }
 
+        if (mode === 'checkIn') {
+            const keepCheckOut =
+                value.checkOut !== null && value.checkOut > day && canCheckOutFrom(day, value.checkOut);
+            onChange({
+                checkIn: day,
+                checkOut: keepCheckOut ? value.checkOut : null,
+            });
+            onDatePick?.(day);
+            return;
+        }
+
+        if (mode === 'checkOut') {
+            if (canCheckOut(day)) {
+                onChange({ checkIn: value.checkIn, checkOut: day });
+                onDatePick?.(day);
+            }
+            return;
+        }
+
         if (selecting && canCheckOut(day)) {
             onChange({ checkIn: value.checkIn, checkOut: day });
+            onDatePick?.(day);
         } else {
             onChange({ checkIn: day, checkOut: null });
+            onDatePick?.(day);
         }
     }
 
+    function canCheckOutFrom(start: string, end: string): boolean {
+        const nights = diffInDays(start, end);
+        if (nights < minNights || (maxNights !== null && nights > maxNights)) {
+            return false;
+        }
+        for (let night = start; night < end; night = addDays(night, 1)) {
+            if (isNightTaken(night, unavailableRanges)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     const canGoBack = firstMonth > monthStart(today);
+    const monthsToShow =
+        monthsCount === 1 ? [firstMonth] : [firstMonth, addMonths(firstMonth, 1)];
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
                 <button
                     type="button"
@@ -141,6 +200,12 @@ export function AvailabilityCalendar({
                         />
                     </svg>
                 </button>
+                <span className="text-sm font-semibold capitalize text-zinc-800 dark:text-zinc-200">
+                    {formatDate(firstMonth, {
+                        month: 'long',
+                        year: 'numeric',
+                    })}
+                </span>
                 <button
                     type="button"
                     onClick={() => setFirstMonth(addMonths(firstMonth, 1))}
@@ -162,74 +227,79 @@ export function AvailabilityCalendar({
                 </button>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2">
-                {[firstMonth, addMonths(firstMonth, 1)].map(
-                    (month, monthIndex) => (
-                        <div
-                            key={month}
-                            className={cn(
-                                monthIndex === 1 && 'hidden sm:block',
-                            )}
-                        >
+            <div
+                className={cn(
+                    'grid gap-6',
+                    monthsCount === 2 && 'sm:grid-cols-2',
+                )}
+            >
+                {monthsToShow.map((month, monthIndex) => (
+                    <div
+                        key={month}
+                        className={cn(
+                            monthIndex === 1 && 'hidden sm:block',
+                        )}
+                    >
+                        {monthsCount === 2 && (
                             <p className="mb-2 text-center text-sm font-semibold capitalize">
                                 {formatDate(month, {
                                     month: 'long',
                                     year: 'numeric',
                                 })}
                             </p>
-                            <div className="grid grid-cols-7 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                                {weekdays.map((weekday) => (
-                                    <span key={weekday} className="py-1">
-                                        {weekday}
-                                    </span>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-y-1">
-                                {monthGrid(month).map((day, cell) => {
-                                    if (day === null) {
-                                        return <span key={`empty-${cell}`} />;
-                                    }
-
-                                    const state = dayState(day);
-                                    const unavailable =
-                                        state.past ||
-                                        (state.taken && !state.selectable);
-
-                                    return (
-                                        <button
-                                            key={day}
-                                            type="button"
-                                            disabled={!state.selectable}
-                                            onClick={() => select(day)}
-                                            aria-pressed={
-                                                state.isCheckIn ||
-                                                state.isCheckOut
-                                            }
-                                            aria-label={`${formatDate(day, { weekday: 'long', day: 'numeric', month: 'long' })}${unavailable ? ', indisponible' : ''}${state.isCheckIn ? ', arrivée' : ''}${state.isCheckOut ? ', départ' : ''}`}
-                                            className={cn(
-                                                'mx-auto flex size-9 items-center justify-center rounded-full text-sm transition-colors',
-                                                state.selectable &&
-                                                    'hover:bg-primary-50 dark:hover:bg-primary-950',
-                                                unavailable &&
-                                                    'text-zinc-300 line-through dark:text-zinc-600',
-                                                !onChange &&
-                                                    !unavailable &&
-                                                    'text-zinc-700 dark:text-zinc-300',
-                                                state.inRange &&
-                                                    'rounded-none bg-primary-50 text-primary-800 dark:bg-primary-950 dark:text-primary-200',
-                                                (state.isCheckIn ||
-                                                    state.isCheckOut) &&
-                                                    'bg-primary-600 font-semibold text-white hover:bg-primary-700',
-                                            )}
-                                        >
-                                            {parseDate(day).getUTCDate()}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                        )}
+                        <div className="grid grid-cols-7 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                            {weekdays.map((weekday) => (
+                                <span key={weekday} className="py-1">
+                                    {weekday}
+                                </span>
+                            ))}
                         </div>
-                    ),
-                )}
+                        <div className="grid grid-cols-7 gap-y-1">
+                            {monthGrid(month).map((day, cell) => {
+                                if (day === null) {
+                                    return <span key={`empty-${cell}`} />;
+                                }
+
+                                const state = dayState(day);
+                                const unavailable =
+                                    state.past ||
+                                    (state.taken && !state.selectable);
+
+                                return (
+                                    <button
+                                        key={day}
+                                        type="button"
+                                        disabled={!state.selectable}
+                                        onClick={() => select(day)}
+                                        aria-pressed={
+                                            state.isCheckIn ||
+                                            state.isCheckOut
+                                        }
+                                        aria-label={`${formatDate(day, { weekday: 'long', day: 'numeric', month: 'long' })}${unavailable ? ', indisponible' : ''}${state.isCheckIn ? ', arrivée' : ''}${state.isCheckOut ? ', départ' : ''}`}
+                                        className={cn(
+                                            'mx-auto flex size-8 sm:size-9 items-center justify-center rounded-full text-xs sm:text-sm transition-colors',
+                                            state.selectable &&
+                                                'hover:bg-primary-50 dark:hover:bg-primary-950 font-medium',
+                                            unavailable &&
+                                                'text-zinc-300 line-through dark:text-zinc-600 cursor-not-allowed',
+                                            !onChange &&
+                                                !unavailable &&
+                                                'text-zinc-700 dark:text-zinc-300',
+                                            state.inRange &&
+                                                'rounded-none bg-primary-50 text-primary-800 dark:bg-primary-950 dark:text-primary-200 font-medium',
+                                            (state.isCheckIn ||
+                                                state.isCheckOut) &&
+                                                'bg-primary-600 font-bold text-white hover:bg-primary-700',
+                                        )}
+                                    >
+                                        {parseDate(day).getUTCDate()}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

@@ -43,9 +43,15 @@ export type PropertyCard = {
     cover_url: string | null;
     price_per_night: number;
     monthly_rent: number;
+    monthly_charges: number;
     charges_included: boolean;
+    security_deposit: number;
+    advance_rent_months: number;
+    cleaning_fee: number;
     max_guests: number;
     bedrooms: number;
+    beds: number;
+    bathrooms: number;
     is_instant: boolean;
     rating_average: number | null;
     reviews_count: number;

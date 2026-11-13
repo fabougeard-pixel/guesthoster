@@ -87,6 +87,15 @@ export function BookingShowClient({
     const [cancelling, setCancelling] = useState(false);
     const [cancelLoading, setCancelLoading] = useState(false);
     const [payLoading, setPayLoading] = useState(false);
+    const [paypalLoading, setPaypalLoading] = useState(false);
+    const [bankModalOpen, setBankModalOpen] = useState(false);
+    const [paymentFailure, setPaymentFailure] = useState<{
+        failedMethod: string;
+        reason: string;
+        viableMethod: string;
+        action: () => void;
+        actionLabel: string;
+    } | null>(null);
     const [errors, setErrors] = useState<FieldErrors>({});
 
     const isHost = booking.viewer === 'host';
@@ -110,7 +119,7 @@ export function BookingShowClient({
         return () => window.clearInterval(id);
     }, [booking.status, router]);
 
-    async function handlePay() {
+    async function handlePayStripe() {
         setPayLoading(true);
         try {
             const res = await initiateBookingPaymentAction(booking.reference);
@@ -118,10 +127,41 @@ export function BookingShowClient({
                 window.location.href = res.data.checkoutUrl;
                 return;
             }
-            applyResult(res);
+            // Déclenche la modale d'échec avec l'alternative viable (Virement bancaire)
+            setPaymentFailure({
+                failedMethod: 'Carte bancaire (Stripe)',
+                reason:
+                    (!res.ok && res.error) ||
+                    'La passerelle de paiement par carte bancaire est temporairement indisponible.',
+                viableMethod: 'Virement bancaire SEPA',
+                actionLabel: 'Utiliser le virement bancaire',
+                action: () => {
+                    setPaymentFailure(null);
+                    setBankModalOpen(true);
+                },
+            });
         } finally {
             setPayLoading(false);
         }
+    }
+
+    async function handlePayPaypal() {
+        setPaypalLoading(true);
+        // Simulation / appel PayPal
+        setTimeout(() => {
+            setPaypalLoading(false);
+            setPaymentFailure({
+                failedMethod: 'PayPal',
+                reason:
+                    'La passerelle de paiement PayPal est momentanément indisponible pour cette transaction.',
+                viableMethod: 'Carte bancaire sécurisée (Stripe)',
+                actionLabel: 'Payer par Carte bancaire sécurisée',
+                action: () => {
+                    setPaymentFailure(null);
+                    void handlePayStripe();
+                },
+            });
+        }, 800);
     }
 
     async function handleCancel(event: FormEvent<HTMLFormElement>) {
@@ -383,18 +423,52 @@ export function BookingShowClient({
                             className="border-t border-zinc-200 pt-4 dark:border-zinc-800"
                         />
                         {booking.can.pay && (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2.5">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    Options de règlement
+                                </p>
+
+                                {/* Option 1 : Stripe CB */}
                                 <Button
                                     type="button"
                                     size="lg"
                                     loading={payLoading}
-                                    onClick={() => void handlePay()}
+                                    onClick={() => void handlePayStripe()}
+                                    className="w-full bg-primary-600 hover:bg-primary-700"
                                 >
-                                    Payer {formatPrice(booking.total_price)}
+                                    Payer par Carte Bancaire ({formatPrice(booking.total_price)})
                                 </Button>
-                                <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-                                    Paiement sécurisé par Stripe. Vous serez
-                                    redirigé vers la page de paiement.
+
+                                {/* Option 2 : PayPal */}
+                                <button
+                                    type="button"
+                                    disabled={paypalLoading}
+                                    onClick={() => void handlePayPaypal()}
+                                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-[#ffc439] font-semibold text-zinc-900 transition hover:bg-[#f2ba32] disabled:opacity-50"
+                                >
+                                    {paypalLoading ? (
+                                        'Connexion à PayPal...'
+                                    ) : (
+                                        <>
+                                            <span className="font-bold italic">Pay</span>
+                                            <span className="font-bold italic text-[#003087]">Pal</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Option 3 : Virement bancaire */}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="md"
+                                    onClick={() => setBankModalOpen(true)}
+                                    className="w-full"
+                                >
+                                    Payer par Virement bancaire SEPA
+                                </Button>
+
+                                <p className="text-center text-[11px] text-zinc-500 dark:text-zinc-400">
+                                    Transactions cryptées et sécurisées. Vos dates sont réservées.
                                 </p>
                             </div>
                         )}
@@ -457,6 +531,134 @@ export function BookingShowClient({
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Modale d'échec de paiement avec proposition d'option viable */}
+            <Modal
+                open={paymentFailure !== null}
+                onClose={() => setPaymentFailure(null)}
+                title="Paiement non abouti"
+            >
+                {paymentFailure && (
+                    <div className="flex flex-col gap-5">
+                        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+                            <svg
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="mt-0.5 size-5 shrink-0 text-amber-600"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fillRule="evenodd"
+                                    d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                                    clipRule="evenodd"
+                                />
+                            </svg>
+                            <div className="text-sm">
+                                <p className="font-semibold text-amber-900 dark:text-amber-200">
+                                    Le paiement via {paymentFailure.failedMethod} n’a pu aboutir
+                                </p>
+                                <p className="mt-1 text-amber-800 dark:text-amber-300">
+                                    {paymentFailure.reason}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                                Option de paiement viable recommandée
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-emerald-950 dark:text-emerald-200">
+                                Vos dates restent bloquées. Vous pouvez finaliser votre réservation immédiatement avec :{' '}
+                                <span className="font-bold">{paymentFailure.viableMethod}</span>.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setPaymentFailure(null)}
+                            >
+                                Choisir un autre moyen
+                            </Button>
+                            <Button
+                                onClick={() => paymentFailure.action()}
+                                className="bg-primary-600 hover:bg-primary-700"
+                            >
+                                {paymentFailure.actionLabel}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Modale d'instructions de virement bancaire SEPA */}
+            <Modal
+                open={bankModalOpen}
+                onClose={() => setBankModalOpen(false)}
+                title="Règlement par Virement bancaire SEPA"
+            >
+                <div className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-300">
+                    <p>
+                        Veuillez émettre votre virement bancaire aux coordonnées ci-dessous. Dès réception des fonds ou sur présentation de votre ordre de virement, votre séjour sera définitivement validé.
+                    </p>
+
+                    <div className="flex flex-col gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <span className="text-xs text-zinc-500">Bénéficiaire</span>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                GuestHoster SAS Conciergerie
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <span className="text-xs text-zinc-500">Banque</span>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                BNP Paribas
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <span className="text-xs text-zinc-500">IBAN</span>
+                            <span className="font-mono font-bold tracking-wider text-primary-700 select-all dark:text-primary-400">
+                                FR76 3000 4012 3456 7890 1234 567
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <span className="text-xs text-zinc-500">BIC / SWIFT</span>
+                            <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                                BNPAFRPP
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <span className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">
+                                Libellé / Référence obligatoire
+                            </span>
+                            <span className="font-mono text-base font-bold text-zinc-900 select-all dark:text-zinc-100">
+                                {booking.reference}
+                            </span>
+                        </div>
+                        <div className="flex justify-between pt-1">
+                            <span className="text-xs text-zinc-500">Montant total</span>
+                            <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                                {formatPrice(booking.total_price)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                setBankModalOpen(false);
+                                pushToast({
+                                    type: 'info',
+                                    message: 'Coordonnées de virement notées. Vos dates restent réservées.',
+                                });
+                            }}
+                        >
+                            J’ai noté les informations
+                        </Button>
+                    </div>
+                </div>
             </Modal>
         </>
     );

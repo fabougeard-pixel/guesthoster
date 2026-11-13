@@ -153,9 +153,15 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
             : null,
         price_per_night: property.pricePerNight,
         monthly_rent: property.monthlyRent,
+        monthly_charges: property.monthlyCharges,
         charges_included: property.chargesIncluded,
+        security_deposit: property.securityDeposit,
+        advance_rent_months: property.advanceRentMonths,
+        cleaning_fee: property.cleaningFee,
         max_guests: property.maxGuests,
         bedrooms: property.bedrooms,
+        beds: property.beds,
+        bathrooms: property.bathrooms,
         is_instant: property.bookingMode === 'instant',
         rating_average:
             property.ratingAverage !== null

@@ -483,12 +483,14 @@ export function PropertyWizard({
     owners = [],
     currentUserId,
     initialDraft = null,
+    defaultOwnerId = null,
 }: {
     mode: 'host' | 'admin';
     options: HostFormOptions;
     owners?: AdminOwnerOption[];
     currentUserId?: number;
     initialDraft?: HostProperty | null;
+    defaultOwnerId?: number | null;
 }) {
     const { applyResult, pushToast } = useActionFeedback();
     const formRef = useRef<HTMLFormElement | null>(null);
@@ -518,6 +520,10 @@ export function PropertyWizard({
             ? draftToWizardValues(initialDraft, currentUserId)
             : {
                   ...DEFAULT_WIZARD_VALUES,
+                  owner_id:
+                      defaultOwnerId != null
+                          ? String(defaultOwnerId)
+                          : DEFAULT_WIZARD_VALUES.owner_id,
                   initial_status: mode === 'admin' ? 'published' : 'draft',
               },
     );

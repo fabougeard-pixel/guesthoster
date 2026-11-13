@@ -209,15 +209,15 @@ export function BookingCreateClient({
                     <Field
                         label={
                             isLongTerm
-                                ? 'Présentation / message au propriétaire (facultatif)'
-                                : 'Message à l’hôte (facultatif)'
+                                ? 'Notes et présentation pour votre location (facultatif)'
+                                : 'Notes et demandes particulières pour votre séjour (facultatif)'
                         }
                         htmlFor="special_requests"
                         error={errors.special_requests}
                         hint={
                             isLongTerm
-                                ? 'Présentez votre situation, durée envisagée ou précisions sur votre entrée.'
-                                : 'Présentez-vous, précisez l’objet du voyage ou votre heure d’arrivée.'
+                                ? 'Précisez votre situation, date d’emménagement souhaitée, garants, ou toute question relative au bail.'
+                                : 'Précisez vos souhaits particuliers : par exemple chaise bébé, lit parapluie, heure prévisionnelle d’arrivée ou toute demande spécifique.'
                         }
                     >
                         <Textarea
@@ -225,8 +225,79 @@ export function BookingCreateClient({
                             name="special_requests"
                             rows={4}
                             maxLength={1000}
+                            placeholder={
+                                isLongTerm
+                                    ? 'Ex : Bonjour, nous recherchons un logement pour un contrat de 12 mois à partir du 1er du mois prochain...'
+                                    : 'Ex : Bonjour, nous voyagerons avec un jeune enfant et souhaiterions savoir s’il est possible d’avoir une chaise bébé à disposition...'
+                            }
                         />
                     </Field>
+
+                    {/* Sélection du mode de paiement */}
+                    <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+                        <div>
+                            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                                Mode de paiement
+                            </h3>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Choisissez votre moyen de règlement préféré. Le paiement est 100 % sécurisé.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-primary-500 bg-primary-50/20 p-3.5 transition hover:border-primary-600 dark:border-primary-600 dark:bg-primary-950/20">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        Carte bancaire
+                                    </span>
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="card"
+                                        defaultChecked
+                                        className="size-4 text-primary-600"
+                                    />
+                                </div>
+                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Visa, Mastercard, CB, Apple Pay via Stripe. Confirmation instantanée.
+                                </p>
+                            </label>
+
+                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        PayPal
+                                    </span>
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="paypal"
+                                        className="size-4 text-primary-600"
+                                    />
+                                </div>
+                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Compte PayPal ou paiement en 4x sans frais.
+                                </p>
+                            </label>
+
+                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        Virement bancaire
+                                    </span>
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="bank_transfer"
+                                        className="size-4 text-primary-600"
+                                    />
+                                </div>
+                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Virement SEPA direct. Coordonnées IBAN fournies immédiatement.
+                                </p>
+                            </label>
+                        </div>
+                    </div>
 
                     {(errors.check_in || errors.check_out) && (
                         <Alert tone="warning">

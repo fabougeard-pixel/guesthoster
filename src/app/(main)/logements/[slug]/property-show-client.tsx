@@ -287,7 +287,9 @@ function BookingCard({
     onClear: () => void;
 }) {
     const today = todayIso();
-    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+    const [calendarStep, setCalendarStep] = useState<
+        'checkIn' | 'checkOut' | null
+    >(null);
 
     // ==========================================
     // LOCATION LONGUE DURÉE
@@ -467,27 +469,37 @@ function BookingCard({
                 )}
             </div>
 
-            {/* Sélecteur de dates interactif avec ouverture directe du calendrier */}
+            {/* Sélecteur de dates interactif Arrivée / Départ séparés avec calendrier unique et fermeture automatique */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                     <Label>Dates du séjour</Label>
-                    <button
-                        type="button"
-                        onClick={() => setIsCalendarOpen((prev) => !prev)}
-                        className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400"
-                    >
-                        {isCalendarOpen
-                            ? 'Fermer le calendrier'
-                            : 'Ouvrir le calendrier'}
-                    </button>
+                    {calendarStep !== null && (
+                        <button
+                            type="button"
+                            onClick={() => setCalendarStep(null)}
+                            className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        >
+                            Fermer
+                        </button>
+                    )}
                 </div>
 
-                <div
-                    onClick={() => setIsCalendarOpen(true)}
-                    className="grid cursor-pointer grid-cols-2 overflow-hidden rounded-xl border border-zinc-300 text-sm transition hover:border-primary-400 dark:border-zinc-700 dark:hover:border-primary-500"
-                >
-                    <div className="border-r border-zinc-300 p-3 dark:border-zinc-700">
-                        <dt className="text-xs font-semibold text-zinc-500 uppercase dark:text-zinc-400">
+                <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-zinc-300 text-sm dark:border-zinc-700">
+                    {/* Case Arrivée */}
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCalendarStep((prev) =>
+                                prev === 'checkIn' ? null : 'checkIn',
+                            )
+                        }
+                        className={cn(
+                            'border-r border-zinc-300 p-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/60',
+                            calendarStep === 'checkIn' &&
+                                'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
+                        )}
+                    >
+                        <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
                             Arrivée
                         </dt>
                         <dd className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">
@@ -495,9 +507,23 @@ function BookingCard({
                                 ? formatDate(stay.checkIn)
                                 : 'Sélectionner'}
                         </dd>
-                    </div>
-                    <div className="p-3">
-                        <dt className="text-xs font-semibold text-zinc-500 uppercase dark:text-zinc-400">
+                    </button>
+
+                    {/* Case Départ */}
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCalendarStep((prev) =>
+                                prev === 'checkOut' ? null : 'checkOut',
+                            )
+                        }
+                        className={cn(
+                            'p-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/60',
+                            calendarStep === 'checkOut' &&
+                                'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
+                        )}
+                    >
+                        <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
                             Départ
                         </dt>
                         <dd className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">
@@ -505,22 +531,22 @@ function BookingCard({
                                 ? formatDate(stay.checkOut)
                                 : 'Sélectionner'}
                         </dd>
-                    </div>
+                    </button>
                 </div>
 
-                {/* Calendrier interactif directement intégré dans le widget */}
-                {isCalendarOpen && (
-                    <div className="mt-2 rounded-2xl border border-primary-200 bg-primary-50/20 p-3 shadow-inner dark:border-primary-900/60 dark:bg-primary-950/20 animate-in fade-in duration-150">
-                        <div className="mb-2 flex items-center justify-between border-b border-primary-100 pb-2 dark:border-primary-900/40">
-                            <span className="text-xs font-semibold text-primary-800 dark:text-primary-300">
-                                {property.min_nights > 1
-                                    ? `Sélectionnez vos dates (${property.min_nights} nuits min.)`
-                                    : 'Sélectionnez vos dates'}
+                {/* Calendrier unique interactif (un seul mois, se referme automatiquement après sélection) */}
+                {calendarStep !== null && (
+                    <div className="mt-2 rounded-2xl border border-primary-200 bg-white p-3.5 shadow-xl ring-1 ring-black/5 dark:border-primary-900/60 dark:bg-zinc-900 animate-in fade-in duration-150">
+                        <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 dark:border-zinc-800">
+                            <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">
+                                {calendarStep === 'checkIn'
+                                    ? 'Sélectionnez votre date d’arrivée'
+                                    : `Sélectionnez votre départ (Arrivée : ${formatDate(stay.checkIn ?? '')})`}
                             </span>
                             <button
                                 type="button"
-                                onClick={() => setIsCalendarOpen(false)}
-                                className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                                onClick={() => setCalendarStep(null)}
+                                className="text-xs font-semibold text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                             >
                                 ✕
                             </button>
@@ -528,11 +554,13 @@ function BookingCard({
                         <AvailabilityCalendar
                             unavailableRanges={unavailableRanges}
                             value={stay}
+                            monthsCount={1}
+                            mode={calendarStep}
                             onChange={(newStay) => {
                                 onStayChange(newStay);
-                                if (newStay.checkIn && newStay.checkOut) {
-                                    setIsCalendarOpen(false);
-                                }
+                            }}
+                            onDatePick={() => {
+                                setCalendarStep(null);
                             }}
                             minNights={property.min_nights}
                             maxNights={property.max_nights}
@@ -587,7 +615,7 @@ function BookingCard({
             ) : (
                 <Button
                     size="lg"
-                    onClick={() => setIsCalendarOpen(true)}
+                    onClick={() => setCalendarStep('checkIn')}
                     className="w-full bg-primary-500 hover:bg-primary-600"
                 >
                     Choisir vos dates
@@ -605,7 +633,7 @@ function BookingCard({
                     type="button"
                     onClick={() => {
                         onClear();
-                        setIsCalendarOpen(false);
+                        setCalendarStep(null);
                     }}
                     className="text-center text-xs font-medium text-zinc-500 underline underline-offset-4 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                 >

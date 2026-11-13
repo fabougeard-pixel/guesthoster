@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { hashPassword } from '@/lib/auth/password';
 import { getFreshSessionUser, isAdmin } from '@/lib/auth/session';
 import {
     AMENITY_CATEGORIES,
@@ -561,6 +562,107 @@ export async function deletePropertyTypeAction(
     return {
         ok: true,
         toast: { type: 'success', message: 'Type de logement supprimé.' },
+    };
+}
+
+const createManagedOwnerSchema = z.object({
+    name: z
+        .string()
+        .trim()
+        .min(2, 'Le nom doit contenir au moins 2 caractères.')
+        .max(120),
+    email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .email('Adresse e-mail invalide.')
+        .max(255),
+    password: z
+        .string()
+        .min(8, 'Le mot de passe doit comporter au moins 8 caractères.')
+        .max(128)
+        .optional()
+        .or(z.literal('')),
+});
+
+export async function createManagedOwnerAction(input: {
+    name: string;
+    email: string;
+    password?: string | null;
+}): Promise<ActionResult<{ ownerId: number }>> {
+    const admin = await requireAdminActor();
+    if (!admin) {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    const parsed = createManagedOwnerSchema.safeParse(input);
+    if (!parsed.success) {
+        return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
+    }
+
+    const email = parsed.data.email;
+    const existing = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true, role: true, suspendedAt: true },
+    });
+
+    if (existing) {
+        if (existing.suspendedAt) {
+            return {
+                ok: false,
+                error: 'Un compte avec cette adresse e-mail existe déjà et est actuellement suspendu.',
+            };
+        }
+        if (existing.role !== 'host') {
+            await prisma.user.update({
+                where: { id: existing.id },
+                data: { role: 'host' },
+            });
+            revalidatePath('/admin/proprietaires');
+            revalidatePath('/admin/logements/nouveau');
+            return {
+                ok: true,
+                data: { ownerId: existing.id },
+                toast: {
+                    type: 'success',
+                    message:
+                        'Compte existant mis à jour avec le rôle Propriétaire en gestion.',
+                },
+            };
+        }
+        return {
+            ok: false,
+            error: 'Ce propriétaire est déjà enregistré dans le système.',
+        };
+    }
+
+    const rawPassword =
+        parsed.data.password?.trim() ||
+        `Host_${crypto.randomBytes(4).toString('hex')}!2026`;
+    const passwordHash = await hashPassword(rawPassword);
+
+    const created = await prisma.user.create({
+        data: {
+            name: parsed.data.name,
+            email,
+            password: passwordHash,
+            role: 'host',
+            emailVerifiedAt: new Date(),
+        },
+        select: { id: true },
+    });
+
+    revalidatePath('/admin/proprietaires');
+    revalidatePath('/admin/logements/nouveau');
+    revalidatePath('/admin/utilisateurs');
+
+    return {
+        ok: true,
+        data: { ownerId: created.id },
+        toast: {
+            type: 'success',
+            message: 'Nouveau propriétaire enregistré avec succès.',
+        },
     };
 }
 
