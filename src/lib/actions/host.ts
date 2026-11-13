@@ -830,25 +830,53 @@ export async function deletePropertyAction(
     if ('error' in auth) {
         return { ok: false, error: auth.error };
     }
-    const { property } = auth;
-
-    const hasBookings = await prisma.booking.findFirst({
-        where: { propertyId: property.id },
-        select: { id: true },
-    });
-
-    if (hasBookings) {
-        return {
-            ok: false,
-            error:
-                'Ce logement possède un historique de réservations : archivez-le plutôt.',
-        };
-    }
+    const { user, property } = auth;
 
     await Promise.all(
         property.images.map((img) => deletePropertyImageFiles(img)),
     );
-    await prisma.property.delete({ where: { id: property.id } });
+
+    if (user.role === 'admin') {
+        await prisma.$transaction(async (tx) => {
+            await tx.bookingMessage.deleteMany({
+                where: { booking: { propertyId: property.id } },
+            });
+            await tx.review.deleteMany({
+                where: { booking: { propertyId: property.id } },
+            });
+            await tx.booking.deleteMany({
+                where: { propertyId: property.id },
+            });
+            await tx.favorite.deleteMany({
+                where: { propertyId: property.id },
+            });
+            await tx.blockedPeriod.deleteMany({
+                where: { propertyId: property.id },
+            });
+            await tx.amenityProperty.deleteMany({
+                where: { propertyId: property.id },
+            });
+            await tx.propertyImage.deleteMany({
+                where: { propertyId: property.id },
+            });
+            await tx.property.delete({ where: { id: property.id } });
+        });
+    } else {
+        const hasBookings = await prisma.booking.findFirst({
+            where: { propertyId: property.id },
+            select: { id: true },
+        });
+
+        if (hasBookings) {
+            return {
+                ok: false,
+                error:
+                    'Ce logement possède un historique de réservations : archivez-le plutôt.',
+            };
+        }
+
+        await prisma.property.delete({ where: { id: property.id } });
+    }
 
     revalidatePath('/hote');
     revalidatePath('/admin');

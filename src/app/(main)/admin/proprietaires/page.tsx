@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import type { Prisma } from '@prisma/client';
-import { AdminLayout } from '@/components/layouts/admin-layout';
 import { ErrorView } from '@/components/error-view';
 import { requireAdminAccess } from '@/lib/auth/session';
 import { buildPaginated } from '@/lib/domain/properties';
@@ -37,15 +36,15 @@ export default async function AdminOwnersPage({
         ],
         ...(search
             ? {
-                  AND: [
-                      {
-                          OR: [
-                              { name: { contains: search, mode: 'insensitive' } },
-                              { email: { contains: search, mode: 'insensitive' } },
-                          ],
-                      },
-                  ],
-              }
+                AND: [
+                    {
+                        OR: [
+                            { name: { contains: search, mode: 'insensitive' } },
+                            { email: { contains: search, mode: 'insensitive' } },
+                        ],
+                    },
+                ],
+            }
             : {}),
     };
 
@@ -93,13 +92,11 @@ export default async function AdminOwnersPage({
     );
 
     return (
-        <AdminLayout>
-            <AdminOwnersClient
-                owners={paginator}
-                totalPropertiesCount={totalPropertiesCount}
-                filters={{ search }}
-            />
-        </AdminLayout>
+        <AdminOwnersClient
+            owners={paginator}
+            totalPropertiesCount={totalPropertiesCount}
+            filters={{ search }}
+        />
     );
 }
 

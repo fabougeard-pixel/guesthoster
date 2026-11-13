@@ -214,26 +214,36 @@ export function AdminOwnersClient({
 
                         {/* Actions */}
                         <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                                 <Link
                                     href={`/admin/logements/nouveau?owner_id=${owner.id}`}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-primary-200 bg-primary-50/60 px-2.5 py-1 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-300"
+                                    title="Ajouter un bien pour ce propriétaire"
+                                    aria-label="Ajouter un bien"
+                                    className="flex size-8 items-center justify-center rounded-lg border border-primary-200 bg-primary-50/70 text-primary-700 transition hover:bg-primary-100 hover:text-primary-800 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-300 dark:hover:bg-primary-900/50"
                                 >
                                     <svg
                                         viewBox="0 0 20 20"
                                         fill="currentColor"
-                                        className="size-3.5"
+                                        className="size-4"
                                         aria-hidden="true"
                                     >
                                         <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
                                     </svg>
-                                    <span>Ajouter un bien</span>
                                 </Link>
                                 <Link
                                     href={`/admin/utilisateurs?search=${encodeURIComponent(owner.email)}`}
-                                    className="text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                                    title="Consulter le profil utilisateur"
+                                    aria-label="Voir le profil"
+                                    className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                                 >
-                                    Profil
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
+                                    </svg>
                                 </Link>
                             </div>
                         </td>

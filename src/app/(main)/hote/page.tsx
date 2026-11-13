@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
-import { Badge, Card } from '@/components/card';
-import { PropertyStatusBadge } from '@/components/status-badge';
+import { Card } from '@/components/card';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import {
     PROPERTY_STATUS_LABELS,
@@ -10,8 +9,9 @@ import {
     type RentalDuration,
 } from '@/lib/domain/enums';
 import { resolveThumbnailUrl } from '@/lib/domain/properties';
-import { formatPrice, parseDate, plural, todayIso } from '@/lib/format';
+import { parseDate, todayIso } from '@/lib/format';
 import { prisma } from '@/lib/prisma';
+import { HostPropertiesClient } from './host-properties-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ export default async function HostDashboardPage() {
     const todayDate = parseDate(todayIso());
 
     const rows = await prisma.property.findMany({
-        where: { userId: user.id },
+        where: user.role === 'admin' ? {} : { userId: user.id },
         include: {
             city: { select: { name: true } },
             images: {
@@ -58,10 +58,10 @@ export default async function HostDashboardPage() {
             monthly_rent: row.monthlyRent,
             cover_url: cover
                 ? resolveThumbnailUrl(
-                      cover.thumbnailPath,
-                      cover.path,
-                      cover.cloudinaryPublicId,
-                  )
+                    cover.thumbnailPath,
+                    cover.path,
+                    cover.cloudinaryPublicId,
+                )
                 : null,
             upcoming_bookings: row.bookings.length,
         };
@@ -125,71 +125,7 @@ export default async function HostDashboardPage() {
                     </Link>
                 </Card>
             ) : (
-                <ul className="mt-8 flex flex-col gap-4">
-                    {properties.map((property) => (
-                        <li key={property.id}>
-                            <Card className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                                <div className="aspect-4/3 w-full shrink-0 overflow-hidden rounded-xl bg-zinc-100 sm:w-36 dark:bg-zinc-800">
-                                    {property.cover_url && (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={property.cover_url}
-                                            alt=""
-                                            className="size-full object-cover"
-                                        />
-                                    )}
-                                </div>
-                                <div className="flex flex-1 flex-col gap-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h2 className="font-medium">
-                                            {property.title}
-                                        </h2>
-                                        <PropertyStatusBadge
-                                            status={property.status}
-                                            label={property.status_label}
-                                        />
-                                        {property.rental_duration ===
-                                            'long_term' && (
-                                            <Badge tone="secondary">
-                                                Longue durée
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                        {property.city ?? 'Ville à préciser'}
-                                        {property.rental_duration === 'long_term'
-                                            ? property.monthly_rent > 0 &&
-                                              ` · ${formatPrice(property.monthly_rent)} / mois`
-                                            : property.price_per_night > 0 &&
-                                              ` · ${formatPrice(property.price_per_night)} / nuit`}
-                                        {property.upcoming_bookings > 0 &&
-                                            ` · ${plural(property.upcoming_bookings, 'séjour à venir', 'séjours à venir')}`}
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Link
-                                        href={`/hote/logements/${property.slug}/calendrier`}
-                                        className={buttonClasses({
-                                            variant: 'ghost',
-                                            size: 'sm',
-                                        })}
-                                    >
-                                        Calendrier
-                                    </Link>
-                                    <Link
-                                        href={`/hote/logements/${property.slug}/modifier`}
-                                        className={buttonClasses({
-                                            variant: 'outline',
-                                            size: 'sm',
-                                        })}
-                                    >
-                                        Modifier
-                                    </Link>
-                                </div>
-                            </Card>
-                        </li>
-                    ))}
-                </ul>
+                <HostPropertiesClient properties={properties} />
             )}
         </>
     );
