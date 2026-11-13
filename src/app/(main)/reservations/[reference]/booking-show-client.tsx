@@ -17,6 +17,7 @@ import {
     initiateBookingPaymentAction,
 } from '@/lib/actions/bookings';
 import type { FieldErrors } from '@/lib/actions/types';
+import type { PaymentMethodKey } from '@/lib/domain/platform-settings';
 import { formatDate, formatDateTime, formatPrice, plural } from '@/lib/format';
 import type { Booking } from '@/types';
 
@@ -79,9 +80,19 @@ function StatusMessage({ booking }: { booking: Booking }) {
 export function BookingShowClient({
     booking,
     justPaid,
+    enabledMethods,
+    bank,
 }: {
     booking: Booking;
     justPaid: boolean;
+    enabledMethods: PaymentMethodKey[];
+    bank: {
+        holder: string;
+        bankName: string;
+        iban: string;
+        bic: string;
+        instructions: string;
+    };
 }) {
     const { applyResult, pushToast, router } = useActionFeedback();
     const [cancelling, setCancelling] = useState(false);
@@ -428,7 +439,14 @@ export function BookingShowClient({
                                     Options de règlement
                                 </p>
 
+                                {enabledMethods.length === 0 && (
+                                    <p className="text-xs text-amber-700">
+                                        Aucun moyen de paiement n’est disponible actuellement. Contactez-nous.
+                                    </p>
+                                )}
+
                                 {/* Option 1 : Stripe CB */}
+                                {enabledMethods.includes('card') && (
                                 <Button
                                     type="button"
                                     size="lg"
@@ -438,8 +456,10 @@ export function BookingShowClient({
                                 >
                                     Payer par Carte Bancaire ({formatPrice(booking.total_price)})
                                 </Button>
+                                )}
 
                                 {/* Option 2 : PayPal */}
+                                {enabledMethods.includes('paypal') && (
                                 <button
                                     type="button"
                                     disabled={paypalLoading}
@@ -455,8 +475,10 @@ export function BookingShowClient({
                                         </>
                                     )}
                                 </button>
+                                )}
 
                                 {/* Option 3 : Virement bancaire */}
+                                {enabledMethods.includes('bank_transfer') && (
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -466,6 +488,7 @@ export function BookingShowClient({
                                 >
                                     Payer par Virement bancaire SEPA
                                 </Button>
+                                )}
 
                                 <p className="text-center text-[11px] text-zinc-500 dark:text-zinc-400">
                                     Transactions cryptées et sécurisées. Vos dates sont réservées.
@@ -600,32 +623,33 @@ export function BookingShowClient({
             >
                 <div className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-300">
                     <p>
-                        Veuillez émettre votre virement bancaire aux coordonnées ci-dessous. Dès réception des fonds ou sur présentation de votre ordre de virement, votre séjour sera définitivement validé.
+                        {bank.instructions ||
+                            'Veuillez émettre votre virement bancaire aux coordonnées ci-dessous.'}
                     </p>
 
                     <div className="flex flex-col gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
                         <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
                             <span className="text-xs text-zinc-500">Bénéficiaire</span>
                             <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                                GuestHoster SAS Conciergerie
+                                {bank.holder}
                             </span>
                         </div>
                         <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
                             <span className="text-xs text-zinc-500">Banque</span>
                             <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                                BNP Paribas
+                                {bank.bankName}
                             </span>
                         </div>
                         <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
                             <span className="text-xs text-zinc-500">IBAN</span>
                             <span className="font-mono font-bold tracking-wider text-primary-700 select-all dark:text-primary-400">
-                                FR76 3000 4012 3456 7890 1234 567
+                                {bank.iban}
                             </span>
                         </div>
                         <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
                             <span className="text-xs text-zinc-500">BIC / SWIFT</span>
                             <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
-                                BNPAFRPP
+                                {bank.bic}
                             </span>
                         </div>
                         <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">

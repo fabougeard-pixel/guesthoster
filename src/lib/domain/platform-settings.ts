@@ -55,3 +55,65 @@ export function formatLeaseDuration(months: number): string {
     return `${safeMonths} mois`;
 }
 
+
+export type PaymentMethodKey = 'card' | 'paypal' | 'bank_transfer';
+
+export type PlatformPaymentSettings = {
+    enableCard: boolean;
+    enablePaypal: boolean;
+    enableBankTransfer: boolean;
+    bankAccountHolder: string;
+    bankName: string;
+    bankIban: string;
+    bankBic: string;
+    bankInstructions: string;
+};
+
+export const DEFAULT_PLATFORM_PAYMENT_SETTINGS: PlatformPaymentSettings = {
+    enableCard: true,
+    enablePaypal: false,
+    enableBankTransfer: true,
+    bankAccountHolder: '',
+    bankName: '',
+    bankIban: '',
+    bankBic: '',
+    bankInstructions:
+        'Veuillez effectuer le virement sur le compte ci-dessous en indiquant la référence.',
+};
+
+export const PAYMENT_SETTINGS_KEY = 'platform_payment_settings';
+
+export async function getPlatformPaymentSettings(): Promise<PlatformPaymentSettings> {
+    try {
+        const row = await prisma.platformSetting.findUnique({
+            where: { key: PAYMENT_SETTINGS_KEY },
+        });
+        if (!row?.value) {
+            return DEFAULT_PLATFORM_PAYMENT_SETTINGS;
+        }
+
+        return {
+            ...DEFAULT_PLATFORM_PAYMENT_SETTINGS,
+            ...(JSON.parse(row.value) as Partial<PlatformPaymentSettings>),
+        };
+    } catch {
+        return DEFAULT_PLATFORM_PAYMENT_SETTINGS;
+    }
+}
+
+export function listEnabledPaymentMethods(
+    settings: PlatformPaymentSettings,
+): PaymentMethodKey[] {
+    const methods: PaymentMethodKey[] = [];
+    if (settings.enableCard) {
+        methods.push('card');
+    }
+    if (settings.enablePaypal) {
+        methods.push('paypal');
+    }
+    if (settings.enableBankTransfer) {
+        methods.push('bank_transfer');
+    }
+
+    return methods;
+}

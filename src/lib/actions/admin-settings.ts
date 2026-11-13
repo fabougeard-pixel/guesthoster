@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionResult } from '@/lib/actions/types';
 import { resolveAdminAccess } from '@/lib/auth/session';
-import type { PlatformRentalSettings } from '@/lib/domain/platform-settings';
+import {
+    PAYMENT_SETTINGS_KEY,
+    type PlatformPaymentSettings,
+    type PlatformRentalSettings,
+} from '@/lib/domain/platform-settings';
 import { prisma } from '@/lib/prisma';
 
 const settingsSchema = z.object({
@@ -62,5 +66,61 @@ export async function updatePlatformRentalSettingsAction(
             type: 'success',
             message: 'Paramètres de configuration enregistrés avec succès.',
         },
+    };
+}
+
+const paymentSettingsSchema = z
+    .object({
+        enableCard: z.boolean(),
+        enablePaypal: z.boolean(),
+        enableBankTransfer: z.boolean(),
+        bankAccountHolder: z.string().trim().max(120),
+        bankName: z.string().trim().max(120),
+        bankIban: z.string().trim().max(40),
+        bankBic: z.string().trim().max(20),
+        bankInstructions: z.string().trim().max(500),
+    })
+    .refine((v) => v.enableCard || v.enablePaypal || v.enableBankTransfer, {
+        message: 'Activez au moins un moyen de paiement.',
+    })
+    .refine((v) => !v.enableBankTransfer || (v.bankIban && v.bankAccountHolder), {
+        message: 'Renseignez le titulaire et l’IBAN pour activer le virement.',
+    });
+
+export async function updatePlatformPaymentSettingsAction(
+    input: PlatformPaymentSettings,
+): Promise<ActionResult<PlatformPaymentSettings>> {
+    const access = await resolveAdminAccess('/admin/paiements');
+    if (access === 'setup' || access === 'forbidden') {
+        return { ok: false, error: 'Accès réservé aux administrateurs.' };
+    }
+
+    const parsed = paymentSettingsSchema.safeParse(input);
+    if (!parsed.success) {
+        return {
+            ok: false,
+            error: parsed.error.issues[0]?.message ?? 'Paramètres invalides.',
+        };
+    }
+
+    const value = JSON.stringify(parsed.data);
+    await prisma.platformSetting.upsert({
+        where: { key: PAYMENT_SETTINGS_KEY },
+        create: {
+            key: PAYMENT_SETTINGS_KEY,
+            value,
+            description: 'Moyens de paiement activés et coordonnées bancaires',
+        },
+        update: { value },
+    });
+
+    revalidatePath('/admin/paiements');
+    revalidatePath('/logements', 'layout');
+    revalidatePath('/reservations', 'layout');
+
+    return {
+        ok: true,
+        data: parsed.data,
+        toast: { type: 'success', message: 'Moyens de paiement enregistrés.' },
     };
 }

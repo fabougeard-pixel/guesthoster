@@ -12,6 +12,7 @@ import { useActionFeedback } from '@/components/use-action-feedback';
 import { createBookingAction } from '@/lib/actions/bookings';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
+import type { PaymentMethodKey } from '@/lib/domain/platform-settings';
 import { cn } from '@/lib/utils';
 import type { PropertyCard, User } from '@/types';
 
@@ -24,7 +25,9 @@ export function BookingCreateClient({
     paymentDelay,
     responseDelay,
     refundPolicy,
+    enabledMethods,
 }: {
+    enabledMethods: PaymentMethodKey[];
     currentUser: User | null;
     property: PropertyCard & {
         is_owner: boolean;
@@ -42,9 +45,9 @@ export function BookingCreateClient({
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<FieldErrors>({});
     const [guestCount, setGuestCount] = useState(stay.guests);
-    const [paymentMethod, setPaymentMethod] = useState<
-        'card' | 'paypal' | 'bank_transfer'
-    >('card');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>(
+        enabledMethods[0] ?? 'card',
+    );
 
     const isLongTerm = property.rental_duration === 'long_term';
     const nights = quote.nights ?? 0;
@@ -357,7 +360,7 @@ export function BookingCreateClient({
                         </div>
 
                         <div className="flex flex-col gap-3">
-                            {/* Carte bancaire */}
+                            {enabledMethods.includes('card') && (
                             <label
                                 className={cn(
                                     'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
@@ -386,8 +389,9 @@ export function BookingCreateClient({
                                     </span>
                                 </div>
                             </label>
+                            )}
 
-                            {/* PayPal */}
+                            {enabledMethods.includes('paypal') && (
                             <label
                                 className={cn(
                                     'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
@@ -413,8 +417,9 @@ export function BookingCreateClient({
                                     </span>
                                 </div>
                             </label>
+                            )}
 
-                            {/* Virement bancaire */}
+                            {enabledMethods.includes('bank_transfer') && (
                             <label
                                 className={cn(
                                     'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
@@ -442,6 +447,7 @@ export function BookingCreateClient({
                                     </span>
                                 </div>
                             </label>
+                            )}
                         </div>
                     </div>
 

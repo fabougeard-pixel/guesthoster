@@ -10,6 +10,7 @@ import {
     type VisitBookingResult,
 } from '@/lib/actions/visits';
 import { formatLeaseDuration } from '@/lib/domain/platform-settings';
+import type { PaymentMethodKey } from '@/lib/domain/platform-settings';
 import { formatDate, formatPrice, todayIso } from '@/lib/format';
 import type { PropertyDetail } from '@/types';
 
@@ -32,11 +33,13 @@ export function VisitBookingModal({
     isOpen,
     onClose,
     effectiveVisitFee,
+    enabledMethods = ['card', 'paypal', 'bank_transfer'],
 }: {
     property: PropertyDetail;
     isOpen: boolean;
     onClose: () => void;
     effectiveVisitFee?: number;
+    enabledMethods?: PaymentMethodKey[];
 }) {
     const isClient = useSyncExternalStore(
         emptySubscribe,
@@ -52,7 +55,9 @@ export function VisitBookingModal({
     const [phone, setPhone] = useState<string>('');
     const [situation, setSituation] = useState<string>(CANDIDATE_SITUATIONS[0]);
     const [notes, setNotes] = useState<string>('');
-    const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal' | 'bank_transfer'>('card');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>(
+        enabledMethods[0] ?? 'card',
+    );
     const [simulatedFailure, setSimulatedFailure] = useState<string | null>(null);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -428,6 +433,7 @@ export function VisitBookingModal({
                                 <div className="mt-3 border-t border-amber-200/80 pt-3 dark:border-amber-900/60">
                                     <Label>Mode de règlement du forfait</Label>
                                     <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                        {enabledMethods.includes('card') && (
                                         <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
                                             paymentMethod === 'card'
                                                 ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
@@ -442,7 +448,9 @@ export function VisitBookingModal({
                                             />
                                             <span>Carte bancaire</span>
                                         </label>
+                                        )}
 
+                                        {enabledMethods.includes('paypal') && (
                                         <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
                                             paymentMethod === 'paypal'
                                                 ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
@@ -457,7 +465,9 @@ export function VisitBookingModal({
                                             />
                                             <span>PayPal</span>
                                         </label>
+                                        )}
 
+                                        {enabledMethods.includes('bank_transfer') && (
                                         <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
                                             paymentMethod === 'bank_transfer'
                                                 ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
@@ -472,6 +482,7 @@ export function VisitBookingModal({
                                             />
                                             <span>Virement SEPA</span>
                                         </label>
+                                        )}
                                     </div>
                                 </div>
                             </div>

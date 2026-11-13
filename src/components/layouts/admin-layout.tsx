@@ -93,6 +93,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             href: '/admin/parametres',
                             icon: 'settings',
                         },
+                        {
+                            label: 'Moyens de paiement',
+                            href: '/admin/paiements',
+                            icon: 'settings',
+                        },
                     ],
                 },
             ]}

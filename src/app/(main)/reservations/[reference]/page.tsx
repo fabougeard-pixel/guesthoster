@@ -3,6 +3,10 @@ import { notFound } from 'next/navigation';
 import { ErrorView } from '@/components/error-view';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { serializeBooking } from '@/lib/domain/bookings';
+import {
+    getPlatformPaymentSettings,
+    listEnabledPaymentMethods,
+} from '@/lib/domain/platform-settings';
 import { prisma } from '@/lib/prisma';
 import { BookingShowClient } from './booking-show-client';
 
@@ -67,8 +71,20 @@ export default async function BookingShowPage({
     }
 
     const booking = serializeBooking(record, user, { includeReview: true });
+    const paymentSettings = await getPlatformPaymentSettings();
     return (
-        <BookingShowClient booking={booking} justPaid={sp.paid === '1'} />
+        <BookingShowClient
+            booking={booking}
+            justPaid={sp.paid === '1'}
+            enabledMethods={listEnabledPaymentMethods(paymentSettings)}
+            bank={{
+                holder: paymentSettings.bankAccountHolder,
+                bankName: paymentSettings.bankName,
+                iban: paymentSettings.bankIban,
+                bic: paymentSettings.bankBic,
+                instructions: paymentSettings.bankInstructions,
+            }}
+        />
     );
 }
 

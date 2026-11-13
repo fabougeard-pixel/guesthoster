@@ -15,6 +15,7 @@ import { RatingSummary, Stars } from '@/components/star-rating';
 import { VisitBookingModal } from '@/components/visit-booking-modal';
 import {
     formatLeaseDuration,
+    type PaymentMethodKey,
     type PlatformRentalSettings,
 } from '@/lib/domain/platform-settings';
 import { quoteLongTermUpfront } from '@/lib/domain/pricing';
@@ -282,6 +283,7 @@ function BookingCard({
     onOpenChat,
     serviceFeeRate,
     rentalSettings,
+    enabledMethods,
 }: {
     serviceFeeRate: number;
     property: PropertyDetail;
@@ -293,6 +295,7 @@ function BookingCard({
     onClear: () => void;
     onOpenChat: () => void;
     rentalSettings?: PlatformRentalSettings;
+    enabledMethods?: PaymentMethodKey[];
 }) {
     const [calendarStep, setCalendarStep] = useState<
         'checkIn' | 'checkOut' | null
@@ -426,6 +429,7 @@ function BookingCard({
                     isOpen={isVisitModalOpen}
                     onClose={() => setIsVisitModalOpen(false)}
                     effectiveVisitFee={effectiveVisitFee}
+                    enabledMethods={enabledMethods}
                 />
             </>
         );
@@ -862,6 +866,7 @@ export function PropertyShowClient({
     unavailableRanges,
     serviceFeeRate,
     rentalSettings,
+    enabledMethods,
     reviews,
     initialStay,
     initialGuests,
@@ -871,6 +876,7 @@ export function PropertyShowClient({
     unavailableRanges: DateRange[];
     serviceFeeRate: number;
     rentalSettings?: PlatformRentalSettings;
+    enabledMethods?: PaymentMethodKey[];
     reviews: Review[];
     initialStay: StaySelection;
     initialGuests: number;
@@ -1349,6 +1355,7 @@ export function PropertyShowClient({
                         onStayChange={setStay}
                         serviceFeeRate={serviceFeeRate}
                         rentalSettings={rentalSettings}
+                        enabledMethods={enabledMethods}
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })
                         }

@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/session';
+import {
+    getPlatformPaymentSettings,
+    listEnabledPaymentMethods,
+} from '@/lib/domain/platform-settings';
 import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     isPropertyAvailableBetween,
@@ -135,6 +139,7 @@ export default async function BookingCreatePage({
         : plural(env.booking.approvedPaymentHours, 'heure');
 
     const card = serializePropertyCard(property);
+    const paymentSettings = await getPlatformPaymentSettings();
 
     return (
         <BookingCreateClient
@@ -149,6 +154,7 @@ export default async function BookingCreatePage({
             quote={quote}
             isAvailable={isAvailable}
             paymentDelay={paymentDelay}
+            enabledMethods={listEnabledPaymentMethods(paymentSettings)}
             responseDelay={env.booking.hostResponseHours}
             refundPolicy={describeRefundPolicy(
                 property.cancellationDays ?? env.booking.fullRefundDays,
