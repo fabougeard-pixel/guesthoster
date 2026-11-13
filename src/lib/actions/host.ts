@@ -132,6 +132,7 @@ function mapPricingToDbFields(input: {
     monthly_charges: number;
     charges_included: boolean;
     advance_rent_months: number;
+    min_lease_months?: number;
     check_in_time: string;
     check_out_time: string;
     booking_mode: 'instant' | 'request';
@@ -152,6 +153,9 @@ function mapPricingToDbFields(input: {
                 : Math.round(input.monthly_charges * 100),
             chargesIncluded: input.charges_included,
             advanceRentMonths: Math.max(1, input.advance_rent_months),
+            minLeaseMonths: input.min_lease_months
+                ? Math.max(1, Math.trunc(input.min_lease_months))
+                : 12,
             checkInTime: '15:00',
             checkOutTime: '11:00',
             bookingMode: input.booking_mode,

@@ -136,6 +136,7 @@ model Property {
     monthlyCharges    Int       @default(0) @map("monthly_charges")
     chargesIncluded   Boolean   @default(true) @map("charges_included")
     advanceRentMonths Int       @default(1) @map("advance_rent_months")
+    minLeaseMonths    Int       @default(12) @map("min_lease_months")
     checkInTime       String    @default("15:00") @map("check_in_time") @db.VarChar(5)
     checkOutTime      String    @default("11:00") @map("check_out_time") @db.VarChar(5)
     cancellationDays  Int       @default(7) @map("cancellation_days")
@@ -400,6 +401,16 @@ model PropertyVisit {
     @@index([email])
     @@map("property_visits")
 }
+
+model PlatformSetting {
+    key         String    @id @db.VarChar(60)
+    value       String    @db.Text
+    description String?
+    updatedAt   DateTime? @updatedAt @map("updated_at")
+
+    @@map("platform_settings")
+}
+
 
 
 

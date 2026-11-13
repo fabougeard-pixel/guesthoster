@@ -85,6 +85,16 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                         },
                     ],
                 },
+                {
+                    heading: 'Configuration',
+                    links: [
+                        {
+                            label: 'Paramètres de location',
+                            href: '/admin/parametres',
+                            icon: 'settings',
+                        },
+                    ],
+                },
             ]}
         >
             {children}

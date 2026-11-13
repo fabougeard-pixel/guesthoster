@@ -141,6 +141,7 @@ const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     monthly_charges: 'pricing',
     charges_included: 'pricing',
     advance_rent_months: 'pricing',
+    min_lease_months: 'pricing',
     check_in_time: 'pricing',
     check_out_time: 'pricing',
     booking_mode: 'pricing',
@@ -186,6 +187,7 @@ function draftToWizardValues(
         monthly_charges: draft.monthly_charges,
         charges_included: draft.charges_included,
         advance_rent_months: draft.advance_rent_months,
+        min_lease_months: draft.min_lease_months ?? 12,
         check_in_time: draft.check_in_time,
         check_out_time: draft.check_out_time,
         cancellation_days: draft.cancellation_days ?? 7,
@@ -230,6 +232,7 @@ function toEditablePropertySlice(
         monthly_charges: values.monthly_charges,
         charges_included: values.charges_included,
         advance_rent_months: values.advance_rent_months,
+        min_lease_months: values.min_lease_months,
         check_in_time: values.check_in_time,
         check_out_time: values.check_out_time,
         cancellation_days: values.cancellation_days,
@@ -323,6 +326,11 @@ function readStepValuesFromForm(
                         Number.isFinite(rawMonths) && rawMonths >= 1
                             ? Math.trunc(rawMonths)
                             : 1,
+                    min_lease_months: Number(
+                        fd.get('min_lease_months') ??
+                            current.min_lease_months ??
+                            12,
+                    ),
                     booking_mode:
                         fd.get('booking_mode') === 'instant'
                             ? 'instant'
@@ -478,6 +486,9 @@ function validateStep(
                 advance_rent_months: fd
                     ? fd.get('advance_rent_months')
                     : values.advance_rent_months,
+                min_lease_months: fd
+                    ? fd.get('min_lease_months')
+                    : values.min_lease_months,
                 check_in_time: fd
                     ? (fd.get('check_in_time') ?? values.check_in_time)
                     : values.check_in_time,
@@ -645,6 +656,7 @@ export function PropertyWizard({
                     monthly_charges: nextValues.monthly_charges / 100,
                     charges_included: nextValues.charges_included,
                     advance_rent_months: nextValues.advance_rent_months,
+                    min_lease_months: nextValues.min_lease_months,
                     check_in_time: nextValues.check_in_time,
                     check_out_time: nextValues.check_out_time,
                     cancellation_days: nextValues.cancellation_days,

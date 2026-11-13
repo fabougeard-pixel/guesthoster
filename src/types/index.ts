@@ -47,6 +47,7 @@ export type PropertyCard = {
     charges_included: boolean;
     security_deposit: number;
     advance_rent_months: number;
+    min_lease_months: number;
     cleaning_fee: number;
     visit_fee: number;
     max_guests: number;
@@ -98,6 +99,7 @@ export type PropertyDetail = {
     monthly_charges: number;
     charges_included: boolean;
     advance_rent_months: number;
+    min_lease_months: number;
     check_in_time: string;
     check_out_time: string;
     cancellation_days: number;
@@ -232,6 +234,7 @@ export type HostProperty = {
     monthly_charges: number;
     charges_included: boolean;
     advance_rent_months: number;
+    min_lease_months: number;
     check_in_time: string;
     check_out_time: string;
     cancellation_days: number;

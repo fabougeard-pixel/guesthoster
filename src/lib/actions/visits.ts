@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { ActionResult } from '@/lib/actions/types';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
+import { getPlatformRentalSettings } from '@/lib/domain/platform-settings';
 
 const visitBookingSchema = z.object({
     propertySlug: z.string().min(1, 'Logement introuvable.'),
@@ -81,7 +82,11 @@ export async function createPropertyVisitAction(
     }
 
     const currentUser = await getCurrentUser();
-    const visitFee = property.visitFee ?? 0;
+    const settings = await getPlatformRentalSettings();
+    const visitFee =
+        settings.longTermVisitFeeMode === 'global'
+            ? Math.round(settings.longTermGlobalVisitFee * 100)
+            : (property.visitFee ?? 0);
 
     // Generate unique reference
     const randPart = Math.random().toString(36).substring(2, 8).toUpperCase();

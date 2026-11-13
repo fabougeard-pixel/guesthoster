@@ -388,15 +388,15 @@ export default async function HomePage() {
 
             <ShowcaseSection
                 id="longue-duree"
-                badge="Bail 1 an renouvelable"
+                badge="Bail d’habitation"
                 badgeTone="secondary"
-                title="Locations standards (Bail d’habitation)"
+                title="Locations standard"
                 description="Habitations au mois pour y vivre à l’année. Loyer mensuel net, charges détaillées, caution transparente et prise de rendez-vous pour visite."
                 viewAllHref="/logements?rental_duration=long_term"
-                viewAllLabel="Toutes les locations standards"
+                viewAllLabel="Toutes les locations standard"
                 items={longTermProperties}
                 emptyTitle="Louez à l’année avec bail d’habitation et visites simplifiées"
-                emptyDescription="Propriétaires : proposez vos biens en bail standard au mois avec gestion des créneaux de visite."
+                emptyDescription="Propriétaires : proposez vos biens en location standard au mois avec gestion des créneaux de visite."
                 className="border-y border-zinc-200 bg-secondary-50/35 dark:border-zinc-800 dark:bg-secondary-950/25"
             />
 

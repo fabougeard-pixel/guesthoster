@@ -9,6 +9,7 @@ import {
     createPropertyVisitAction,
     type VisitBookingResult,
 } from '@/lib/actions/visits';
+import { formatLeaseDuration } from '@/lib/domain/platform-settings';
 import { formatDate, formatPrice, todayIso } from '@/lib/format';
 import type { PropertyDetail } from '@/types';
 
@@ -30,10 +31,12 @@ export function VisitBookingModal({
     property,
     isOpen,
     onClose,
+    effectiveVisitFee,
 }: {
     property: PropertyDetail;
     isOpen: boolean;
     onClose: () => void;
+    effectiveVisitFee?: number;
 }) {
     const isClient = useSyncExternalStore(
         emptySubscribe,
@@ -82,7 +85,10 @@ export function VisitBookingModal({
         return null;
     }
 
-    const visitFee = property.visit_fee ?? 0;
+    const visitFee =
+        effectiveVisitFee !== undefined
+            ? effectiveVisitFee
+            : (property.visit_fee ?? 0);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -244,7 +250,9 @@ export function VisitBookingModal({
                     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                         <header className="flex flex-col gap-1 pr-8">
                             <div className="flex items-center gap-2">
-                                <Badge tone="secondary">Location standard · Bail 1 an</Badge>
+                                <Badge tone="secondary">
+                                    Location standard · Min. {formatLeaseDuration(property.min_lease_months)}
+                                </Badge>
                                 {visitFee > 0 ? (
                                     <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                                         Forfait validation : {formatPrice(visitFee)}

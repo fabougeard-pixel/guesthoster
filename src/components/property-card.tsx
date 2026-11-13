@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/card';
 import { FavoriteButton } from '@/components/favorite-button';
 import { RatingSummary } from '@/components/star-rating';
+import { formatLeaseDuration } from '@/lib/domain/platform-settings';
 import { formatPrice, plural } from '@/lib/format';
 import type { PropertyCard as PropertyCardData } from '@/types';
 
@@ -37,12 +38,17 @@ export function PropertyCard({
                 {/* Badges en superposition */}
                 <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
                     {property.rental_duration === 'long_term' ? (
-                        <Badge
-                            tone="secondary"
-                            className="bg-white/95 text-secondary-900 shadow-md backdrop-blur-xs font-semibold dark:bg-zinc-900/95 dark:text-zinc-100"
-                        >
-                            Location standard · Bail 1 an
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1">
+                            <Badge
+                                tone="secondary"
+                                className="bg-white/95 text-secondary-900 shadow-md backdrop-blur-xs font-semibold dark:bg-zinc-900/95 dark:text-zinc-100"
+                            >
+                                Location standard
+                            </Badge>
+                            <span className="rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs backdrop-blur-xs">
+                                Min. {formatLeaseDuration(property.min_lease_months)}
+                            </span>
+                        </div>
                     ) : (
                         <Badge
                             tone="neutral"
@@ -121,7 +127,7 @@ export function PropertyCard({
                         )}
                         <span aria-hidden="true">·</span>
                         <span className="inline-flex items-center rounded-sm bg-primary-50 px-1.5 py-0.2 text-[10px] font-semibold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
-                            Bail 1 an renouvelable
+                            Bail min. {formatLeaseDuration(property.min_lease_months)}
                         </span>
                     </div>
                 ) : (
@@ -170,16 +176,8 @@ export function PropertyCard({
                             <span>
                                 Caution : <strong className="font-semibold text-zinc-700 dark:text-zinc-300">{formatPrice(property.security_deposit)}</strong>
                             </span>
-                            <span>
-                                {property.visit_fee > 0 ? (
-                                    <span className="font-medium text-amber-700 dark:text-amber-400">
-                                        RDV visite : {formatPrice(property.visit_fee)}
-                                    </span>
-                                ) : (
-                                    <span className="font-medium text-primary-600 dark:text-primary-400">
-                                        Visite sur RDV
-                                    </span>
-                                )}
+                            <span className="font-semibold text-primary-600 transition group-hover:text-primary-700 dark:text-primary-400 dark:group-hover:text-primary-300">
+                                Prendre rendez-vous →
                             </span>
                         </div>
                     </div>

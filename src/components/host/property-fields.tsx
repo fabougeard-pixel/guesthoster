@@ -43,6 +43,7 @@ export type PropertyEditableFields = Pick<
     | 'monthly_charges'
     | 'charges_included'
     | 'advance_rent_months'
+    | 'min_lease_months'
     | 'check_in_time'
     | 'check_out_time'
     | 'cancellation_days'
@@ -519,6 +520,7 @@ export function PricingFields({
         | 'monthly_charges'
         | 'charges_included'
         | 'advance_rent_months'
+    | 'min_lease_months'
         | 'check_in_time'
         | 'check_out_time'
         | 'cancellation_days'
@@ -546,6 +548,9 @@ export function PricingFields({
     );
     const [advanceMonths, setAdvanceMonths] = useState<string>(() =>
         String(Math.max(1, property.advance_rent_months || 1)),
+    );
+    const [minLeaseMonths, setMinLeaseMonths] = useState<string>(() =>
+        String(Math.max(1, property.min_lease_months || 12)),
     );
     const [visitFeeEuros, setVisitFeeEuros] = useState<string>(() =>
         property.visit_fee && property.visit_fee > 0
@@ -628,6 +633,27 @@ export function PricingFields({
                                 aria-invalid={Boolean(
                                     errors.advance_rent_months,
                                 )}
+                            />
+                        </Field>
+
+                        <Field
+                            label="Durée minimale requise du bail (mois)"
+                            htmlFor="min_lease_months"
+                            error={errors.min_lease_months}
+                            hint="Ex. 12 mois (1 an), 24 mois (2 ans), 36 mois (3 ans) ou 9 mois (étudiant)."
+                        >
+                            <Input
+                                id="min_lease_months"
+                                name="min_lease_months"
+                                type="number"
+                                required
+                                min={1}
+                                max={120}
+                                value={minLeaseMonths}
+                                onChange={(e) =>
+                                    setMinLeaseMonths(e.target.value)
+                                }
+                                aria-invalid={Boolean(errors.min_lease_months)}
                             />
                         </Field>
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/session';
+import { getPlatformRentalSettings } from '@/lib/domain/platform-settings';
 import { getPropertyDetailForViewer } from '@/lib/domain/properties';
 import { env } from '@/lib/env';
 import { isValidIsoDate, todayIso } from '@/lib/format';
@@ -45,7 +46,11 @@ export default async function PropertyShowPage({
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
     const { slug } = await params;
-    const [viewer, sp] = await Promise.all([getCurrentUser(), searchParams]);
+    const [viewer, sp, rentalSettings] = await Promise.all([
+        getCurrentUser(),
+        searchParams,
+        getPlatformRentalSettings(),
+    ]);
     const detail = await getPropertyDetailForViewer(slug, viewer);
 
     if (!detail) {
@@ -75,6 +80,7 @@ export default async function PropertyShowPage({
             property={detail.property}
             unavailableRanges={detail.unavailableRanges}
             serviceFeeRate={env.booking.serviceFeeRate}
+            rentalSettings={rentalSettings}
             reviews={detail.reviews}
             initialStay={initialStay}
             initialGuests={initialGuests}

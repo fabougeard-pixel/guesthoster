@@ -4,6 +4,10 @@ import {
     canPropertyTransitionTo,
     isPropertyEditable,
 } from '@/lib/domain/enums';
+import {
+    DEFAULT_PLATFORM_RENTAL_SETTINGS,
+    formatLeaseDuration,
+} from '@/lib/domain/platform-settings';
 import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     calculateRefundAmount,
@@ -177,6 +181,16 @@ describe('Date, price and slug formatting helpers', () => {
         );
         expect(formatPrice(12_000)).toContain('120');
         expect(formatPrice(12_050)).toContain('120,50');
+    });
+
+    it('formats lease durations cleanly in years or months', () => {
+        expect(formatLeaseDuration(12)).toBe('1 an');
+        expect(formatLeaseDuration(24)).toBe('2 ans');
+        expect(formatLeaseDuration(36)).toBe('3 ans');
+        expect(formatLeaseDuration(6)).toBe('6 mois');
+        expect(formatLeaseDuration(18)).toBe('18 mois');
+        expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermVisitFeeMode).toBe('individual');
+        expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermWidgetButtonLabel).toBe('Prendre rendez-vous');
     });
 });
 

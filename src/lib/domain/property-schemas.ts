@@ -236,6 +236,15 @@ const pricingFieldsObject = {
         (v) => parseOptionalNumber(v, 1),
         z.number({ message: 'Nombre de mois invalide.' }).int(),
     ),
+    min_lease_months: z.preprocess(
+        (v) => parseOptionalNumber(v, 12),
+        z
+            .number({ message: 'Durée minimale de bail invalide.' })
+            .int()
+            .min(1, 'La durée minimale est de 1 mois.')
+            .max(120, 'La durée maximale est de 120 mois.')
+            .default(12),
+    ),
     booking_mode: z.preprocess(
         parseOptionalEnumInput,
         z.enum(['instant', 'request'], {
@@ -557,6 +566,7 @@ export type PropertyWizardDraftValues = {
     monthly_charges: number;
     charges_included: boolean;
     advance_rent_months: number;
+    min_lease_months: number;
     check_in_time: string;
     check_out_time: string;
     booking_mode: 'instant' | 'request';
@@ -595,6 +605,7 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     monthly_charges: 0,
     charges_included: true,
     advance_rent_months: 1,
+    min_lease_months: 12,
     check_in_time: '15:00',
     check_out_time: '11:00',
     booking_mode: 'request',

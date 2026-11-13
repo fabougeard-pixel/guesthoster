@@ -13,6 +13,10 @@ import { PriceBreakdown } from '@/components/price-breakdown';
 import { ReviewCard } from '@/components/review-card';
 import { RatingSummary, Stars } from '@/components/star-rating';
 import { VisitBookingModal } from '@/components/visit-booking-modal';
+import {
+    formatLeaseDuration,
+    type PlatformRentalSettings,
+} from '@/lib/domain/platform-settings';
 import { quoteLongTermUpfront } from '@/lib/domain/pricing';
 import {
     diffInDays,
@@ -277,6 +281,7 @@ function BookingCard({
     onClear,
     onOpenChat,
     serviceFeeRate,
+    rentalSettings,
 }: {
     serviceFeeRate: number;
     property: PropertyDetail;
@@ -287,6 +292,7 @@ function BookingCard({
     onStayChange: (stay: StaySelection) => void;
     onClear: () => void;
     onOpenChat: () => void;
+    rentalSettings?: PlatformRentalSettings;
 }) {
     const [calendarStep, setCalendarStep] = useState<
         'checkIn' | 'checkOut' | null
@@ -294,7 +300,7 @@ function BookingCard({
     const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
 
     // ==========================================
-    // LOCATION STANDARD (BAIL 1 AN / AU MOIS)
+    // LOCATION STANDARD (BAIL D'HABITATION)
     // ==========================================
     if (property.rental_duration === 'long_term') {
         const quote = quoteLongTermUpfront({
@@ -305,25 +311,31 @@ function BookingCard({
             advanceRentMonths: property.advance_rent_months,
         });
 
-        const visitFee = property.visit_fee ?? 0;
+        const effectiveVisitFee =
+            rentalSettings?.longTermVisitFeeMode === 'global'
+                ? Math.round(rentalSettings.longTermGlobalVisitFee * 100)
+                : (property.visit_fee ?? 0);
+
+        const buttonLabel =
+            rentalSettings?.longTermWidgetButtonLabel?.trim() ||
+            'Prendre rendez-vous';
+
+        const showDeposit =
+            rentalSettings?.longTermShowDepositOnWidget ?? true;
+        const showCharges =
+            rentalSettings?.longTermShowChargesOnWidget ?? true;
 
         return (
             <>
                 <Card className="flex flex-col gap-5 p-6 lg:sticky lg:top-24">
-                    {/* Badge type de formule */}
-                    <div className="flex items-center justify-between">
-                        <Badge tone="secondary" className="font-semibold">
-                            Location standard · Bail 1 an
+                    {/* Badge type de formule & durée minimale empilée */}
+                    <div className="flex flex-col items-start gap-1">
+                        <Badge tone="secondary" className="text-sm font-semibold">
+                            Location standard
                         </Badge>
-                        {visitFee > 0 ? (
-                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                                RDV visite : {formatPrice(visitFee)}
-                            </span>
-                        ) : (
-                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                                Visite sans frais
-                            </span>
-                        )}
+                        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                            Minimum {formatLeaseDuration(property.min_lease_months)}
+                        </span>
                     </div>
 
                     {/* Loyer mensuel & statut des charges */}
@@ -336,36 +348,40 @@ function BookingCard({
                                 / mois
                             </span>
                         </p>
-                        <p className="text-xs font-medium">
-                            {property.charges_included ? (
-                                <span className="text-emerald-700 dark:text-emerald-400">
-                                    ✓ Charges comprises dans le loyer
-                                </span>
-                            ) : property.monthly_charges > 0 ? (
-                                <span className="text-amber-700 dark:text-amber-400">
-                                    Charges en sus : +
-                                    {formatPrice(property.monthly_charges)} / mois
-                                </span>
-                            ) : (
-                                <span className="text-zinc-500 dark:text-zinc-400">
-                                    Hors charges
-                                </span>
-                            )}
-                        </p>
+                        {showCharges && (
+                            <p className="text-xs font-medium">
+                                {property.charges_included ? (
+                                    <span className="text-emerald-700 dark:text-emerald-400">
+                                        ✓ Charges comprises dans le loyer
+                                    </span>
+                                ) : property.monthly_charges > 0 ? (
+                                    <span className="text-amber-700 dark:text-amber-400">
+                                        Charges en sus : +
+                                        {formatPrice(property.monthly_charges)} / mois
+                                    </span>
+                                ) : (
+                                    <span className="text-zinc-500 dark:text-zinc-400">
+                                        Hors charges
+                                    </span>
+                                )}
+                            </p>
+                        )}
                     </div>
 
                     {/* Caractéristiques contractuelles et financières */}
                     <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-850/50">
-                            <span className="text-zinc-500 dark:text-zinc-400">Caution requise</span>
-                            <p className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                {formatPrice(property.security_deposit)}
-                            </p>
-                        </div>
+                        {showDeposit && (
+                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-850/50">
+                                <span className="text-zinc-500 dark:text-zinc-400">Caution requise</span>
+                                <p className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                    {formatPrice(property.security_deposit)}
+                                </p>
+                            </div>
+                        )}
                         <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-850/50">
                             <span className="text-zinc-500 dark:text-zinc-400">Contrat minimal</span>
                             <p className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                1 an renouvelable
+                                {formatLeaseDuration(property.min_lease_months)} renouvelable
                             </p>
                         </div>
                     </div>
@@ -377,19 +393,17 @@ function BookingCard({
                         className="border-t border-zinc-200 pt-4 dark:border-zinc-800"
                     />
 
-                    {/* Action principale : Prendre rendez-vous pour la visite */}
+                    {/* Action principale : Prendre rendez-vous */}
                     <Button
                         size="lg"
                         onClick={() => setIsVisitModalOpen(true)}
                         className="w-full text-base font-semibold shadow-md"
                     >
-                        Prendre rendez-vous pour une visite
+                        {buttonLabel}
                     </Button>
 
                     <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-                        {visitFee > 0
-                            ? `Forfait de validation : ${formatPrice(visitFee)} pour bloquer votre créneau exclusif.`
-                            : 'Visite gratuite et personnalisée sur rendez-vous.'}
+                        Visite personnalisée sur rendez-vous avec l’hôte.
                     </p>
 
                     <div className="border-t border-zinc-200 pt-3 text-center dark:border-zinc-800">
@@ -411,6 +425,7 @@ function BookingCard({
                     property={property}
                     isOpen={isVisitModalOpen}
                     onClose={() => setIsVisitModalOpen(false)}
+                    effectiveVisitFee={effectiveVisitFee}
                 />
             </>
         );
@@ -846,6 +861,7 @@ export function PropertyShowClient({
     property,
     unavailableRanges,
     serviceFeeRate,
+    rentalSettings,
     reviews,
     initialStay,
     initialGuests,
@@ -854,6 +870,7 @@ export function PropertyShowClient({
     property: PropertyDetail;
     unavailableRanges: DateRange[];
     serviceFeeRate: number;
+    rentalSettings?: PlatformRentalSettings;
     reviews: Review[];
     initialStay: StaySelection;
     initialGuests: number;
@@ -911,7 +928,12 @@ export function PropertyShowClient({
                         {property.type} · {property.city}, {property.country}
                     </span>
                     {isLongTerm && (
-                        <Badge tone="secondary">Location longue durée</Badge>
+                        <div className="flex flex-col items-start gap-0.5">
+                            <Badge tone="secondary">Location standard</Badge>
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                Minimum {formatLeaseDuration(property.min_lease_months)}
+                            </span>
+                        </div>
                     )}
                     <Badge tone={property.is_instant ? 'primary' : 'neutral'}>
                         {property.booking_mode_label}
@@ -970,7 +992,7 @@ export function PropertyShowClient({
                                             'salles de bain',
                                         ),
                                         isLongTerm
-                                            ? 'Bail standard 1 an renouvelable'
+                                            ? `Bail standard min. ${formatLeaseDuration(property.min_lease_months)} renouvelable`
                                             : null,
                                     ]
                                         .filter(Boolean)
@@ -1326,6 +1348,7 @@ export function PropertyShowClient({
                         onGuestsChange={setGuests}
                         onStayChange={setStay}
                         serviceFeeRate={serviceFeeRate}
+                        rentalSettings={rentalSettings}
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })
                         }
