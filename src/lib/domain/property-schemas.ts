@@ -250,6 +250,14 @@ const pricingFieldsObject = {
             .min(0, 'Le délai minimum est de 0 jour.')
             .max(60, 'Le délai maximum est de 60 jours.'),
     ),
+    visit_fee: z.preprocess(
+        (v) => parseOptionalNumber(v, 0),
+        z
+            .number({ message: 'Forfait de visite invalide.' })
+            .min(0, 'Le forfait de visite ne peut pas être négatif.')
+            .max(10_000, 'Le forfait de visite ne peut pas dépasser 10 000 €.')
+            .default(0),
+    ),
 };
 
 function refinePricingFields(
@@ -257,6 +265,7 @@ function refinePricingFields(
         rental_duration: RentalDuration;
         price_per_night: number;
         cleaning_fee: number;
+        visit_fee?: number;
         min_nights: number;
         max_nights: number | null;
         check_in_time: string;
@@ -540,6 +549,7 @@ export type PropertyWizardDraftValues = {
     amenities: number[];
     price_per_night: number;
     cleaning_fee: number;
+    visit_fee: number;
     min_nights: number;
     max_nights: number | null;
     monthly_rent: number;
@@ -577,6 +587,7 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     amenities: [],
     price_per_night: 8000,
     cleaning_fee: 0,
+    visit_fee: 0,
     min_nights: 1,
     max_nights: null,
     monthly_rent: 85000,

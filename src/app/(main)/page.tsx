@@ -227,13 +227,13 @@ const publishedInclude = {
 
 export default async function HomePage() {
     let activeCities;
-    let apartmentRows;
-    let chaletRows;
+    let shortTermRows;
     let longTermRows;
+    let chaletRows;
     let latestRows;
 
     try {
-        [activeCities, apartmentRows, chaletRows, longTermRows, latestRows] =
+        [activeCities, shortTermRows, longTermRows, chaletRows, latestRows] =
             await Promise.all([
                 prisma.city.findMany({
                     where: { isActive: true },
@@ -249,16 +249,7 @@ export default async function HomePage() {
                 prisma.property.findMany({
                     where: {
                         ...publishedWhere,
-                        propertyType: { is: { slug: 'appartement' } },
-                    },
-                    include: publishedInclude,
-                    orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
-                    take: 4,
-                }),
-                prisma.property.findMany({
-                    where: {
-                        ...publishedWhere,
-                        propertyType: { is: { slug: 'chalet' } },
+                        rentalDuration: 'short_term',
                     },
                     include: publishedInclude,
                     orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
@@ -268,6 +259,15 @@ export default async function HomePage() {
                     where: {
                         ...publishedWhere,
                         rentalDuration: 'long_term',
+                    },
+                    include: publishedInclude,
+                    orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+                    take: 4,
+                }),
+                prisma.property.findMany({
+                    where: {
+                        ...publishedWhere,
+                        propertyType: { is: { slug: 'chalet' } },
                     },
                     include: publishedInclude,
                     orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
@@ -303,9 +303,9 @@ export default async function HomePage() {
         )
         .slice(0, 8);
 
-    const apartments = apartmentRows.map(serializePropertyCard);
-    const chalets = chaletRows.map(serializePropertyCard);
+    const shortTermProperties = shortTermRows.map(serializePropertyCard);
     const longTermProperties = longTermRows.map(serializePropertyCard);
+    const chalets = chaletRows.map(serializePropertyCard);
     const latestProperties = latestRows.map(serializePropertyCard);
 
     return (
@@ -374,16 +374,30 @@ export default async function HomePage() {
             )}
 
             <ShowcaseSection
-                id="appartements"
-                badge="Urbain & Confort"
+                id="saisonnier"
+                badge="Séjours vacances"
                 badgeTone="primary"
-                title="Appartements sélectionnés"
-                description="Studios modernes, appartements familiaux et pieds-à-terre équipés en centre-ville."
-                viewAllHref="/logements?types[]=appartement"
-                viewAllLabel="Tous les appartements"
-                items={apartments}
-                emptyTitle="Vos appartements bientôt à l’affiche"
-                emptyDescription="Aucun appartement publié pour le moment. Explorez le catalogue ou déposez votre annonce en quelques minutes."
+                title="Locations saisonnières"
+                description="Appartements équipés, studios et refuges chaleureux à réserver à la nuitée pour vos séjours et vacances."
+                viewAllHref="/logements?rental_duration=short_term"
+                viewAllLabel="Toutes les locations saisonnières"
+                items={shortTermProperties}
+                emptyTitle="Séjours de vacances bientôt disponibles"
+                emptyDescription="Aucune location saisonnière disponible actuellement. Publiez votre logement ou explorez notre catalogue."
+            />
+
+            <ShowcaseSection
+                id="longue-duree"
+                badge="Bail 1 an renouvelable"
+                badgeTone="secondary"
+                title="Locations standards (Bail d’habitation)"
+                description="Habitations au mois pour y vivre à l’année. Loyer mensuel net, charges détaillées, caution transparente et prise de rendez-vous pour visite."
+                viewAllHref="/logements?rental_duration=long_term"
+                viewAllLabel="Toutes les locations standards"
+                items={longTermProperties}
+                emptyTitle="Louez à l’année avec bail d’habitation et visites simplifiées"
+                emptyDescription="Propriétaires : proposez vos biens en bail standard au mois avec gestion des créneaux de visite."
+                className="border-y border-zinc-200 bg-secondary-50/35 dark:border-zinc-800 dark:bg-secondary-950/25"
             />
 
             <ShowcaseSection
@@ -397,20 +411,6 @@ export default async function HomePage() {
                 items={chalets}
                 emptyTitle="Des chalets recherchés toute l’année"
                 emptyDescription="Vous possédez un chalet ? Publiez-le sur GuestHoster en courte ou longue durée."
-                className="border-y border-zinc-200 bg-secondary-50/35 dark:border-zinc-800 dark:bg-secondary-950/25"
-            />
-
-            <ShowcaseSection
-                id="longue-duree"
-                badge="Bail & Sérénité"
-                badgeTone="secondary"
-                title="Locations longue durée"
-                description="Loyer mensuel clair, caution sans charges, charges comprises ou détaillées et premier règlement en ligne."
-                viewAllHref="/logements?rental_duration=long_term"
-                viewAllLabel="Toutes les longues durées"
-                items={longTermProperties}
-                emptyTitle="Louez au mois avec paiement sécurisé à l’entrée"
-                emptyDescription="Propriétaires : définissez loyer, caution, mois d’avance (1, 2 mois ou plus) et mode de charges en toute flexibilité."
             />
 
             {latestProperties.length > 0 && (

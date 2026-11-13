@@ -14,16 +14,29 @@ import { Field, Input } from '@/components/form';
 import { Modal } from '@/components/modal';
 import { Pagination } from '@/components/pagination';
 import { useActionFeedback } from '@/components/use-action-feedback';
-import { createManagedOwnerAction } from '@/lib/actions/admin';
+import {
+    createManagedOwnerAction,
+    deleteManagedOwnerAction,
+} from '@/lib/actions/admin';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { Paginated } from '@/types';
+
+export const DEFAULT_HOST_TYPES = [
+    'Hôte Standard',
+    'Hôte Vérifié',
+    'Superhôte',
+    'Hôte Premium',
+    'Conciergerie Partenaire',
+];
 
 export type ManagedOwner = {
     id: number;
     name: string;
     email: string;
     role: string;
+    host_type: string;
     created_at: string;
     properties_count: number;
     suspended_at: string | null;
@@ -64,12 +77,14 @@ export function AdminOwnersClient({
         const name = String(fd.get('name') ?? '').trim();
         const email = String(fd.get('email') ?? '').trim();
         const password = String(fd.get('password') ?? '').trim();
+        const hostType = String(fd.get('hostType') ?? '').trim();
 
         startTransition(async () => {
             const res = await createManagedOwnerAction({
                 name,
                 email,
                 password: password || undefined,
+                hostType: hostType || undefined,
             });
 
             applyResult(res, {
@@ -78,6 +93,21 @@ export function AdminOwnersClient({
                     setIsCreateOpen(false);
                 },
             });
+        });
+    }
+
+    function handleDeleteOwner(owner: ManagedOwner) {
+        if (
+            !window.confirm(
+                `Supprimer définitivement le propriétaire « ${owner.name} » ainsi que tous ses biens associés ? Cette action est irréversible.`,
+            )
+        ) {
+            return;
+        }
+
+        startTransition(async () => {
+            const res = await deleteManagedOwnerAction(owner.id);
+            applyResult(res);
         });
     }
 
@@ -148,6 +178,7 @@ export function AdminOwnersClient({
             <DataTable
                 head={[
                     'Propriétaire',
+                    'Type d’hôte',
                     'Adresse email',
                     'Biens attribués',
                     'Date d’enregistrement',
@@ -169,6 +200,26 @@ export function AdminOwnersClient({
                                 </div>
                                 <span className="font-semibold">{owner.name}</span>
                             </div>
+                        </td>
+
+                        {/* Type d'hôte */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                            <span
+                                className={cn(
+                                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                                    owner.host_type === 'Hôte Premium'
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700'
+                                        : owner.host_type === 'Superhôte'
+                                          ? 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700'
+                                          : owner.host_type === 'Hôte Vérifié'
+                                            ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700'
+                                            : owner.host_type === 'Conciergerie Partenaire'
+                                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700'
+                                              : 'bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+                                )}
+                            >
+                                {owner.host_type}
+                            </span>
                         </td>
 
                         {/* Email */}
@@ -215,6 +266,7 @@ export function AdminOwnersClient({
                         {/* Actions */}
                         <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1.5">
+                                {/* Ajouter un bien pour ce propriétaire */}
                                 <Link
                                     href={`/admin/logements/nouveau?owner_id=${owner.id}`}
                                     title="Ajouter un bien pour ce propriétaire"
@@ -230,6 +282,8 @@ export function AdminOwnersClient({
                                         <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
                                     </svg>
                                 </Link>
+
+                                {/* Profil utilisateur */}
                                 <Link
                                     href={`/admin/utilisateurs?search=${encodeURIComponent(owner.email)}`}
                                     title="Consulter le profil utilisateur"
@@ -245,6 +299,29 @@ export function AdminOwnersClient({
                                         <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
                                     </svg>
                                 </Link>
+
+                                {/* Supprimer le propriétaire : Corbeille */}
+                                <button
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() => handleDeleteOwner(owner)}
+                                    title="Supprimer définitivement ce propriétaire"
+                                    aria-label="Supprimer ce propriétaire"
+                                    className="flex size-8 items-center justify-center rounded-lg border border-red-200 bg-red-50/70 text-red-600 transition hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                                >
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 1 .75.72l.5 6a.75.75 0 1 1-1.498.12l-.5-6a.75.75 0 0 1 .748-.84Zm3.59.84a.75.75 0 0 0-1.498-.12l-.5 6a.75.75 0 1 0 1.498.12l.5-6Z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -279,6 +356,25 @@ export function AdminOwnersClient({
                             placeholder="Ex : Jean Dupont"
                             autoComplete="name"
                         />
+                    </Field>
+
+                    <Field
+                        label="Type d’hôte"
+                        htmlFor="owner-host-type"
+                        hint="Choisissez parmi les suggestions ou tapez librement votre propre type d’hôte."
+                    >
+                        <Input
+                            id="owner-host-type"
+                            name="hostType"
+                            list="host-types-list"
+                            placeholder="Ex : Hôte Premium, Hôte Vérifié, Superhôte..."
+                            defaultValue="Hôte Standard"
+                        />
+                        <datalist id="host-types-list">
+                            {DEFAULT_HOST_TYPES.map((type) => (
+                                <option key={type} value={type} />
+                            ))}
+                        </datalist>
                     </Field>
 
                     <Field
@@ -332,4 +428,3 @@ export function AdminOwnersClient({
         </div>
     );
 }
-

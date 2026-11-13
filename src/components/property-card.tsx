@@ -41,14 +41,14 @@ export function PropertyCard({
                             tone="secondary"
                             className="bg-white/95 text-secondary-900 shadow-md backdrop-blur-xs font-semibold dark:bg-zinc-900/95 dark:text-zinc-100"
                         >
-                            Longue durée
+                            Location standard · Bail 1 an
                         </Badge>
                     ) : (
                         <Badge
                             tone="neutral"
                             className="bg-white/90 text-zinc-800 shadow-sm backdrop-blur-xs dark:bg-zinc-900/90 dark:text-zinc-200"
                         >
-                            Séjour vacances
+                            Location saisonnière
                         </Badge>
                     )}
                     {property.is_instant && (
@@ -99,36 +99,58 @@ export function PropertyCard({
                     </Link>
                 </h3>
 
-                {/* Configuration complète : Voyageurs · Chambres · Lits · Salle de bain */}
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    <span>
-                        {property.rental_duration === 'long_term'
-                            ? plural(property.max_guests, 'occupant')
-                            : plural(property.max_guests, 'voyageur')}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                        {property.bedrooms > 0
-                            ? plural(property.bedrooms, 'chambre')
-                            : 'Studio'}
-                    </span>
-                    {property.beds > 0 && (
-                        <>
-                            <span aria-hidden="true">·</span>
-                            <span>{plural(property.beds, 'lit')}</span>
-                        </>
-                    )}
-                    {property.bathrooms > 0 && (
-                        <>
-                            <span aria-hidden="true">·</span>
-                            <span>{plural(property.bathrooms, 'sdb')}</span>
-                        </>
-                    )}
-                </div>
+                {/* Configuration : Caractéristiques adaptées au type de location */}
+                {property.rental_duration === 'long_term' ? (
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                            {property.bedrooms > 0
+                                ? plural(property.bedrooms, 'chambre')
+                                : 'Studio'}
+                        </span>
+                        {property.beds > 0 && (
+                            <>
+                                <span aria-hidden="true">·</span>
+                                <span>{plural(property.beds, 'lit')}</span>
+                            </>
+                        )}
+                        {property.bathrooms > 0 && (
+                            <>
+                                <span aria-hidden="true">·</span>
+                                <span>{plural(property.bathrooms, 'sdb')}</span>
+                            </>
+                        )}
+                        <span aria-hidden="true">·</span>
+                        <span className="inline-flex items-center rounded-sm bg-primary-50 px-1.5 py-0.2 text-[10px] font-semibold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
+                            Bail 1 an renouvelable
+                        </span>
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        <span>{plural(property.max_guests, 'voyageur')}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                            {property.bedrooms > 0
+                                ? plural(property.bedrooms, 'chambre')
+                                : 'Studio'}
+                        </span>
+                        {property.beds > 0 && (
+                            <>
+                                <span aria-hidden="true">·</span>
+                                <span>{plural(property.beds, 'lit')}</span>
+                            </>
+                        )}
+                        {property.bathrooms > 0 && (
+                            <>
+                                <span aria-hidden="true">·</span>
+                                <span>{plural(property.bathrooms, 'sdb')}</span>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {/* Tarifs et conditions financières */}
                 {property.rental_duration === 'long_term' ? (
-                    <div className="mt-1 flex flex-col gap-0.5 border-t border-zinc-100 pt-1.5 dark:border-zinc-800">
+                    <div className="mt-1 flex flex-col gap-1.5 rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-2.5 dark:border-zinc-800 dark:bg-zinc-850/50">
                         <div className="flex items-baseline justify-between gap-2">
                             <p className="text-sm">
                                 <span className="text-base font-bold text-zinc-900 dark:text-zinc-100">
@@ -138,17 +160,28 @@ export function PropertyCard({
                                     / mois
                                 </span>
                             </p>
-                            <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                                 {property.charges_included
                                     ? 'Charges comprises'
                                     : `+${formatPrice(property.monthly_charges)} charges`}
                             </span>
                         </div>
-                        {property.security_deposit > 0 && (
-                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                                Caution : {formatPrice(property.security_deposit)}
-                            </p>
-                        )}
+                        <div className="flex items-center justify-between border-t border-zinc-200/60 pt-1 text-[11px] text-zinc-500 dark:border-zinc-800/60 dark:text-zinc-400">
+                            <span>
+                                Caution : <strong className="font-semibold text-zinc-700 dark:text-zinc-300">{formatPrice(property.security_deposit)}</strong>
+                            </span>
+                            <span>
+                                {property.visit_fee > 0 ? (
+                                    <span className="font-medium text-amber-700 dark:text-amber-400">
+                                        RDV visite : {formatPrice(property.visit_fee)}
+                                    </span>
+                                ) : (
+                                    <span className="font-medium text-primary-600 dark:text-primary-400">
+                                        Visite sur RDV
+                                    </span>
+                                )}
+                            </span>
+                        </div>
                     </div>
                 ) : (
                     <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-zinc-100 pt-1.5 dark:border-zinc-800">

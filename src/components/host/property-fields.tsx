@@ -35,6 +35,7 @@ export type PropertyEditableFields = Pick<
     | 'amenities'
     | 'price_per_night'
     | 'cleaning_fee'
+    | 'visit_fee'
     | 'min_nights'
     | 'max_nights'
     | 'monthly_rent'
@@ -167,8 +168,8 @@ export function PropertyDetailsFields({
                                 </span>
                                 <span className="text-xs text-zinc-600 dark:text-zinc-400">
                                     {option.value === 'short_term'
-                                        ? 'Tarif par nuit, frais de ménage, séjours flexibles (inchangé).'
-                                        : 'Annonce classique au mois : loyer mensuel, caution et charges.'}
+                                        ? 'Tarif par nuit, calendrier séjour vacances, capacité d’accueil voyageurs.'
+                                        : 'Bail d’habitation classique (1 an renouvelable) : loyer mensuel, caution, charges et rendez-vous de visite.'}
                                 </span>
                             </span>
                         </label>
@@ -510,6 +511,7 @@ export function PricingFields({
         | 'rental_duration'
         | 'price_per_night'
         | 'cleaning_fee'
+    | 'visit_fee'
         | 'min_nights'
         | 'max_nights'
         | 'monthly_rent'
@@ -544,6 +546,11 @@ export function PricingFields({
     );
     const [advanceMonths, setAdvanceMonths] = useState<string>(() =>
         String(Math.max(1, property.advance_rent_months || 1)),
+    );
+    const [visitFeeEuros, setVisitFeeEuros] = useState<string>(() =>
+        property.visit_fee && property.visit_fee > 0
+            ? String(property.visit_fee / 100)
+            : '0',
     );
 
     const parsedRentCents = Math.max(
@@ -668,6 +675,26 @@ export function PricingFields({
                                 />
                             </Field>
                         )}
+                        <Field
+                            label="Forfait de réservation de visite (€)"
+                            htmlFor="visit_fee"
+                            error={errors.visit_fee}
+                            hint="Montant forfaitaire demandé au candidat pour confirmer son créneau de visite. Laissez 0 € pour proposer des visites gratuites."
+                        >
+                            <Input
+                                id="visit_fee"
+                                name="visit_fee"
+                                type="number"
+                                min={0}
+                                max={1000}
+                                step="1"
+                                value={visitFeeEuros}
+                                onChange={(e) =>
+                                    setVisitFeeEuros(e.target.value)
+                                }
+                                aria-invalid={Boolean(errors.visit_fee)}
+                            />
+                        </Field>
                     </div>
 
                     <fieldset className="flex flex-col gap-3">

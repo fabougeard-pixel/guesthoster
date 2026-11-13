@@ -14,6 +14,7 @@ model User {
     name            String
     email           String     @unique
     role            String     @default("client")
+    hostType        String?    @default("Hôte Standard") @map("host_type")
     suspendedAt     DateTime?  @map("suspended_at")
     emailVerifiedAt DateTime?  @map("email_verified_at")
     password        String
@@ -30,6 +31,7 @@ model User {
     guestInquiries    PropertyInquiry[] @relation("GuestInquiries")
     hostInquiries     PropertyInquiry[] @relation("HostInquiries")
     inquiryMessages   PropertyInquiryMessage[]
+    propertyVisits    PropertyVisit[]
 
     @@map("users")
 }
@@ -137,6 +139,7 @@ model Property {
     checkInTime       String    @default("15:00") @map("check_in_time") @db.VarChar(5)
     checkOutTime      String    @default("11:00") @map("check_out_time") @db.VarChar(5)
     cancellationDays  Int       @default(7) @map("cancellation_days")
+    visitFee          Int       @default(0) @map("visit_fee")
     managedByAdmin    Boolean   @default(false) @map("managed_by_admin")
     rejectionReason   String?   @map("rejection_reason") @db.Text
     submittedAt       DateTime? @map("submitted_at")
@@ -156,6 +159,7 @@ model Property {
     reviews        Review[]
     favorites      Favorite[]
     inquiries      PropertyInquiry[]
+    visits         PropertyVisit[]
 
     @@index([status, cityId])
     @@index([status, rentalDuration])
@@ -368,5 +372,34 @@ model PropertyInquiryMessage {
     @@index([inquiryId, id])
     @@map("property_inquiry_messages")
 }
+
+model PropertyVisit {
+    id             Int       @id @default(autoincrement())
+    reference      String    @unique @db.VarChar(16)
+    propertyId     Int       @map("property_id")
+    userId         Int?      @map("user_id")
+    name           String
+    email          String
+    phone          String?
+    visitDate      DateTime  @map("visit_date") @db.Date
+    timeSlot       String    @map("time_slot") @db.VarChar(10)
+    candidateNotes String?   @map("candidate_notes") @db.Text
+    visitFee       Int       @default(0) @map("visit_fee")
+    paymentMethod  String?   @map("payment_method") @db.VarChar(20)
+    paymentStatus  String    @default("pending") @map("payment_status") @db.VarChar(20)
+    status         String    @default("confirmed") @db.VarChar(20)
+    confirmedAt    DateTime? @map("confirmed_at")
+    cancelledAt    DateTime? @map("cancelled_at")
+    createdAt      DateTime? @default(now()) @map("created_at")
+    updatedAt      DateTime? @updatedAt @map("updated_at")
+
+    property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+    user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+    @@index([propertyId, visitDate])
+    @@index([email])
+    @@map("property_visits")
+}
+
 
 

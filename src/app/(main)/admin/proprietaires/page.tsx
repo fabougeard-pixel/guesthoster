@@ -60,6 +60,7 @@ export default async function AdminOwnersPage({
                 name: true,
                 email: true,
                 role: true,
+                hostType: true,
                 createdAt: true,
                 suspendedAt: true,
                 _count: {
@@ -75,6 +76,7 @@ export default async function AdminOwnersPage({
         name: u.name,
         email: u.email,
         role: u.role,
+        host_type: u.hostType ?? 'Hôte Standard',
         created_at: u.createdAt ? u.createdAt.toISOString() : '',
         suspended_at: u.suspendedAt ? u.suspendedAt.toISOString() : null,
         properties_count: u._count.properties,

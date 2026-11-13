@@ -16,6 +16,7 @@ import {
     notifyPropertyRejected,
 } from '@/lib/notifications/service';
 import { buildUniquePropertyTypeSlug } from '@/lib/domain/taxonomy';
+import { deletePropertyImageFiles } from '@/lib/domain/properties';
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { type ActionResult, zodToFieldErrors } from './types';
@@ -583,12 +584,14 @@ const createManagedOwnerSchema = z.object({
         .max(128)
         .optional()
         .or(z.literal('')),
+    hostType: z.string().trim().max(80).optional().or(z.literal('')),
 });
 
 export async function createManagedOwnerAction(input: {
     name: string;
     email: string;
     password?: string | null;
+    hostType?: string | null;
 }): Promise<ActionResult<{ ownerId: number }>> {
     const admin = await requireAdminActor();
     if (!admin) {
@@ -601,6 +604,7 @@ export async function createManagedOwnerAction(input: {
     }
 
     const email = parsed.data.email;
+    const hostType = parsed.data.hostType?.trim() || 'Hôte Standard';
     const existing = await prisma.user.findUnique({
         where: { email },
         select: { id: true, role: true, suspendedAt: true },
@@ -616,7 +620,7 @@ export async function createManagedOwnerAction(input: {
         if (existing.role !== 'host') {
             await prisma.user.update({
                 where: { id: existing.id },
-                data: { role: 'host' },
+                data: { role: 'host', hostType },
             });
             revalidatePath('/admin/proprietaires');
             revalidatePath('/admin/logements/nouveau');
@@ -647,6 +651,7 @@ export async function createManagedOwnerAction(input: {
             email,
             password: passwordHash,
             role: 'host',
+            hostType,
             emailVerifiedAt: new Date(),
         },
         select: { id: true },
@@ -663,6 +668,124 @@ export async function createManagedOwnerAction(input: {
             type: 'success',
             message: 'Nouveau propriétaire enregistré avec succès.',
         },
+    };
+}
+
+export async function deleteManagedOwnerAction(
+    ownerId: number,
+): Promise<ActionResult> {
+    const admin = await requireAdminActor();
+    if (!admin) {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    if (admin.id === ownerId) {
+        return {
+            ok: false,
+            error: 'Vous ne pouvez pas supprimer votre propre compte administrateur.',
+        };
+    }
+
+    const owner = await prisma.user.findUnique({
+        where: { id: ownerId },
+        include: {
+            properties: {
+                include: {
+                    images: true,
+                },
+            },
+        },
+    });
+
+    if (!owner) {
+        return { ok: false, error: 'Propriétaire introuvable.' };
+    }
+
+    // Supprimer les fichiers images du stockage
+    const allImages = owner.properties.flatMap((p) => p.images);
+    await Promise.all(allImages.map((img) => deletePropertyImageFiles(img)));
+
+    const propertyIds = owner.properties.map((p) => p.id);
+
+    await prisma.$transaction(async (tx) => {
+        if (propertyIds.length > 0) {
+            await tx.propertyInquiryMessage.deleteMany({
+                where: { inquiry: { propertyId: { in: propertyIds } } },
+            });
+            await tx.propertyInquiry.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.message.deleteMany({
+                where: { booking: { propertyId: { in: propertyIds } } },
+            });
+            await tx.review.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.booking.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.favorite.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.blockedPeriod.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.amenityProperty.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.propertyImage.deleteMany({
+                where: { propertyId: { in: propertyIds } },
+            });
+            await tx.property.deleteMany({
+                where: { id: { in: propertyIds } },
+            });
+        }
+
+        // Nettoyer les interactions de l'utilisateur
+        await tx.propertyInquiryMessage.deleteMany({
+            where: { senderId: ownerId },
+        });
+        await tx.propertyInquiry.deleteMany({
+            where: { OR: [{ guestId: ownerId }, { hostId: ownerId }] },
+        });
+        await tx.message.deleteMany({ where: { userId: ownerId } });
+        await tx.review.deleteMany({ where: { userId: ownerId } });
+        await tx.favorite.deleteMany({ where: { userId: ownerId } });
+        await tx.booking.deleteMany({ where: { userId: ownerId } });
+        await tx.user.delete({ where: { id: ownerId } });
+    });
+
+    revalidatePath('/admin/proprietaires');
+    revalidatePath('/admin/logements');
+    revalidatePath('/admin/utilisateurs');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'success',
+            message: `Le profil du propriétaire « ${owner.name} » a été supprimé.`,
+        },
+    };
+}
+
+export async function updateOwnerHostTypeAction(input: {
+    ownerId: number;
+    hostType: string;
+}): Promise<ActionResult> {
+    const admin = await requireAdminActor();
+    if (!admin) {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    await prisma.user.update({
+        where: { id: input.ownerId },
+        data: { hostType: input.hostType.trim() || 'Hôte Standard' },
+    });
+
+    revalidatePath('/admin/proprietaires');
+    return {
+        ok: true,
+        toast: { type: 'success', message: 'Type d’hôte mis à jour.' },
     };
 }
 

@@ -124,6 +124,7 @@ function mapPricingToDbFields(input: {
     rental_duration: RentalDuration;
     price_per_night: number;
     cleaning_fee: number;
+    visit_fee?: number;
     min_nights: number;
     max_nights: number | null;
     monthly_rent: number;
@@ -141,6 +142,7 @@ function mapPricingToDbFields(input: {
             rentalDuration: 'long_term',
             pricePerNight: 0,
             cleaningFee: 0,
+            visitFee: Math.round((input.visit_fee ?? 0) * 100),
             minNights: 1,
             maxNights: null,
             monthlyRent: Math.round(input.monthly_rent * 100),
@@ -161,6 +163,7 @@ function mapPricingToDbFields(input: {
         rentalDuration: 'short_term',
         pricePerNight: Math.round(input.price_per_night * 100),
         cleaningFee: Math.round(input.cleaning_fee * 100),
+        visitFee: 0,
         minNights: input.min_nights,
         maxNights: input.max_nights,
         monthlyRent: 0,
@@ -842,6 +845,12 @@ export async function deletePropertyAction(
 
     if (user.role === 'admin') {
         await prisma.$transaction(async (tx) => {
+            await tx.propertyInquiryMessage.deleteMany({
+                where: { inquiry: { propertyId: property.id } },
+            });
+            await tx.propertyInquiry.deleteMany({
+                where: { propertyId: property.id },
+            });
             await tx.message.deleteMany({
                 where: { booking: { propertyId: property.id } },
             });

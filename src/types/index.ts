@@ -48,6 +48,7 @@ export type PropertyCard = {
     security_deposit: number;
     advance_rent_months: number;
     cleaning_fee: number;
+    visit_fee: number;
     max_guests: number;
     bedrooms: number;
     beds: number;
@@ -89,6 +90,7 @@ export type PropertyDetail = {
     bathrooms: number;
     price_per_night: number;
     cleaning_fee: number;
+    visit_fee: number;
     min_nights: number;
     max_nights: number | null;
     monthly_rent: number;
@@ -105,7 +107,16 @@ export type PropertyDetail = {
         category: string;
         items: { slug: string; name: string }[];
     }[];
-    host: { id?: number; name: string; member_since: number | null };
+    host: {
+        id?: number;
+        name: string;
+        host_type?: string;
+        rating?: number;
+        reviews_count?: number;
+        reviews?: Review[];
+        member_since: number | null;
+        member_since_formatted?: string | null;
+    };
 };
 
 export type SearchFilters = {
@@ -213,6 +224,7 @@ export type HostProperty = {
     amenities: number[];
     price_per_night: number;
     cleaning_fee: number;
+    visit_fee: number;
     min_nights: number;
     max_nights: number | null;
     monthly_rent: number;
@@ -391,5 +403,26 @@ export type PropertyInquiryDetail = {
     created_at: string | null;
     messages: InquiryMessage[];
 };
+
+export type PropertyVisit = {
+    id: number;
+    reference: string;
+    property_id: number;
+    property_title?: string;
+    property_slug?: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    visit_date: string;
+    time_slot: string;
+    candidate_notes: string | null;
+    visit_fee: number;
+    payment_method: string | null;
+    payment_status: string;
+    status: string;
+    confirmed_at: string | null;
+    created_at: string | null;
+};
+
 
 

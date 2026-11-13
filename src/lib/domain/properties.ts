@@ -158,6 +158,7 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
         security_deposit: property.securityDeposit,
         advance_rent_months: property.advanceRentMonths,
         cleaning_fee: property.cleaningFee,
+        visit_fee: property.visitFee ?? 0,
         max_guests: property.maxGuests,
         bedrooms: property.bedrooms,
         beds: property.beds,
@@ -592,7 +593,15 @@ export async function getPropertyDetailForViewer(
     const row = await prisma.property.findUnique({
         where: { slug },
         include: {
-            owner: { select: { id: true, name: true, createdAt: true, suspendedAt: true } },
+            owner: {
+                select: {
+                    id: true,
+                    name: true,
+                    hostType: true,
+                    createdAt: true,
+                    suspendedAt: true,
+                },
+            },
             city: { include: { country: true } },
             propertyType: true,
             images: {
@@ -618,7 +627,7 @@ export async function getPropertyDetailForViewer(
         return null;
     }
 
-    const [unavailableRanges, reviewRows] = await Promise.all([
+    const [unavailableRanges, reviewRows, hostReviewRows] = await Promise.all([
         getUnavailableRanges(row.id),
         prisma.review.findMany({
             where: { propertyId: row.id },
@@ -626,7 +635,39 @@ export async function getPropertyDetailForViewer(
             orderBy: { createdAt: 'desc' },
             take: 6,
         }),
+        prisma.review.findMany({
+            where: { property: { userId: row.owner.id } },
+            include: { author: { select: { name: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 12,
+        }),
     ]);
+
+    const hostRatings = hostReviewRows.map((r) => r.rating);
+    const hostRatingAverage =
+        hostRatings.length > 0
+            ? Number(
+                  (
+                      hostRatings.reduce((sum, r) => sum + r, 0) /
+                      hostRatings.length
+                  ).toFixed(1),
+              )
+            : 5.0;
+    const hostReviewsCount = hostReviewRows.length;
+
+    const hostReviews: Review[] = hostReviewRows.map((review) => {
+        const first =
+            review.author.name.trim().split(/\s+/)[0] || review.author.name;
+        return {
+            id: review.id,
+            rating: review.rating,
+            comment: review.comment,
+            author: first,
+            created_at: review.createdAt ? review.createdAt.toISOString() : null,
+            host_reply: review.hostReply,
+            replied_at: review.repliedAt ? review.repliedAt.toISOString() : null,
+        };
+    });
 
     const groupedAmenities = AMENITY_CATEGORIES.map((category) => {
         const items = row.amenities
@@ -685,6 +726,7 @@ export async function getPropertyDetailForViewer(
         bathrooms: row.bathrooms,
         price_per_night: row.pricePerNight,
         cleaning_fee: row.cleaningFee,
+        visit_fee: row.visitFee ?? 0,
         min_nights: row.minNights,
         max_nights: row.maxNights,
         monthly_rent: row.monthlyRent,
@@ -701,8 +743,18 @@ export async function getPropertyDetailForViewer(
         host: {
             id: row.owner.id,
             name: row.owner.name,
+            host_type: row.owner.hostType ?? 'Hôte Standard',
+            rating: hostRatingAverage,
+            reviews_count: hostReviewsCount,
+            reviews: hostReviews,
             member_since: row.owner.createdAt
                 ? row.owner.createdAt.getUTCFullYear()
+                : null,
+            member_since_formatted: row.owner.createdAt
+                ? new Intl.DateTimeFormat('fr-FR', {
+                      month: 'long',
+                      year: 'numeric',
+                  }).format(row.owner.createdAt)
                 : null,
         },
     };
@@ -846,6 +898,7 @@ export async function getHostPropertyForEdit(
         amenities: row.amenities.map((a) => a.amenityId),
         price_per_night: row.pricePerNight,
         cleaning_fee: row.cleaningFee,
+        visit_fee: row.visitFee ?? 0,
         min_nights: row.minNights,
         max_nights: row.maxNights,
         monthly_rent: row.monthlyRent,

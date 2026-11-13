@@ -133,6 +133,7 @@ const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     amenities: 'amenities',
     price_per_night: 'pricing',
     cleaning_fee: 'pricing',
+    visit_fee: 'pricing',
     min_nights: 'pricing',
     max_nights: 'pricing',
     monthly_rent: 'pricing',
@@ -177,6 +178,7 @@ function draftToWizardValues(
         amenities: draft.amenities,
         price_per_night: draft.price_per_night,
         cleaning_fee: draft.cleaning_fee,
+        visit_fee: draft.visit_fee ?? 0,
         min_nights: draft.min_nights,
         max_nights: draft.max_nights,
         monthly_rent: draft.monthly_rent,
@@ -220,6 +222,7 @@ function toEditablePropertySlice(
         amenities: values.amenities,
         price_per_night: values.price_per_night,
         cleaning_fee: values.cleaning_fee,
+        visit_fee: values.visit_fee,
         min_nights: values.min_nights,
         max_nights: values.max_nights,
         monthly_rent: values.monthly_rent,
@@ -312,6 +315,7 @@ function readStepValuesFromForm(
                         0,
                     ),
                     charges_included: chargesIncluded,
+                    visit_fee: parseEurosToCents(fd.get('visit_fee'), 0),
                     monthly_charges: chargesIncluded
                         ? 0
                         : parseEurosToCents(fd.get('monthly_charges'), 0),
@@ -452,6 +456,9 @@ function validateStep(
                 cleaning_fee: fd
                     ? fd.get('cleaning_fee')
                     : values.cleaning_fee / 100,
+                visit_fee: fd
+                    ? fd.get('visit_fee')
+                    : values.visit_fee / 100,
                 min_nights: fd ? fd.get('min_nights') : values.min_nights,
                 max_nights: fd ? fd.get('max_nights') : values.max_nights,
                 monthly_rent: fd
@@ -627,6 +634,7 @@ export function PropertyWizard({
                             ? nextValues.price_per_night / 100
                             : '',
                     cleaning_fee: nextValues.cleaning_fee / 100,
+                    visit_fee: nextValues.visit_fee / 100,
                     min_nights: nextValues.min_nights,
                     max_nights: nextValues.max_nights ?? '',
                     monthly_rent:
