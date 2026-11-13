@@ -368,24 +368,45 @@ function BookingCard({
 
                 {/* Nombre d'occupants */}
                 <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="guests">Occupants</Label>
-                    <select
-                        id="guests"
-                        value={guests}
-                        onChange={(event) =>
-                            onGuestsChange(Number(event.target.value))
-                        }
-                        className="h-10 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 transition hover:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="occupants-stepper">Occupants</Label>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Capacité max. {property.max_guests} {plural(property.max_guests, 'personne')}
+                        </span>
+                    </div>
+                    <div
+                        id="occupants-stepper"
+                        className="flex h-11 items-center justify-between rounded-xl border border-zinc-300 bg-white px-2 shadow-2xs transition dark:border-zinc-700 dark:bg-zinc-900"
                     >
-                        {Array.from(
-                            { length: property.max_guests },
-                            (_, count) => (
-                                <option key={count + 1} value={count + 1}>
-                                    {plural(count + 1, 'occupant')}
-                                </option>
-                            ),
-                        )}
-                    </select>
+                        <button
+                            type="button"
+                            onClick={() => onGuestsChange(Math.max(1, guests - 1))}
+                            disabled={guests <= 1}
+                            className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                            aria-label="Diminuer le nombre d'occupants"
+                        >
+                            −
+                        </button>
+                        <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-100">
+                            <span className="text-sm font-semibold">{plural(guests, 'occupant')}</span>
+                            {guests === property.max_guests && (
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                                    Capacité max
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                onGuestsChange(Math.min(property.max_guests, guests + 1))
+                            }
+                            disabled={guests >= property.max_guests}
+                            className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                            aria-label="Augmenter le nombre d'occupants"
+                        >
+                            +
+                        </button>
+                    </div>
                 </div>
 
                 {/* Décomposition financière exacte à l'entrée */}
@@ -571,21 +592,45 @@ function BookingCard({
 
             {/* Voyageurs */}
             <div className="flex flex-col gap-1.5">
-                <Label htmlFor="guests">Voyageurs</Label>
-                <select
-                    id="guests"
-                    value={guests}
-                    onChange={(event) =>
-                        onGuestsChange(Number(event.target.value))
-                    }
-                    className="h-10 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 transition hover:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="guests-stepper">Voyageurs</Label>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        Capacité max. {property.max_guests} {plural(property.max_guests, 'personne')}
+                    </span>
+                </div>
+                <div
+                    id="guests-stepper"
+                    className="flex h-11 items-center justify-between rounded-xl border border-zinc-300 bg-white px-2 shadow-2xs transition dark:border-zinc-700 dark:bg-zinc-900"
                 >
-                    {Array.from({ length: property.max_guests }, (_, count) => (
-                        <option key={count + 1} value={count + 1}>
-                            {plural(count + 1, 'voyageur')}
-                        </option>
-                    ))}
-                </select>
+                    <button
+                        type="button"
+                        onClick={() => onGuestsChange(Math.max(1, guests - 1))}
+                        disabled={guests <= 1}
+                        className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                        aria-label="Diminuer le nombre de voyageurs"
+                    >
+                        −
+                    </button>
+                    <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-100">
+                        <span className="text-sm font-semibold">{plural(guests, 'voyageur')}</span>
+                        {guests === property.max_guests && (
+                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                                Capacité max
+                            </span>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onGuestsChange(Math.min(property.max_guests, guests + 1))
+                        }
+                        disabled={guests >= property.max_guests}
+                        className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                        aria-label="Augmenter le nombre de voyageurs"
+                    >
+                        +
+                    </button>
+                </div>
             </div>
 
             {/* Décomposition tarifaire dès que les dates sont choisies */}
@@ -660,7 +705,9 @@ export function PropertyShowClient({
     initialGuests: number;
 }) {
     const [stay, setStay] = useState<StaySelection>(initialStay);
-    const [guests, setGuests] = useState(initialGuests);
+    const [guests, setGuests] = useState(
+        initialGuests || property.max_guests || 1,
+    );
     const location = property.location;
     const isLongTerm = property.rental_duration === 'long_term';
     const longTermQuote = isLongTerm

@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { Alert, Field, Input, Select, Textarea } from '@/components/form';
+import { Alert, Field, Input, Label, Textarea } from '@/components/form';
 import type { PriceLines } from '@/components/price-breakdown';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
@@ -40,13 +40,14 @@ export function BookingCreateClient({
     const { applyResult } = useActionFeedback();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<FieldErrors>({});
+    const [guestCount, setGuestCount] = useState(stay.guests);
 
     const isLongTerm = property.rental_duration === 'long_term';
     const nights = quote.nights ?? 0;
 
     const backToListing = isLongTerm
-        ? `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&guests=${stay.guests}`
-        : `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&check_out=${encodeURIComponent(stay.check_out)}&guests=${stay.guests}`;
+        ? `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&guests=${guestCount}`
+        : `/logements/${property.slug}?check_in=${encodeURIComponent(stay.check_in)}&check_out=${encodeURIComponent(stay.check_out)}&guests=${guestCount}`;
 
     const blocker = property.is_owner
         ? 'Vous ne pouvez pas réserver votre propre logement.'
@@ -73,7 +74,7 @@ export function BookingCreateClient({
                 propertySlug: property.slug,
                 check_in: stay.check_in,
                 check_out: isLongTerm ? null : stay.check_out,
-                guests: Number(fd.get('guests') ?? stay.guests),
+                guests: guestCount,
                 special_requests: String(fd.get('special_requests') ?? ''),
                 guest_name: fd.get('guest_name')
                     ? String(fd.get('guest_name'))
@@ -193,30 +194,63 @@ export function BookingCreateClient({
                     onSubmit={(event) => void submit(event)}
                     className="flex flex-col gap-6"
                 >
-                    <Field
-                        label={isLongTerm ? 'Occupants' : 'Voyageurs'}
-                        htmlFor="guests"
-                        error={errors.guests}
-                        className="max-w-xs"
-                    >
-                        <Select
-                            id="guests"
-                            name="guests"
-                            defaultValue={stay.guests}
+                    {/* Sélecteur de voyageurs / occupants */}
+                    <div className="flex max-w-xs flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="checkout-guests-stepper">
+                                {isLongTerm ? 'Occupants' : 'Voyageurs'}
+                            </Label>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Capacité max. {property.max_guests} {plural(property.max_guests, 'personne')}
+                            </span>
+                        </div>
+                        <input type="hidden" name="guests" value={guestCount} />
+                        <div
+                            id="checkout-guests-stepper"
+                            className="flex h-11 items-center justify-between rounded-xl border border-zinc-300 bg-white px-2 shadow-2xs transition dark:border-zinc-700 dark:bg-zinc-900"
                         >
-                            {Array.from(
-                                { length: property.max_guests },
-                                (_, count) => (
-                                    <option key={count + 1} value={count + 1}>
-                                        {plural(
-                                            count + 1,
-                                            isLongTerm ? 'occupant' : 'voyageur',
-                                        )}
-                                    </option>
-                                ),
-                            )}
-                        </Select>
-                    </Field>
+                            <button
+                                type="button"
+                                onClick={() => setGuestCount((prev) => Math.max(1, prev - 1))}
+                                disabled={guestCount <= 1}
+                                className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                                aria-label="Diminuer"
+                            >
+                                −
+                            </button>
+                            <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-100">
+                                <span className="text-sm font-semibold">
+                                    {plural(
+                                        guestCount,
+                                        isLongTerm ? 'occupant' : 'voyageur',
+                                    )}
+                                </span>
+                                {guestCount === property.max_guests && (
+                                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                                        Capacité max
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setGuestCount((prev) =>
+                                        Math.min(property.max_guests, prev + 1),
+                                    )
+                                }
+                                disabled={guestCount >= property.max_guests}
+                                className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                                aria-label="Augmenter"
+                            >
+                                +
+                            </button>
+                        </div>
+                        {errors.guests && (
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                                {errors.guests}
+                            </p>
+                        )}
+                    </div>
 
                     {currentUser ? (
                         <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4.5 dark:border-zinc-800 dark:bg-zinc-900/50">

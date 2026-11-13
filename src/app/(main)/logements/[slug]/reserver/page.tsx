@@ -99,7 +99,7 @@ export default async function BookingCreatePage({
             rawGuests >= 1 &&
             rawGuests <= property.maxGuests
             ? rawGuests
-            : 1;
+            : property.maxGuests || 1;
 
     const [isAvailable] = await Promise.all([
         isPropertyAvailableBetween(property.id, checkIn, checkOut),

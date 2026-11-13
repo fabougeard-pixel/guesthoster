@@ -56,9 +56,6 @@ export default async function PropertyShowPage({
     const rawCheckOut = Array.isArray(sp.check_out)
         ? sp.check_out[0]
         : sp.check_out;
-    const rawGuests = Number(
-        Array.isArray(sp.guests) ? sp.guests[0] : sp.guests,
-    );
 
     const validStay =
         isValidIsoDate(rawCheckIn) &&
@@ -71,11 +68,7 @@ export default async function PropertyShowPage({
         : { checkIn: null, checkOut: null };
 
     const initialGuests =
-        Number.isFinite(rawGuests) &&
-        rawGuests >= 1 &&
-        rawGuests <= detail.property.max_guests
-            ? rawGuests
-            : 1;
+        detail.property.max_guests > 0 ? detail.property.max_guests : 1;
 
     return (
         <PropertyShowClient
