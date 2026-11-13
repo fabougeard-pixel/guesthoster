@@ -242,6 +242,14 @@ const pricingFieldsObject = {
             message: 'Veuillez choisir un mode de réservation.',
         }),
     ),
+    cancellation_days: z.preprocess(
+        (v) => parseOptionalNumber(v, 7),
+        z
+            .number({ message: 'Délai d’annulation invalide.' })
+            .int()
+            .min(0, 'Le délai minimum est de 0 jour.')
+            .max(60, 'Le délai maximum est de 60 jours.'),
+    ),
 };
 
 function refinePricingFields(
@@ -542,6 +550,7 @@ export type PropertyWizardDraftValues = {
     check_in_time: string;
     check_out_time: string;
     booking_mode: 'instant' | 'request';
+    cancellation_days: number;
 };
 
 export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
@@ -578,4 +587,5 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     check_in_time: '15:00',
     check_out_time: '11:00',
     booking_mode: 'request',
+    cancellation_days: 7,
 };

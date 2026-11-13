@@ -151,7 +151,7 @@ export default async function BookingCreatePage({
             paymentDelay={paymentDelay}
             responseDelay={env.booking.hostResponseHours}
             refundPolicy={describeRefundPolicy(
-                env.booking.fullRefundDays,
+                property.cancellationDays ?? env.booking.fullRefundDays,
                 env.booking.lateRefundRate,
             )}
         />

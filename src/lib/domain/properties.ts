@@ -694,9 +694,12 @@ export async function getPropertyDetailForViewer(
         advance_rent_months: row.advanceRentMonths,
         check_in_time: row.checkInTime.slice(0, 5),
         check_out_time: row.checkOutTime.slice(0, 5),
+        cancellation_days: row.cancellationDays ?? 7,
+        managed_by_admin: row.managedByAdmin ?? false,
         images,
         amenities: groupedAmenities,
         host: {
+            id: row.owner.id,
             name: row.owner.name,
             member_since: row.owner.createdAt
                 ? row.owner.createdAt.getUTCFullYear()
@@ -852,6 +855,8 @@ export async function getHostPropertyForEdit(
         advance_rent_months: row.advanceRentMonths,
         check_in_time: row.checkInTime.slice(0, 5),
         check_out_time: row.checkOutTime.slice(0, 5),
+        cancellation_days: row.cancellationDays ?? 7,
+        managed_by_admin: row.managedByAdmin ?? false,
         booking_mode: row.bookingMode,
         images: serializePropertyImages(row.images),
         missing: missingPropertyRequirements({

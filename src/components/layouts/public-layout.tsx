@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { buttonClasses } from '@/components/button';
 import { Container } from '@/components/card';
+import { HeaderSearchModal } from '@/components/header-search-modal';
 import { MessagesLink } from '@/components/messages-link';
 import { NotificationsLink } from '@/components/notifications-link';
 import { UserMenu } from '@/components/user-menu';
@@ -10,9 +11,11 @@ import type { User } from '@/types';
 
 export function PublicLayout({
     user,
+    destinations,
     children,
 }: {
     user: User | null;
+    destinations?: string[];
     children: ReactNode;
 }) {
     return (
@@ -25,24 +28,33 @@ export function PublicLayout({
             </a>
 
             <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
-                <Container className="flex h-16 items-center justify-between gap-4">
-                    <Link href="/" aria-label="GuestHoster, accueil">
+                <Container className="flex h-16 items-center justify-between gap-2 sm:gap-4">
+                    <Link
+                        href="/"
+                        aria-label="GuestHoster, accueil"
+                        className="shrink-0"
+                    >
                         <AppLogo />
                     </Link>
 
+                    {/* Loupe Header & modale de recherche full screen */}
+                    <div className="mx-2 flex max-w-xs flex-1 items-center justify-center sm:max-w-sm">
+                        <HeaderSearchModal destinations={destinations} />
+                    </div>
+
                     {user ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                             <NotificationsLink />
                             <MessagesLink />
                             <UserMenu user={user} />
                         </div>
                     ) : (
-                        <nav className="flex items-center gap-2">
+                        <nav className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                             <Link
                                 href="/register?role=host"
                                 className={buttonClasses({
                                     variant: 'ghost',
-                                    className: 'hidden sm:inline-flex',
+                                    className: 'hidden md:inline-flex',
                                 })}
                             >
                                 Devenir hôte
@@ -51,11 +63,15 @@ export function PublicLayout({
                                 href="/login"
                                 className={buttonClasses({
                                     variant: 'outline',
+                                    size: 'sm',
                                 })}
                             >
                                 Connexion
                             </Link>
-                            <Link href="/register" className={buttonClasses()}>
+                            <Link
+                                href="/register"
+                                className={buttonClasses({ size: 'sm' })}
+                            >
                                 Inscription
                             </Link>
                         </nav>
@@ -86,4 +102,3 @@ export function PublicLayout({
         </div>
     );
 }
-

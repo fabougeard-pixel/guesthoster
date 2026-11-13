@@ -27,6 +27,9 @@ model User {
     messages          Message[]
     reviews           Review[]
     favorites         Favorite[]
+    guestInquiries    PropertyInquiry[] @relation("GuestInquiries")
+    hostInquiries     PropertyInquiry[] @relation("HostInquiries")
+    inquiryMessages   PropertyInquiryMessage[]
 
     @@map("users")
 }
@@ -133,6 +136,8 @@ model Property {
     advanceRentMonths Int       @default(1) @map("advance_rent_months")
     checkInTime       String    @default("15:00") @map("check_in_time") @db.VarChar(5)
     checkOutTime      String    @default("11:00") @map("check_out_time") @db.VarChar(5)
+    cancellationDays  Int       @default(7) @map("cancellation_days")
+    managedByAdmin    Boolean   @default(false) @map("managed_by_admin")
     rejectionReason   String?   @map("rejection_reason") @db.Text
     submittedAt       DateTime? @map("submitted_at")
     publishedAt       DateTime? @map("published_at")
@@ -150,6 +155,7 @@ model Property {
     bookings       Booking[]
     reviews        Review[]
     favorites      Favorite[]
+    inquiries      PropertyInquiry[]
 
     @@index([status, cityId])
     @@index([status, rentalDuration])
@@ -322,4 +328,45 @@ model Notification {
     @@index([notifiableType, notifiableId])
     @@map("notifications")
 }
+
+model PropertyInquiry {
+    id               Int                      @id @default(autoincrement())
+    reference        String                   @unique @db.VarChar(16)
+    propertyId       Int                      @map("property_id")
+    guestId          Int                      @map("guest_id")
+    hostId           Int                      @map("host_id")
+    isManagedByAdmin Boolean                  @default(false) @map("is_managed_by_admin")
+    status           String                   @default("open") @db.VarChar(20)
+    closedAt         DateTime?                @map("closed_at")
+    recapSentAt      DateTime?                @map("recap_sent_at")
+    createdAt        DateTime?                @default(now()) @map("created_at")
+    updatedAt        DateTime?                @updatedAt @map("updated_at")
+
+    property Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+    guest    User                     @relation("GuestInquiries", fields: [guestId], references: [id], onDelete: Cascade)
+    host     User                     @relation("HostInquiries", fields: [hostId], references: [id], onDelete: Cascade)
+    messages PropertyInquiryMessage[]
+
+    @@index([propertyId, status])
+    @@index([guestId, status])
+    @@index([hostId, status])
+    @@map("property_inquiries")
+}
+
+model PropertyInquiryMessage {
+    id         Int             @id @default(autoincrement())
+    inquiryId  Int             @map("inquiry_id")
+    senderId   Int             @map("sender_id")
+    senderRole String          @default("guest") @map("sender_role") @db.VarChar(20)
+    body       String          @db.Text
+    readAt     DateTime?       @map("read_at")
+    createdAt  DateTime?       @default(now()) @map("created_at")
+
+    inquiry PropertyInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+    sender  User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+    @@index([inquiryId, id])
+    @@map("property_inquiry_messages")
+}
+
 

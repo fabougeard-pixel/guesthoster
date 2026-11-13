@@ -6,6 +6,7 @@ import type { StaySelection } from '@/components/availability-calendar';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
 import { Button, buttonClasses } from '@/components/button';
 import { Badge, Card, Container } from '@/components/card';
+import { PropertyInquiryChatDrawer } from '@/components/chat/property-inquiry-chat-drawer';
 import { FavoriteButton } from '@/components/favorite-button';
 import { Alert, Label } from '@/components/form';
 import { PriceBreakdown } from '@/components/price-breakdown';
@@ -274,6 +275,7 @@ function BookingCard({
     onStayChange,
     onMoveInChange,
     onClear,
+    onOpenChat,
     serviceFeeRate,
 }: {
     serviceFeeRate: number;
@@ -285,6 +287,7 @@ function BookingCard({
     onStayChange: (stay: StaySelection) => void;
     onMoveInChange: (checkIn: string) => void;
     onClear: () => void;
+    onOpenChat: () => void;
 }) {
     const today = todayIso();
     const [calendarStep, setCalendarStep] = useState<
@@ -449,6 +452,19 @@ function BookingCard({
                         Effacer la date d’entrée
                     </button>
                 )}
+
+                <div className="border-t border-zinc-200 pt-3 text-center dark:border-zinc-800">
+                    <button
+                        type="button"
+                        onClick={onOpenChat}
+                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                    >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden="true">
+                            <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Z" clipRule="evenodd" />
+                        </svg>
+                        Une question ? Contacter l’hôte
+                    </button>
+                </div>
             </Card>
         );
     }
@@ -456,6 +472,45 @@ function BookingCard({
     // ==========================================
     // LOCATION COURTE DURÉE
     // ==========================================
+    const cancellationDays = property.cancellation_days ?? 7;
+    let cancellationInfo: {
+        label: string;
+        isPast: boolean;
+        dateFormatted: string | null;
+    } = {
+        label: `Annulation gratuite jusqu’à ${cancellationDays} jours avant l’arrivée`,
+        isPast: false,
+        dateFormatted: null,
+    };
+
+    if (stay.checkIn) {
+        const checkInDate = new Date(`${stay.checkIn}T00:00:00Z`);
+        const deadlineDate = new Date(
+            checkInDate.getTime() - cancellationDays * 24 * 60 * 60 * 1000,
+        );
+        const deadlineIso = deadlineDate.toISOString().slice(0, 10);
+        const today = todayIso();
+
+        const formattedDeadline = new Intl.DateTimeFormat('fr-FR', {
+            day: 'numeric',
+            month: 'long',
+        }).format(deadlineDate);
+
+        if (today > deadlineIso) {
+            cancellationInfo = {
+                label: `Non remboursable (délai d’annulation de ${cancellationDays} jours dépassé)`,
+                isPast: true,
+                dateFormatted: formattedDeadline,
+            };
+        } else {
+            cancellationInfo = {
+                label: `Annulation gratuite jusqu’au ${formattedDeadline} à ${property.check_in_time}`,
+                isPast: false,
+                dateFormatted: formattedDeadline,
+            };
+        }
+    }
+
     const nights =
         stay.checkIn && stay.checkOut
             ? diffInDays(stay.checkIn, stay.checkOut)
@@ -517,7 +572,7 @@ function BookingCard({
                         className={cn(
                             'border-r border-zinc-300 p-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/60',
                             calendarStep === 'checkIn' &&
-                                'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
+                            'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
                         )}
                     >
                         <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
@@ -541,7 +596,7 @@ function BookingCard({
                         className={cn(
                             'p-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/60',
                             calendarStep === 'checkOut' &&
-                                'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
+                            'ring-2 ring-primary-500 ring-inset bg-primary-50/40 dark:bg-primary-950/30',
                         )}
                     >
                         <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
@@ -649,6 +704,45 @@ function BookingCard({
                 />
             )}
 
+            {/* Délai butoir pour l'annulation calculé dynamiquement */}
+            <div
+                className={cn(
+                    'flex items-start gap-2.5 rounded-xl border p-3 text-xs transition',
+                    cancellationInfo.isPast
+                        ? 'border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200'
+                        : 'border-emerald-200 bg-emerald-50/70 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200',
+                )}
+            >
+                <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="mt-0.5 size-4 shrink-0"
+                    aria-hidden="true"
+                >
+                    {cancellationInfo.isPast ? (
+                        <path
+                            fillRule="evenodd"
+                            d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                            clipRule="evenodd"
+                        />
+                    ) : (
+                        <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"
+                            clipRule="evenodd"
+                        />
+                    )}
+                </svg>
+                <div className="flex flex-col">
+                    <span className="font-semibold">{cancellationInfo.label}</span>
+                    <span className="mt-0.5 text-[11px] opacity-80">
+                        {cancellationInfo.isPast
+                            ? 'Pour ces dates choisies, aucun remboursement ne sera accordé en cas d’annulation.'
+                            : `Annulation sans frais garantie jusqu’à ${cancellationDays} ${plural(cancellationDays, 'jour')} avant l’arrivée.`}
+                    </span>
+                </div>
+            </div>
+
             {/* Bouton d'action */}
             {nights > 0 && stay.checkIn && stay.checkOut ? (
                 <Link
@@ -685,6 +779,19 @@ function BookingCard({
                     Effacer les dates
                 </button>
             )}
+
+            <div className="border-t border-zinc-200 pt-3 text-center dark:border-zinc-800">
+                <button
+                    type="button"
+                    onClick={onOpenChat}
+                    className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                >
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden="true">
+                        <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Z" clipRule="evenodd" />
+                    </svg>
+                    Une question ? Contacter l’hôte
+                </button>
+            </div>
         </Card>
     );
 }
@@ -696,6 +803,7 @@ export function PropertyShowClient({
     reviews,
     initialStay,
     initialGuests,
+    isViewerAuthenticated = false,
 }: {
     property: PropertyDetail;
     unavailableRanges: DateRange[];
@@ -703,11 +811,13 @@ export function PropertyShowClient({
     reviews: Review[];
     initialStay: StaySelection;
     initialGuests: number;
+    isViewerAuthenticated?: boolean;
 }) {
     const [stay, setStay] = useState<StaySelection>(initialStay);
     const [guests, setGuests] = useState(
         initialGuests || property.max_guests || 1,
     );
+    const [chatOpen, setChatOpen] = useState(false);
     const location = property.location;
     const isLongTerm = property.rental_duration === 'long_term';
     const longTermQuote = isLongTerm
@@ -767,33 +877,57 @@ export function PropertyShowClient({
 
             <div className="grid gap-12 lg:grid-cols-[1fr_24rem]">
                 <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 [&>section]:py-8 [&>section:first-child]:pt-0">
-                    <section className="flex flex-col gap-3">
-                        <h2 className="text-lg font-semibold">
-                            {isLongTerm
-                                ? `Proposé par ${property.host.name}`
-                                : `Hébergé par ${property.host.name}`}
-                        </h2>
-                        <p className="text-zinc-600 dark:text-zinc-400">
-                            {[
-                                plural(
-                                    property.max_guests,
-                                    isLongTerm ? 'occupant' : 'voyageur',
-                                ),
-                                property.bedrooms > 0
-                                    ? plural(property.bedrooms, 'chambre')
-                                    : 'Studio',
-                                property.beds > 0
-                                    ? plural(property.beds, 'lit')
-                                    : null,
-                                plural(
-                                    property.bathrooms,
-                                    'salle de bain',
-                                    'salles de bain',
-                                ),
-                            ]
-                                .filter(Boolean)
-                                .join(' · ')}
-                        </p>
+                    <section className="flex flex-col gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-semibold">
+                                    {isLongTerm
+                                        ? `Proposé par ${property.host.name}`
+                                        : `Hébergé par ${property.host.name}`}
+                                </h2>
+                                <p className="text-zinc-600 dark:text-zinc-400">
+                                    {[
+                                        plural(
+                                            property.max_guests,
+                                            isLongTerm ? 'occupant' : 'voyageur',
+                                        ),
+                                        property.bedrooms > 0
+                                            ? plural(property.bedrooms, 'chambre')
+                                            : 'Studio',
+                                        property.beds > 0
+                                            ? plural(property.beds, 'lit')
+                                            : null,
+                                        plural(
+                                            property.bathrooms,
+                                            'salle de bain',
+                                            'salles de bain',
+                                        ),
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setChatOpen(true)}
+                                className="flex items-center gap-1.5"
+                            >
+                                <svg
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="size-4 text-primary-600"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                                Contacter l’hôte
+                            </Button>
+                        </div>
                         {property.host.member_since && (
                             <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                 Hôte depuis {property.host.member_since}
@@ -1013,9 +1147,19 @@ export function PropertyShowClient({
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })
                         }
+                        onOpenChat={() => setChatOpen(true)}
                     />
                 </aside>
             </div>
+
+            <PropertyInquiryChatDrawer
+                open={chatOpen}
+                onClose={() => setChatOpen(false)}
+                propertySlug={property.slug}
+                propertyTitle={property.title}
+                hostName={property.host.name}
+                isViewerAuthenticated={isViewerAuthenticated}
+            />
         </Container>
     );
 }

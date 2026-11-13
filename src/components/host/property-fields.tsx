@@ -44,8 +44,10 @@ export type PropertyEditableFields = Pick<
     | 'advance_rent_months'
     | 'check_in_time'
     | 'check_out_time'
+    | 'cancellation_days'
     | 'booking_mode'
 > & {
+    managed_by_admin?: boolean;
     custom_property_type?: string;
     property_type_choice?: string;
 };
@@ -517,6 +519,7 @@ export function PricingFields({
         | 'advance_rent_months'
         | 'check_in_time'
         | 'check_out_time'
+        | 'cancellation_days'
         | 'booking_mode'
     >;
     bookingModes: Option[];
@@ -852,6 +855,27 @@ export function PricingFields({
                             required
                             defaultValue={property.check_out_time}
                         />
+                    </Field>
+                    <Field
+                        label="Délai d’annulation gratuite"
+                        htmlFor="cancellation_days"
+                        error={errors.cancellation_days}
+                        hint="Délai limite avant l'arrivée jusqu'auquel l'annulation sans frais est accordée (calculé dynamiquement sur la fiche du logement)."
+                        className="sm:col-span-2"
+                    >
+                        <Select
+                            id="cancellation_days"
+                            name="cancellation_days"
+                            defaultValue={String(property.cancellation_days ?? 7)}
+                        >
+                            <option value="1">1 jour (24h avant l’arrivée · Très flexible)</option>
+                            <option value="2">2 jours (48h avant l’arrivée · Flexible)</option>
+                            <option value="3">3 jours avant l’arrivée</option>
+                            <option value="5">5 jours avant l’arrivée</option>
+                            <option value="7">7 jours avant l’arrivée (1 semaine · Recommandé standard)</option>
+                            <option value="14">14 jours avant l’arrivée (2 semaines · Modéré)</option>
+                            <option value="30">30 jours avant l’arrivée (1 mois · Strict)</option>
+                        </Select>
                     </Field>
                 </div>
             )}

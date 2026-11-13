@@ -143,6 +143,7 @@ const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     check_in_time: 'pricing',
     check_out_time: 'pricing',
     booking_mode: 'pricing',
+    cancellation_days: 'pricing',
 };
 
 function draftToWizardValues(
@@ -185,6 +186,7 @@ function draftToWizardValues(
         advance_rent_months: draft.advance_rent_months,
         check_in_time: draft.check_in_time,
         check_out_time: draft.check_out_time,
+        cancellation_days: draft.cancellation_days ?? 7,
         booking_mode:
             draft.booking_mode === 'instant' ? 'instant' : 'request',
     };
@@ -227,6 +229,8 @@ function toEditablePropertySlice(
         advance_rent_months: values.advance_rent_months,
         check_in_time: values.check_in_time,
         check_out_time: values.check_out_time,
+        cancellation_days: values.cancellation_days,
+        managed_by_admin: false,
         booking_mode: values.booking_mode,
     };
 }
@@ -340,6 +344,9 @@ function readStepValuesFromForm(
                 ),
                 check_out_time: String(
                     fd.get('check_out_time') ?? current.check_out_time,
+                ),
+                cancellation_days: Number(
+                    fd.get('cancellation_days') ?? current.cancellation_days ?? 7,
                 ),
                 booking_mode:
                     fd.get('booking_mode') === 'instant'
@@ -470,6 +477,9 @@ function validateStep(
                 check_out_time: fd
                     ? (fd.get('check_out_time') ?? values.check_out_time)
                     : values.check_out_time,
+                cancellation_days: fd
+                    ? Number(fd.get('cancellation_days') ?? values.cancellation_days)
+                    : values.cancellation_days,
                 booking_mode: getStr('booking_mode', values.booking_mode),
             });
             return res.success ? null : zodToFieldErrors(res.error);
@@ -629,6 +639,7 @@ export function PropertyWizard({
                     advance_rent_months: nextValues.advance_rent_months,
                     check_in_time: nextValues.check_in_time,
                     check_out_time: nextValues.check_out_time,
+                    cancellation_days: nextValues.cancellation_days,
                     booking_mode: nextValues.booking_mode,
                 },
             });

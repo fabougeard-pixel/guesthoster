@@ -8,6 +8,7 @@ export type SectionNavIconName =
     | 'map-pin'
     | 'sparkles'
     | 'tag'
+    | 'message'
     | 'settings'
     | 'shield';
 

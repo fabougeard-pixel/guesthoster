@@ -134,6 +134,7 @@ function mapPricingToDbFields(input: {
     check_in_time: string;
     check_out_time: string;
     booking_mode: 'instant' | 'request';
+    cancellation_days?: number;
 }) {
     if (input.rental_duration === 'long_term') {
         return {
@@ -152,6 +153,7 @@ function mapPricingToDbFields(input: {
             checkInTime: '15:00',
             checkOutTime: '11:00',
             bookingMode: input.booking_mode,
+            cancellationDays: input.cancellation_days ?? 7,
         };
     }
 
@@ -169,6 +171,7 @@ function mapPricingToDbFields(input: {
         checkInTime: input.check_in_time,
         checkOutTime: input.check_out_time,
         bookingMode: input.booking_mode,
+        cancellationDays: input.cancellation_days ?? 7,
     };
 }
 
@@ -448,7 +451,7 @@ export async function saveWizardPropertyAction(input: {
                     data: {
                         ...propertyFields,
                         ...(input.mode === 'admin'
-                            ? { userId: resolvedOwnerId }
+                            ? { userId: resolvedOwnerId, managedByAdmin: true }
                             : {}),
                     },
                     select: { id: true, slug: true },
@@ -463,6 +466,7 @@ export async function saveWizardPropertyAction(input: {
                         userId: resolvedOwnerId,
                         slug: generatePropertySlug(parsed.data.title),
                         status: 'draft',
+                        managedByAdmin: input.mode === 'admin',
                         ...propertyFields,
                     },
                     select: { id: true, slug: true },
@@ -838,11 +842,11 @@ export async function deletePropertyAction(
 
     if (user.role === 'admin') {
         await prisma.$transaction(async (tx) => {
-            await tx.bookingMessage.deleteMany({
+            await tx.message.deleteMany({
                 where: { booking: { propertyId: property.id } },
             });
             await tx.review.deleteMany({
-                where: { booking: { propertyId: property.id } },
+                where: { propertyId: property.id },
             });
             await tx.booking.deleteMany({
                 where: { propertyId: property.id },

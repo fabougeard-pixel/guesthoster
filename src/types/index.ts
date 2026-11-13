@@ -98,12 +98,14 @@ export type PropertyDetail = {
     advance_rent_months: number;
     check_in_time: string;
     check_out_time: string;
+    cancellation_days: number;
+    managed_by_admin: boolean;
     images: { id: number; url: string; alt: string }[];
     amenities: {
         category: string;
         items: { slug: string; name: string }[];
     }[];
-    host: { name: string; member_since: number | null };
+    host: { id?: number; name: string; member_since: number | null };
 };
 
 export type SearchFilters = {
@@ -220,6 +222,8 @@ export type HostProperty = {
     advance_rent_months: number;
     check_in_time: string;
     check_out_time: string;
+    cancellation_days: number;
+    managed_by_admin: boolean;
     booking_mode: string;
     images: { id: number; url: string | null; is_processed: boolean }[];
     missing: Partial<Record<string, string>>;
@@ -356,4 +360,36 @@ export type AppNotification = {
     read: boolean;
     created_at: string | null;
 };
+
+export type InquiryMessage = {
+    id: number;
+    inquiry_id: number;
+    sender_id: number;
+    sender_role: 'guest' | 'host' | 'admin';
+    sender_name: string;
+    body: string;
+    read_at: string | null;
+    created_at: string | null;
+};
+
+export type PropertyInquiryDetail = {
+    id: number;
+    reference: string;
+    property_id: number;
+    property_title: string;
+    property_slug: string;
+    guest_id: number;
+    guest_name: string;
+    guest_email?: string;
+    host_id: number;
+    host_name: string;
+    host_email?: string;
+    is_managed_by_admin: boolean;
+    status: 'open' | 'closed';
+    closed_at: string | null;
+    recap_sent_at: string | null;
+    created_at: string | null;
+    messages: InquiryMessage[];
+};
+
 

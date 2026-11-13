@@ -49,6 +49,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             icon: 'calendar',
                         },
                         {
+                            label: 'Messages & Conciergerie',
+                            href: '/admin/messages',
+                            icon: 'message',
+                        },
+                        {
                             label: 'Tous les utilisateurs',
                             href: '/admin/utilisateurs',
                             icon: 'shield',

@@ -31,73 +31,144 @@ function formatWhen(iso: string) {
 export default async function MessagesPage() {
     const user = await requireVerifiedUser();
 
-    const bookings = await prisma.booking.findMany({
-        where: {
-            OR: [{ userId: user.id }, { property: { userId: user.id } }],
-            messages: { some: {} },
-        },
-        include: {
-            guest: { select: { name: true } },
-            property: {
-                select: {
-                    title: true,
-                    owner: { select: { name: true } },
-                    images: {
-                        where: { processedAt: { not: null } },
-                        orderBy: { position: 'asc' },
-                        take: 1,
+    const [bookings, inquiries] = await Promise.all([
+        prisma.booking.findMany({
+            where: {
+                OR: [{ userId: user.id }, { property: { userId: user.id } }],
+                messages: { some: {} },
+            },
+            include: {
+                guest: { select: { name: true } },
+                property: {
+                    select: {
+                        title: true,
+                        owner: { select: { name: true } },
+                        images: {
+                            where: { processedAt: { not: null } },
+                            orderBy: { position: 'asc' },
+                            take: 1,
+                        },
+                    },
+                },
+                messages: {
+                    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                    select: {
+                        body: true,
+                        userId: true,
+                        readAt: true,
+                        createdAt: true,
                     },
                 },
             },
-            messages: {
-                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-                select: {
-                    body: true,
-                    userId: true,
-                    readAt: true,
-                    createdAt: true,
+        }),
+        prisma.propertyInquiry.findMany({
+            where: user.role === 'admin'
+                ? { OR: [{ guestId: user.id }, { hostId: user.id }, { isManagedByAdmin: true }] }
+                : { OR: [{ guestId: user.id }, { hostId: user.id }] },
+            include: {
+                guest: { select: { name: true } },
+                host: { select: { name: true } },
+                property: {
+                    select: {
+                        title: true,
+                        slug: true,
+                        images: {
+                            where: { processedAt: { not: null } },
+                            orderBy: { position: 'asc' },
+                            take: 1,
+                        },
+                    },
+                },
+                messages: {
+                    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                    take: 1,
+                    select: {
+                        body: true,
+                        senderId: true,
+                        readAt: true,
+                        createdAt: true,
+                    },
                 },
             },
-        },
+        }),
+    ]);
+
+    const bookingConversations = bookings.map((booking) => {
+        const latest = booking.messages[0];
+        const isGuest = booking.userId === user.id;
+        const cover = booking.property.images[0];
+        const coverUrl = cover
+            ? resolveThumbnailUrl(
+                cover.thumbnailPath,
+                cover.path,
+                cover.cloudinaryPublicId,
+            )
+            : null;
+        const unread = booking.messages.filter(
+            (m) => m.userId !== user.id && m.readAt === null,
+        ).length;
+        const status = booking.status as BookingStatus;
+
+        return {
+            href: `/messages/${booking.reference}`,
+            property_title: booking.property.title,
+            cover_url: coverUrl,
+            counterpart: isGuest
+                ? booking.property.owner.name
+                : booking.guest.name,
+            role: (isGuest ? 'guest' : 'host') as 'guest' | 'host',
+            status_label: BOOKING_STATUS_LABELS[status] ?? status,
+            last_message: latest?.body ?? null,
+            last_message_mine: latest ? latest.userId === user.id : false,
+            last_message_at: latest?.createdAt
+                ? latest.createdAt.toISOString()
+                : null,
+            unread,
+            is_inquiry: false,
+        };
     });
 
-    const conversations = bookings
-        .map((booking) => {
-            const latest = booking.messages[0];
-            const isGuest = booking.userId === user.id;
-            const cover = booking.property.images[0];
-            const coverUrl = cover
-                ? resolveThumbnailUrl(
-                      cover.thumbnailPath,
-                      cover.path,
-                      cover.cloudinaryPublicId,
-                  )
-                : null;
-            const unread = booking.messages.filter(
-                (m) => m.userId !== user.id && m.readAt === null,
-            ).length;
-            const status = booking.status as BookingStatus;
+    const inquiryConversations = inquiries.map((inq) => {
+        const latest = inq.messages[0];
+        const isGuest = inq.guestId === user.id;
+        const cover = inq.property.images[0];
+        const coverUrl = cover
+            ? resolveThumbnailUrl(
+                cover.thumbnailPath,
+                cover.path,
+                cover.cloudinaryPublicId,
+            )
+            : null;
+        const unread = inq.messages.filter(
+            (m) => m.senderId !== user.id && m.readAt === null,
+        ).length;
 
-            return {
-                reference: booking.reference,
-                property_title: booking.property.title,
-                cover_url: coverUrl,
-                counterpart: isGuest
-                    ? booking.property.owner.name
-                    : booking.guest.name,
-                role: (isGuest ? 'guest' : 'host') as 'guest' | 'host',
-                status_label: BOOKING_STATUS_LABELS[status] ?? status,
-                last_message: latest?.body ?? null,
-                last_message_mine: latest ? latest.userId === user.id : false,
-                last_message_at: latest?.createdAt
-                    ? latest.createdAt.toISOString()
-                    : null,
-                unread,
-            };
-        })
-        .sort((a, b) =>
-            (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
-        );
+        const counterpart = isGuest
+            ? inq.host.name
+            : inq.guest.name;
+
+        return {
+            href: user.role === 'admin' && inq.isManagedByAdmin
+                ? `/admin/messages/${inq.reference}`
+                : `/logements/${inq.property.slug}`,
+            property_title: inq.property.title,
+            cover_url: coverUrl,
+            counterpart,
+            role: (isGuest ? 'guest' : 'host') as 'guest' | 'host',
+            status_label: inq.status === 'open' ? 'Chat en direct' : 'Clôturé',
+            last_message: latest?.body ?? null,
+            last_message_mine: latest ? latest.senderId === user.id : false,
+            last_message_at: latest?.createdAt
+                ? latest.createdAt.toISOString()
+                : null,
+            unread,
+            is_inquiry: true,
+        };
+    });
+
+    const conversations = [...bookingConversations, ...inquiryConversations].sort((a, b) =>
+        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
+    );
 
     return (
         <Container className="max-w-3xl py-10">
@@ -110,10 +181,10 @@ export default async function MessagesPage() {
                 </Card>
             ) : (
                 <ul className="mt-8 flex flex-col divide-y divide-zinc-200 rounded-2xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-                    {conversations.map((conversation) => (
-                        <li key={conversation.reference}>
+                    {conversations.map((conversation, idx) => (
+                        <li key={`${conversation.href}-${idx}`}>
                             <Link
-                                href={`/messages/${conversation.reference}`}
+                                href={conversation.href}
                                 className="flex items-center gap-4 p-4 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
                             >
                                 <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">

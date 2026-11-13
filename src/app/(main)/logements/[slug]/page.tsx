@@ -78,6 +78,7 @@ export default async function PropertyShowPage({
             reviews={detail.reviews}
             initialStay={initialStay}
             initialGuests={initialGuests}
+            isViewerAuthenticated={Boolean(viewer)}
         />
     );
 }
