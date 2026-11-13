@@ -5,16 +5,17 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { Alert, Field, Select, Textarea } from '@/components/form';
+import { Alert, Field, Input, Select, Textarea } from '@/components/form';
 import type { PriceLines } from '@/components/price-breakdown';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import { createBookingAction } from '@/lib/actions/bookings';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
-import type { PropertyCard } from '@/types';
+import type { PropertyCard, User } from '@/types';
 
 export function BookingCreateClient({
+    currentUser,
     property,
     stay,
     quote,
@@ -23,6 +24,7 @@ export function BookingCreateClient({
     responseDelay,
     refundPolicy,
 }: {
+    currentUser: User | null;
     property: PropertyCard & {
         is_owner: boolean;
         min_nights: number;
@@ -73,6 +75,15 @@ export function BookingCreateClient({
                 check_out: isLongTerm ? null : stay.check_out,
                 guests: Number(fd.get('guests') ?? stay.guests),
                 special_requests: String(fd.get('special_requests') ?? ''),
+                guest_name: fd.get('guest_name')
+                    ? String(fd.get('guest_name'))
+                    : undefined,
+                guest_email: fd.get('guest_email')
+                    ? String(fd.get('guest_email'))
+                    : undefined,
+                guest_password: fd.get('guest_password')
+                    ? String(fd.get('guest_password'))
+                    : undefined,
             });
             applyResult(res, { setFieldErrors: setErrors });
         } finally {
@@ -206,6 +217,100 @@ export function BookingCreateClient({
                             )}
                         </Select>
                     </Field>
+
+                    {currentUser ? (
+                        <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4.5 dark:border-zinc-800 dark:bg-zinc-900/50">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    Réservation au nom de
+                                </p>
+                                <p className="mt-0.5 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {currentUser.name}
+                                </p>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {currentUser.email}
+                                </p>
+                            </div>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                <span className="size-1.5 rounded-full bg-emerald-500" />
+                                Compte connecté
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+                            <div className="flex flex-col justify-between gap-1 border-b border-zinc-100 pb-3 sm:flex-row sm:items-center dark:border-zinc-800">
+                                <div>
+                                    <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                                        Vos coordonnées & Compte client
+                                    </h3>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Votre compte sera créé pour suivre votre réservation et recevoir vos accès.
+                                    </p>
+                                </div>
+                                <Link
+                                    href={`/login?redirectTo=${encodeURIComponent(
+                                        isLongTerm
+                                            ? `/logements/${property.slug}/reserver?check_in=${stay.check_in}&guests=${stay.guests}`
+                                            : `/logements/${property.slug}/reserver?check_in=${stay.check_in}&check_out=${stay.check_out}&guests=${stay.guests}`,
+                                    )}`}
+                                    className="whitespace-nowrap text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400"
+                                >
+                                    Déjà un compte ? Se connecter
+                                </Link>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Nom complet"
+                                    htmlFor="guest_name"
+                                    error={errors.guest_name}
+                                    hint="Prénom et Nom"
+                                >
+                                    <Input
+                                        id="guest_name"
+                                        name="guest_name"
+                                        required
+                                        placeholder="Ex : Jean Dupont"
+                                        autoComplete="name"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Adresse e-mail"
+                                    htmlFor="guest_email"
+                                    error={errors.guest_email}
+                                    hint="Pour vos confirmations et factures"
+                                >
+                                    <Input
+                                        id="guest_email"
+                                        name="guest_email"
+                                        type="email"
+                                        required
+                                        placeholder="jean.dupont@example.com"
+                                        autoComplete="email"
+                                    />
+                                </Field>
+                            </div>
+
+                            <Field
+                                label="Mot de passe du compte"
+                                htmlFor="guest_password"
+                                error={errors.guest_password}
+                                hint="8 caractères minimum. Vous permettra de vous reconnecter à votre espace voyageur."
+                            >
+                                <Input
+                                    id="guest_password"
+                                    name="guest_password"
+                                    type="password"
+                                    required
+                                    minLength={8}
+                                    placeholder="••••••••"
+                                    autoComplete="new-password"
+                                />
+                            </Field>
+                        </div>
+                    )}
+
                     <Field
                         label={
                             isLongTerm

@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getFreshSessionUser } from '@/lib/auth/session';
+import { hashPassword, verifyPassword } from '@/lib/auth/password';
+import {
+    createSessionCookie,
+    getFreshSessionUser,
+} from '@/lib/auth/session';
 import {
     cancelExistingBooking,
     createBookingForProperty,
@@ -48,6 +52,9 @@ const createBookingSchema = z
             .max(1000, 'Les précisions ne doivent pas dépasser 1000 caractères.')
             .optional()
             .nullable(),
+        guest_name: z.string().trim().optional().nullable(),
+        guest_email: z.string().trim().optional().nullable(),
+        guest_password: z.string().optional().nullable(),
     })
     .refine((d) => d.check_in >= todayIso(), {
         path: ['check_in'],
@@ -60,21 +67,97 @@ export async function createBookingAction(input: {
     check_out?: string | null;
     guests: number;
     special_requests?: string | null;
+    guest_name?: string | null;
+    guest_email?: string | null;
+    guest_password?: string | null;
 }): Promise<ActionResult> {
-    const user = await getFreshSessionUser();
-    if (!user) {
-        return { ok: false, error: 'Authentification requise.' };
-    }
-    if (!user.emailVerifiedAt) {
-        return {
-            ok: false,
-            error: 'Veuillez vérifier votre adresse e-mail avant de réserver.',
-        };
-    }
+    let user = await getFreshSessionUser();
 
     const parsed = createBookingSchema.safeParse(input);
     if (!parsed.success) {
         return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
+    }
+
+    if (!user) {
+        const guestName = (parsed.data.guest_name ?? '').trim();
+        const guestEmail = (parsed.data.guest_email ?? '').trim().toLowerCase();
+        const guestPassword = parsed.data.guest_password ?? '';
+
+        const fieldErrors: Record<string, string> = {};
+        if (!guestName || guestName.length < 2) {
+            fieldErrors.guest_name =
+                'Veuillez renseigner votre nom complet (au moins 2 caractères).';
+        }
+        if (!guestEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+            fieldErrors.guest_email =
+                'Veuillez saisir une adresse e-mail valide.';
+        }
+        if (!guestPassword || guestPassword.length < 8) {
+            fieldErrors.guest_password =
+                'Le mot de passe doit comporter au moins 8 caractères.';
+        }
+
+        if (Object.keys(fieldErrors).length > 0) {
+            return { ok: false, fieldErrors };
+        }
+
+        const existing = await prisma.user.findUnique({
+            where: { email: guestEmail },
+        });
+
+        if (existing) {
+            if (existing.suspendedAt !== null) {
+                return {
+                    ok: false,
+                    fieldErrors: {
+                        guest_email:
+                            'Ce compte est suspendu. Veuillez contacter le support.',
+                    },
+                };
+            }
+
+            const isValid = await verifyPassword(
+                guestPassword,
+                existing.password,
+            );
+            if (!isValid) {
+                return {
+                    ok: false,
+                    fieldErrors: {
+                        guest_password:
+                            'Un compte existe déjà avec cette adresse. Le mot de passe saisi est incorrect.',
+                    },
+                };
+            }
+
+            user = existing;
+            if (!user.emailVerifiedAt) {
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: { emailVerifiedAt: new Date() },
+                });
+            }
+            await createSessionCookie(user.id, true);
+        } else {
+            const passwordHash = await hashPassword(guestPassword);
+            user = await prisma.user.create({
+                data: {
+                    name: guestName,
+                    email: guestEmail,
+                    password: passwordHash,
+                    role: 'client',
+                    emailVerifiedAt: new Date(),
+                },
+            });
+            await createSessionCookie(user.id, true);
+        }
+    } else {
+        if (!user.emailVerifiedAt) {
+            return {
+                ok: false,
+                error: 'Veuillez vérifier votre adresse e-mail avant de réserver.',
+            };
+        }
     }
 
     const property = await prisma.property.findUnique({
@@ -118,6 +201,7 @@ export async function createBookingAction(input: {
             specialRequests: parsed.data.special_requests,
         });
 
+        revalidatePath('/', 'layout');
         revalidatePath('/voyages');
         revalidatePath(`/logements/${property.slug}`);
 

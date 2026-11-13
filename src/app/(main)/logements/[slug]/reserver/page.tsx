@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { requireVerifiedUser } from '@/lib/auth/session';
+import { getCurrentUser } from '@/lib/auth/session';
 import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     isPropertyAvailableBetween,
@@ -40,7 +40,7 @@ export default async function BookingCreatePage({
     params: Promise<{ slug: string }>;
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-    const user = await requireVerifiedUser();
+    const user = await getCurrentUser();
     const { slug } = await params;
     const sp = await searchParams;
 
@@ -138,9 +138,10 @@ export default async function BookingCreatePage({
 
     return (
         <BookingCreateClient
+            currentUser={user}
             property={{
                 ...card,
-                is_owner: property.userId === user.id,
+                is_owner: user ? property.userId === user.id : false,
                 min_nights: property.minNights,
                 max_nights: property.maxNights,
             }}
