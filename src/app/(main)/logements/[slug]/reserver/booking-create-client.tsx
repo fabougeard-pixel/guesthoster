@@ -5,13 +5,14 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { Alert, Field, Input, Label, Textarea } from '@/components/form';
+import { Alert, Field, Input, Select, Textarea } from '@/components/form';
 import type { PriceLines } from '@/components/price-breakdown';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import { createBookingAction } from '@/lib/actions/bookings';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { PropertyCard, User } from '@/types';
 
 export function BookingCreateClient({
@@ -41,6 +42,9 @@ export function BookingCreateClient({
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<FieldErrors>({});
     const [guestCount, setGuestCount] = useState(stay.guests);
+    const [paymentMethod, setPaymentMethod] = useState<
+        'card' | 'paypal' | 'bank_transfer'
+    >('card');
 
     const isLongTerm = property.rental_duration === 'long_term';
     const nights = quote.nights ?? 0;
@@ -195,62 +199,33 @@ export function BookingCreateClient({
                     className="flex flex-col gap-6"
                 >
                     {/* Sélecteur de voyageurs / occupants */}
-                    <div className="flex max-w-xs flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="checkout-guests-stepper">
-                                {isLongTerm ? 'Occupants' : 'Voyageurs'}
-                            </Label>
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                Capacité max. {property.max_guests} {plural(property.max_guests, 'personne')}
-                            </span>
-                        </div>
-                        <input type="hidden" name="guests" value={guestCount} />
-                        <div
-                            id="checkout-guests-stepper"
-                            className="flex h-11 items-center justify-between rounded-xl border border-zinc-300 bg-white px-2 shadow-2xs transition dark:border-zinc-700 dark:bg-zinc-900"
+                    <Field
+                        label={isLongTerm ? 'Occupants' : 'Voyageurs'}
+                        htmlFor="guests"
+                        error={errors.guests}
+                        className="max-w-xs"
+                    >
+                        <Select
+                            id="guests"
+                            name="guests"
+                            value={guestCount}
+                            onChange={(e) =>
+                                setGuestCount(Number(e.target.value))
+                            }
                         >
-                            <button
-                                type="button"
-                                onClick={() => setGuestCount((prev) => Math.max(1, prev - 1))}
-                                disabled={guestCount <= 1}
-                                className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-                                aria-label="Diminuer"
-                            >
-                                −
-                            </button>
-                            <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-100">
-                                <span className="text-sm font-semibold">
-                                    {plural(
-                                        guestCount,
-                                        isLongTerm ? 'occupant' : 'voyageur',
-                                    )}
-                                </span>
-                                {guestCount === property.max_guests && (
-                                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                                        Capacité max
-                                    </span>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setGuestCount((prev) =>
-                                        Math.min(property.max_guests, prev + 1),
-                                    )
-                                }
-                                disabled={guestCount >= property.max_guests}
-                                className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-                                aria-label="Augmenter"
-                            >
-                                +
-                            </button>
-                        </div>
-                        {errors.guests && (
-                            <p className="text-sm text-red-600 dark:text-red-400">
-                                {errors.guests}
-                            </p>
-                        )}
-                    </div>
+                            {Array.from(
+                                { length: property.max_guests },
+                                (_, count) => (
+                                    <option key={count + 1} value={count + 1}>
+                                        {plural(
+                                            count + 1,
+                                            isLongTerm ? 'occupant' : 'voyageur',
+                                        )}
+                                    </option>
+                                ),
+                            )}
+                        </Select>
+                    </Field>
 
                     {currentUser ? (
                         <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4.5 dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -272,25 +247,23 @@ export function BookingCreateClient({
                         </div>
                     ) : (
                         <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
-                            <div className="flex flex-col justify-between gap-1 border-b border-zinc-100 pb-3 sm:flex-row sm:items-center dark:border-zinc-800">
-                                <div>
-                                    <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                                        Vos coordonnées & Compte client
-                                    </h3>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Votre compte sera créé pour suivre votre réservation et recevoir vos accès.
-                                    </p>
-                                </div>
+                            <div className="flex flex-col gap-1">
                                 <Link
                                     href={`/login?redirectTo=${encodeURIComponent(
                                         isLongTerm
-                                            ? `/logements/${property.slug}/reserver?check_in=${stay.check_in}&guests=${stay.guests}`
-                                            : `/logements/${property.slug}/reserver?check_in=${stay.check_in}&check_out=${stay.check_out}&guests=${stay.guests}`,
+                                            ? `/logements/${property.slug}/reserver?check_in=${stay.check_in}&guests=${guestCount}`
+                                            : `/logements/${property.slug}/reserver?check_in=${stay.check_in}&check_out=${stay.check_out}&guests=${guestCount}`,
                                     )}`}
-                                    className="whitespace-nowrap text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400"
+                                    className="text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400"
                                 >
                                     Déjà un compte ? Se connecter
                                 </Link>
+                                <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                                    Vos coordonnées & Compte client
+                                </h3>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    Votre compte sera créé pour suivre votre réservation et recevoir vos accès.
+                                </p>
                             </div>
 
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -383,57 +356,91 @@ export function BookingCreateClient({
                             </p>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-3">
-                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-primary-500 bg-primary-50/20 p-3.5 transition hover:border-primary-600 dark:border-primary-600 dark:bg-primary-950/20">
-                                <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-3">
+                            {/* Carte bancaire */}
+                            <label
+                                className={cn(
+                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                    paymentMethod === 'card'
+                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                )}
+                            >
+                                <input
+                                    type="radio"
+                                    name="payment_method"
+                                    value="card"
+                                    checked={paymentMethod === 'card'}
+                                    onChange={() => setPaymentMethod('card')}
+                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                />
+                                <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                                         Carte bancaire
                                     </span>
-                                    <input
-                                        type="radio"
-                                        name="payment_method"
-                                        value="card"
-                                        defaultChecked
-                                        className="size-4 text-primary-600"
-                                    />
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Visa, Mastercard, CB, Apple Pay via Stripe.
+                                    </span>
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Confirmation instantanée.
+                                    </span>
                                 </div>
-                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                    Visa, Mastercard, CB, Apple Pay via Stripe. Confirmation instantanée.
-                                </p>
                             </label>
 
-                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900">
-                                <div className="flex items-center justify-between">
+                            {/* PayPal */}
+                            <label
+                                className={cn(
+                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                    paymentMethod === 'paypal'
+                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                )}
+                            >
+                                <input
+                                    type="radio"
+                                    name="payment_method"
+                                    value="paypal"
+                                    checked={paymentMethod === 'paypal'}
+                                    onChange={() => setPaymentMethod('paypal')}
+                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                />
+                                <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                                         PayPal
                                     </span>
-                                    <input
-                                        type="radio"
-                                        name="payment_method"
-                                        value="paypal"
-                                        className="size-4 text-primary-600"
-                                    />
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Compte PayPal ou paiement en 4x sans frais.
+                                    </span>
                                 </div>
-                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                    Compte PayPal ou paiement en 4x sans frais.
-                                </p>
                             </label>
 
-                            <label className="flex cursor-pointer flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900">
-                                <div className="flex items-center justify-between">
+                            {/* Virement bancaire */}
+                            <label
+                                className={cn(
+                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                    paymentMethod === 'bank_transfer'
+                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                )}
+                            >
+                                <input
+                                    type="radio"
+                                    name="payment_method"
+                                    value="bank_transfer"
+                                    checked={paymentMethod === 'bank_transfer'}
+                                    onChange={() =>
+                                        setPaymentMethod('bank_transfer')
+                                    }
+                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                />
+                                <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                                         Virement bancaire
                                     </span>
-                                    <input
-                                        type="radio"
-                                        name="payment_method"
-                                        value="bank_transfer"
-                                        className="size-4 text-primary-600"
-                                    />
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Virement SEPA direct. Coordonnées IBAN fournies immédiatement.
+                                    </span>
                                 </div>
-                                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                    Virement SEPA direct. Coordonnées IBAN fournies immédiatement.
-                                </p>
                             </label>
                         </div>
                     </div>
