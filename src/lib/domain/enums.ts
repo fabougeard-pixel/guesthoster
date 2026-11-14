@@ -60,7 +60,7 @@ export type RentalDuration = (typeof RENTAL_DURATIONS)[number];
 
 export const RENTAL_DURATION_LABELS: Record<RentalDuration, string> = {
     short_term: 'Location saisonnière',
-    long_term: 'Location standard (Bail 1 an)',
+    long_term: 'Location standard',
 };
 
 export const RENTAL_DURATION_OPTIONS: Option[] = RENTAL_DURATIONS.map((value) => ({
@@ -192,6 +192,28 @@ export const PROPERTY_FORM_STEP_LABELS: Record<PropertyFormStep, string> = {
     pricing: 'Tarifs et règles',
     photos: 'Photos',
 };
+
+export const LONG_TERM_PROPERTY_FORM_STEP_LABELS: Record<PropertyFormStep, string> = {
+    details: 'Bail & Description',
+    location: 'Emplacement',
+    capacity: 'Configuration & Pièces',
+    amenities: 'Prestations & Équipements',
+    pricing: 'Loyer & Conditions du bail',
+    photos: 'Photos',
+};
+
+export function getPropertyFormStepLabel(
+    step: PropertyFormStep,
+    rentalDuration?: RentalDuration,
+): string {
+    if (rentalDuration === 'long_term') {
+        return (
+            LONG_TERM_PROPERTY_FORM_STEP_LABELS[step] ??
+            PROPERTY_FORM_STEP_LABELS[step]
+        );
+    }
+    return PROPERTY_FORM_STEP_LABELS[step];
+}
 
 export const PROPERTY_FORM_STEP_OPTIONS: Option[] = PROPERTY_FORM_STEPS.map(
     (value) => ({

@@ -29,7 +29,14 @@ export function plural(count: number, singular: string, pluralForm?: string) {
  */
 
 export function parseDate(iso: string): Date {
-    const [year, month, day] = iso.split('-').map(Number);
+    if (!iso || typeof iso !== 'string') {
+        return new Date(Date.UTC(1970, 0, 1));
+    }
+    const parts = iso.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) {
+        return new Date(Date.UTC(1970, 0, 1));
+    }
+    const [year, month, day] = parts;
 
     return new Date(Date.UTC(year, month - 1, day));
 }
@@ -47,38 +54,68 @@ export function todayIso(): string {
 }
 
 export function addDays(iso: string, days: number): string {
+    if (!iso || typeof iso !== 'string' || !isValidIsoDate(iso)) {
+        return todayIso();
+    }
     const date = parseDate(iso);
     date.setUTCDate(date.getUTCDate() + days);
 
     return toIsoDate(date);
 }
 
-export function diffInDays(from: string, to: string): number {
-    return Math.round(
-        (parseDate(to).getTime() - parseDate(from).getTime()) / 86_400_000,
-    );
+export function diffInDays(
+    from: string | null | undefined,
+    to: string | null | undefined,
+): number {
+    if (
+        !from ||
+        !to ||
+        typeof from !== 'string' ||
+        typeof to !== 'string' ||
+        !isValidIsoDate(from) ||
+        !isValidIsoDate(to)
+    ) {
+        return 0;
+    }
+
+    try {
+        return Math.round(
+            (parseDate(to).getTime() - parseDate(from).getTime()) / 86_400_000,
+        );
+    } catch {
+        return 0;
+    }
 }
 
 export function isValidIsoDate(value: unknown): value is string {
     return (
         typeof value === 'string' &&
         /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        !isNaN(Date.parse(value)) &&
         toIsoDate(parseDate(value)) === value
     );
 }
 
 export function formatDate(
-    iso: string,
+    iso: string | null | undefined,
     options: Intl.DateTimeFormatOptions = {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
     },
 ): string {
-    return new Intl.DateTimeFormat('fr-FR', {
-        ...options,
-        timeZone: 'UTC',
-    }).format(parseDate(iso));
+    if (!iso || typeof iso !== 'string' || !isValidIsoDate(iso)) {
+        return '';
+    }
+
+    try {
+        return new Intl.DateTimeFormat('fr-FR', {
+            ...options,
+            timeZone: 'UTC',
+        }).format(parseDate(iso));
+    } catch {
+        return '';
+    }
 }
 
 /**
@@ -93,20 +130,36 @@ export function formatDateTime(iso: string): string {
     }).format(new Date(iso));
 }
 
-export function formatLongDateFr(iso: string): string {
-    return new Intl.DateTimeFormat('fr-FR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-    }).format(parseDate(iso));
+export function formatLongDateFr(iso: string | null | undefined): string {
+    if (!iso || typeof iso !== 'string' || !isValidIsoDate(iso)) {
+        return '';
+    }
+
+    try {
+        return new Intl.DateTimeFormat('fr-FR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(parseDate(iso));
+    } catch {
+        return '';
+    }
 }
 
-export function formatShortDateFr(iso: string): string {
-    return new Intl.DateTimeFormat('fr-FR', {
-        day: 'numeric',
-        month: 'short',
-        timeZone: 'UTC',
-    }).format(parseDate(iso));
+export function formatShortDateFr(iso: string | null | undefined): string {
+    if (!iso || typeof iso !== 'string' || !isValidIsoDate(iso)) {
+        return '';
+    }
+
+    try {
+        return new Intl.DateTimeFormat('fr-FR', {
+            day: 'numeric',
+            month: 'short',
+            timeZone: 'UTC',
+        }).format(parseDate(iso));
+    } catch {
+        return '';
+    }
 }
 

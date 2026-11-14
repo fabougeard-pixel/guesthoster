@@ -117,3 +117,84 @@ export function listEnabledPaymentMethods(
 
     return methods;
 }
+
+export type PlatformSeoSettings = {
+    // 1. Métadonnées globales & Accueil
+    metaTitle: string;
+    metaDescription: string;
+    metaKeywords: string;
+    canonicalBaseUrl: string;
+
+    // 2. Réseaux Sociaux & OpenGraph
+    ogImage: string;
+    twitterCard: 'summary' | 'summary_large_image';
+    twitterHandle: string;
+
+    // 3. Moteurs de recherche & Indexation
+    googleSiteVerification: string;
+    googleAnalyticsId: string;
+    robotsIndexing: 'index_follow' | 'noindex_nofollow';
+
+    // 4. Local SEO & Données structurées (Schema.org / JSON-LD)
+    organizationName: string;
+    businessType: 'LodgingBusiness' | 'RealEstateAgent' | 'LocalBusiness' | 'Organization';
+    storeCountry: string;
+    storeCity: string;
+    storePostalCode: string;
+    storeStreetAddress: string;
+    storePhone: string;
+    storeEmail: string;
+    storePriceRange: string;
+
+    // 5. Flux RSS & Attribution
+    rssBeforeContent: string;
+    rssAfterContent: string;
+};
+
+export const DEFAULT_PLATFORM_SEO_SETTINGS: PlatformSeoSettings = {
+    metaTitle: 'GuestHoster | Conciergerie & Locations Saisonnières et Longue Durée',
+    metaDescription:
+        'Locations d’exception partout en Europe : réservez en direct auprès de propriétaires vérifiés avec conciergerie clé en main.',
+    metaKeywords:
+        'location saisonnière, conciergerie, location longue durée, vacances, villa, appartement, séjour standing',
+    canonicalBaseUrl: '',
+    ogImage: '',
+    twitterCard: 'summary_large_image',
+    twitterHandle: '',
+    googleSiteVerification: '',
+    googleAnalyticsId: '',
+    robotsIndexing: 'index_follow',
+    organizationName: 'GuestHoster',
+    businessType: 'LodgingBusiness',
+    storeCountry: 'FR',
+    storeCity: 'Paris',
+    storePostalCode: '75001',
+    storeStreetAddress: '',
+    storePhone: '',
+    storeEmail: '',
+    storePriceRange: '€€',
+    rssBeforeContent: '',
+    rssAfterContent:
+        'Le bien {post_link} est publié en exclusivité sur {blog_link}.',
+};
+
+export const SEO_SETTINGS_KEY = 'platform_seo_settings';
+
+export async function getPlatformSeoSettings(): Promise<PlatformSeoSettings> {
+    try {
+        const row = await prisma.platformSetting.findUnique({
+            where: { key: SEO_SETTINGS_KEY },
+        });
+        if (!row?.value) {
+            return DEFAULT_PLATFORM_SEO_SETTINGS;
+        }
+
+        return {
+            ...DEFAULT_PLATFORM_SEO_SETTINGS,
+            ...(JSON.parse(row.value) as Partial<PlatformSeoSettings>),
+        };
+    } catch {
+        return DEFAULT_PLATFORM_SEO_SETTINGS;
+    }
+}
+

@@ -284,6 +284,7 @@ function BookingCard({
     serviceFeeRate,
     rentalSettings,
     enabledMethods,
+    stripeConfigured = true,
 }: {
     serviceFeeRate: number;
     property: PropertyDetail;
@@ -296,6 +297,7 @@ function BookingCard({
     onOpenChat: () => void;
     rentalSettings?: PlatformRentalSettings;
     enabledMethods?: PaymentMethodKey[];
+    stripeConfigured?: boolean;
 }) {
     const [calendarStep, setCalendarStep] = useState<
         'checkIn' | 'checkOut' | null
@@ -430,6 +432,7 @@ function BookingCard({
                     onClose={() => setIsVisitModalOpen(false)}
                     effectiveVisitFee={effectiveVisitFee}
                     enabledMethods={enabledMethods}
+                    stripeConfigured={stripeConfigured}
                 />
             </>
         );
@@ -554,11 +557,17 @@ function BookingCard({
                     {/* Case Départ */}
                     <button
                         type="button"
-                        onClick={() =>
-                            setCalendarStep((prev) =>
-                                prev === 'checkOut' ? null : 'checkOut',
-                            )
-                        }
+                        onClick={() => {
+                            if (!stay.checkIn) {
+                                setCalendarStep((prev) =>
+                                    prev === 'checkIn' ? null : 'checkIn',
+                                );
+                            } else {
+                                setCalendarStep((prev) =>
+                                    prev === 'checkOut' ? null : 'checkOut',
+                                );
+                            }
+                        }}
                         className={cn(
                             'p-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/60',
                             calendarStep === 'checkOut' &&
@@ -581,9 +590,9 @@ function BookingCard({
                     <div className="mt-2 rounded-2xl border border-primary-200 bg-white p-3.5 shadow-xl ring-1 ring-black/5 dark:border-primary-900/60 dark:bg-zinc-900 animate-in fade-in duration-150">
                         <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 dark:border-zinc-800">
                             <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">
-                                {calendarStep === 'checkIn'
+                                {calendarStep === 'checkIn' || !stay.checkIn
                                     ? 'Sélectionnez votre date d’arrivée'
-                                    : `Sélectionnez votre départ (Arrivée : ${formatDate(stay.checkIn ?? '')})`}
+                                    : `Sélectionnez votre départ (Arrivée : ${formatDate(stay.checkIn)})`}
                             </span>
                             <button
                                 type="button"
@@ -602,7 +611,11 @@ function BookingCard({
                                 onStayChange(newStay);
                             }}
                             onDatePick={() => {
-                                setCalendarStep(null);
+                                if (calendarStep === 'checkIn' || !stay.checkIn) {
+                                    setCalendarStep('checkOut');
+                                } else {
+                                    setCalendarStep(null);
+                                }
                             }}
                             minNights={property.min_nights}
                             maxNights={property.max_nights}
@@ -720,10 +733,12 @@ function BookingCard({
             ) : (
                 <Button
                     size="lg"
-                    onClick={() => setCalendarStep('checkIn')}
+                    onClick={() =>
+                        setCalendarStep(stay.checkIn ? 'checkOut' : 'checkIn')
+                    }
                     className="w-full bg-primary-500 hover:bg-primary-600"
                 >
-                    Choisir vos dates
+                    {stay.checkIn ? 'Choisir la date de départ' : 'Choisir vos dates'}
                 </Button>
             )}
 
@@ -867,6 +882,7 @@ export function PropertyShowClient({
     serviceFeeRate,
     rentalSettings,
     enabledMethods,
+    stripeConfigured = true,
     reviews,
     initialStay,
     initialGuests,
@@ -877,6 +893,7 @@ export function PropertyShowClient({
     serviceFeeRate: number;
     rentalSettings?: PlatformRentalSettings;
     enabledMethods?: PaymentMethodKey[];
+    stripeConfigured?: boolean;
     reviews: Review[];
     initialStay: StaySelection;
     initialGuests: number;
@@ -1356,6 +1373,7 @@ export function PropertyShowClient({
                         serviceFeeRate={serviceFeeRate}
                         rentalSettings={rentalSettings}
                         enabledMethods={enabledMethods}
+                        stripeConfigured={stripeConfigured}
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })
                         }

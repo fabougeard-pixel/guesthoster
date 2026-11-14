@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { getPlatformSeoSettings } from '@/lib/domain/platform-settings';
 import { env } from '@/lib/env';
 
 const PRIVATE_PATHS = [
@@ -18,8 +19,23 @@ const PRIVATE_PATHS = [
     '/email',
 ];
 
-export default function robots(): MetadataRoute.Robots {
-    if (!env.isProduction) {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+    let baseUrl = env.appUrl;
+    let noIndex = false;
+
+    try {
+        const seo = await getPlatformSeoSettings();
+        if (seo.canonicalBaseUrl.trim()) {
+            baseUrl = seo.canonicalBaseUrl.trim().replace(/\/$/, '');
+        }
+        if (seo.robotsIndexing === 'noindex_nofollow') {
+            noIndex = true;
+        }
+    } catch {
+        // Fallback default
+    }
+
+    if (!env.isProduction || noIndex) {
         return {
             rules: {
                 userAgent: '*',
@@ -34,7 +50,8 @@ export default function robots(): MetadataRoute.Robots {
             allow: '/',
             disallow: PRIVATE_PATHS,
         },
-        sitemap: `${env.appUrl}/sitemap.xml`,
+        sitemap: `${baseUrl}/sitemap.xml`,
     };
 }
+
 

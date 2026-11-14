@@ -5,6 +5,7 @@ import {
     addDays,
     diffInDays,
     formatDate,
+    isValidIsoDate,
     parseDate,
     todayIso,
     toIsoDate,
@@ -72,15 +73,26 @@ export function AvailabilityCalendar({
                 : value.checkIn ?? today,
         ),
     );
+    const [prevCheckIn, setPrevCheckIn] = useState(value.checkIn);
+
+    if (value.checkIn !== prevCheckIn) {
+        setPrevCheckIn(value.checkIn);
+        if (value.checkIn && isValidIsoDate(value.checkIn)) {
+            const checkInMonth = monthStart(value.checkIn);
+            if (checkInMonth > firstMonth) {
+                setFirstMonth(checkInMonth);
+            }
+        }
+    }
 
     const selecting =
-        mode === 'checkOut' ||
+        (mode === 'checkOut' && value.checkIn !== null) ||
         (mode === 'all' &&
             value.checkIn !== null &&
             value.checkOut === null);
 
     function canCheckOut(day: string): boolean {
-        if (value.checkIn === null || day <= value.checkIn) {
+        if (!value.checkIn || !isValidIsoDate(value.checkIn) || day <= value.checkIn) {
             return false;
         }
 
@@ -108,17 +120,21 @@ export function AvailabilityCalendar({
         const isCheckIn = day === value.checkIn;
         const isCheckOut = day === value.checkOut;
         const inRange =
-            value.checkIn !== null &&
-            value.checkOut !== null &&
+            Boolean(value.checkIn &&
+            value.checkOut &&
             day > value.checkIn &&
-            day < value.checkOut;
+            day < value.checkOut);
 
         let selectable = false;
         if (onChange && !past) {
             if (mode === 'checkIn') {
                 selectable = !taken;
             } else if (mode === 'checkOut') {
-                selectable = canCheckOut(day);
+                if (!value.checkIn) {
+                    selectable = !taken;
+                } else {
+                    selectable = canCheckOut(day) || !taken;
+                }
             } else {
                 selectable = selecting ? canCheckOut(day) || !taken : !taken;
             }
@@ -144,10 +160,20 @@ export function AvailabilityCalendar({
         }
 
         if (mode === 'checkOut') {
+            if (!value.checkIn) {
+                onChange({ checkIn: day, checkOut: null });
+                onDatePick?.(day);
+                return;
+            }
+
             if (canCheckOut(day)) {
                 onChange({ checkIn: value.checkIn, checkOut: day });
                 onDatePick?.(day);
+                return;
             }
+
+            onChange({ checkIn: day, checkOut: null });
+            onDatePick?.(day);
             return;
         }
 

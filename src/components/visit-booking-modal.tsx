@@ -9,6 +9,12 @@ import {
     createPropertyVisitAction,
     type VisitBookingResult,
 } from '@/lib/actions/visits';
+import {
+    getSuggestedPaymentMethod,
+    PaymentErrorBanner,
+    PaymentErrorModal,
+    type PaymentErrorState,
+} from '@/components/payment-error-fallback';
 import { formatLeaseDuration } from '@/lib/domain/platform-settings';
 import type { PaymentMethodKey } from '@/lib/domain/platform-settings';
 import { formatDate, formatPrice, todayIso } from '@/lib/format';
@@ -26,7 +32,7 @@ const CANDIDATE_SITUATIONS = [
     'Autre situation',
 ];
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 export function VisitBookingModal({
     property,
@@ -34,12 +40,14 @@ export function VisitBookingModal({
     onClose,
     effectiveVisitFee,
     enabledMethods = ['card', 'paypal', 'bank_transfer'],
+    stripeConfigured = true,
 }: {
     property: PropertyDetail;
     isOpen: boolean;
     onClose: () => void;
     effectiveVisitFee?: number;
     enabledMethods?: PaymentMethodKey[];
+    stripeConfigured?: boolean;
 }) {
     const isClient = useSyncExternalStore(
         emptySubscribe,
@@ -58,7 +66,7 @@ export function VisitBookingModal({
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>(
         enabledMethods[0] ?? 'card',
     );
-    const [simulatedFailure, setSimulatedFailure] = useState<string | null>(null);
+    const [paymentError, setPaymentError] = useState<PaymentErrorState | null>(null);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -98,7 +106,7 @@ export function VisitBookingModal({
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setErrorMsg(null);
-        setSimulatedFailure(null);
+        setPaymentError(null);
 
         if (!visitDate) {
             setErrorMsg('Veuillez sélectionner une date de visite.');
@@ -120,12 +128,43 @@ export function VisitBookingModal({
             return;
         }
 
-        // Test check for payment failure simulation if user triggers PayPal edge case or requested modal
-        if (visitFee > 0 && paymentMethod === 'paypal' && notes.toLowerCase().includes('fail')) {
-            setSimulatedFailure(
-                'L’option PayPal sélectionnée n’a pu aboutir suite à un refus temporaire du service. Nous vous recommandons de finaliser la validation par Carte bancaire en toute sécurité.',
-            );
-            return;
+        // Gestion de l'échec / indisponibilité de paiement (style Lenaonline)
+        if (visitFee > 0) {
+            if (
+                paymentMethod === 'paypal' ||
+                notes.toLowerCase().includes('fail-paypal')
+            ) {
+                const alternative = getSuggestedPaymentMethod(
+                    'paypal',
+                    enabledMethods,
+                );
+                setPaymentError({
+                    failedMethod: 'paypal',
+                    message:
+                        'Le paiement par PayPal est actuellement indisponible.',
+                    suggestedMethod: alternative,
+                });
+                return;
+            }
+
+            if (
+                paymentMethod === 'card' &&
+                (!stripeConfigured ||
+                    notes.toLowerCase().includes('fail-card') ||
+                    notes.toLowerCase().includes('fail'))
+            ) {
+                const alternative = getSuggestedPaymentMethod(
+                    'card',
+                    enabledMethods,
+                );
+                setPaymentError({
+                    failedMethod: 'card',
+                    message:
+                        'Le paiement par carte bancaire est actuellement indisponible.',
+                    suggestedMethod: alternative,
+                });
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -146,7 +185,7 @@ export function VisitBookingModal({
             if (!res.ok) {
                 setErrorMsg(
                     res.error ??
-                        'Une erreur est survenue lors de la réservation.',
+                    'Une erreur est survenue lors de la réservation.',
                 );
             } else if (res.data) {
                 setConfirmedVisit(res.data);
@@ -282,31 +321,15 @@ export function VisitBookingModal({
                             </div>
                         )}
 
-                        {/* Modale d'alerte en cas d'échec de paiement avec suggestion de l'option viable */}
-                        {simulatedFailure && (
-                            <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-xs dark:border-amber-700 dark:bg-amber-950/50">
-                                <div className="flex items-start gap-3">
-                                    <span className="text-lg">⚠️</span>
-                                    <div className="flex-1">
-                                        <h4 className="font-bold text-amber-900 dark:text-amber-200">
-                                            L’option de paiement sélectionnée n’a pu aboutir
-                                        </h4>
-                                        <p className="mt-1 text-amber-800 dark:text-amber-300">
-                                            {simulatedFailure}
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setPaymentMethod('card');
-                                                setSimulatedFailure(null);
-                                            }}
-                                            className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-semibold text-white transition hover:bg-amber-700"
-                                        >
-                                            Basculer sur Carte Bancaire (viable)
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                        {/* Alerte in-page en cas d'échec de moyen de paiement (style Lenaonline) */}
+                        {paymentError && (
+                            <PaymentErrorBanner
+                                error={paymentError}
+                                onSwitch={(newMethod) => {
+                                    setPaymentMethod(newMethod);
+                                    setPaymentError(null);
+                                }}
+                            />
                         )}
 
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -333,11 +356,10 @@ export function VisitBookingModal({
                                             key={slot}
                                             type="button"
                                             onClick={() => setTimeSlot(slot)}
-                                            className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${
-                                                timeSlot === slot
+                                            className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${timeSlot === slot
                                                     ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-500/20 dark:border-primary-400 dark:bg-primary-950/60 dark:text-primary-300'
                                                     : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                                            }`}
+                                                }`}
                                         >
                                             {slot}
                                         </button>
@@ -434,54 +456,51 @@ export function VisitBookingModal({
                                     <Label>Mode de règlement du forfait</Label>
                                     <div className="mt-2 grid gap-2 sm:grid-cols-3">
                                         {enabledMethods.includes('card') && (
-                                        <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
-                                            paymentMethod === 'card'
-                                                ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
-                                                : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
-                                        }`}>
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                checked={paymentMethod === 'card'}
-                                                onChange={() => setPaymentMethod('card')}
-                                                className="accent-primary-600"
-                                            />
-                                            <span>Carte bancaire</span>
-                                        </label>
+                                            <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${paymentMethod === 'card'
+                                                    ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
+                                                    : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
+                                                }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="payment_method"
+                                                    checked={paymentMethod === 'card'}
+                                                    onChange={() => setPaymentMethod('card')}
+                                                    className="accent-primary-600"
+                                                />
+                                                <span>Carte bancaire</span>
+                                            </label>
                                         )}
 
                                         {enabledMethods.includes('paypal') && (
-                                        <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
-                                            paymentMethod === 'paypal'
-                                                ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
-                                                : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
-                                        }`}>
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                checked={paymentMethod === 'paypal'}
-                                                onChange={() => setPaymentMethod('paypal')}
-                                                className="accent-primary-600"
-                                            />
-                                            <span>PayPal</span>
-                                        </label>
+                                            <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${paymentMethod === 'paypal'
+                                                    ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
+                                                    : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
+                                                }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="payment_method"
+                                                    checked={paymentMethod === 'paypal'}
+                                                    onChange={() => setPaymentMethod('paypal')}
+                                                    className="accent-primary-600"
+                                                />
+                                                <span>PayPal</span>
+                                            </label>
                                         )}
 
                                         {enabledMethods.includes('bank_transfer') && (
-                                        <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${
-                                            paymentMethod === 'bank_transfer'
-                                                ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
-                                                : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
-                                        }`}>
-                                            <input
-                                                type="radio"
-                                                name="payment_method"
-                                                checked={paymentMethod === 'bank_transfer'}
-                                                onChange={() => setPaymentMethod('bank_transfer')}
-                                                className="accent-primary-600"
-                                            />
-                                            <span>Virement SEPA</span>
-                                        </label>
+                                            <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${paymentMethod === 'bank_transfer'
+                                                    ? 'border-primary-500 bg-white text-zinc-900 shadow-xs dark:bg-zinc-900 dark:text-zinc-100'
+                                                    : 'border-zinc-200 bg-zinc-50/50 text-zinc-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300'
+                                                }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="payment_method"
+                                                    checked={paymentMethod === 'bank_transfer'}
+                                                    onChange={() => setPaymentMethod('bank_transfer')}
+                                                    className="accent-primary-600"
+                                                />
+                                                <span>Virement SEPA</span>
+                                            </label>
                                         )}
                                     </div>
                                 </div>
@@ -513,6 +532,16 @@ export function VisitBookingModal({
                     </form>
                 )}
             </div>
+
+            {/* Modal Popup en cas d'échec de paiement (style Lenaonline) */}
+            <PaymentErrorModal
+                error={paymentError}
+                onClose={() => setPaymentError(null)}
+                onSwitch={(newMethod) => {
+                    setPaymentMethod(newMethod);
+                    setPaymentError(null);
+                }}
+            />
         </div>
     );
 

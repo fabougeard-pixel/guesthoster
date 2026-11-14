@@ -6,8 +6,10 @@ import type { ActionResult } from '@/lib/actions/types';
 import { resolveAdminAccess } from '@/lib/auth/session';
 import {
     PAYMENT_SETTINGS_KEY,
+    SEO_SETTINGS_KEY,
     type PlatformPaymentSettings,
     type PlatformRentalSettings,
+    type PlatformSeoSettings,
 } from '@/lib/domain/platform-settings';
 import { prisma } from '@/lib/prisma';
 
@@ -124,3 +126,74 @@ export async function updatePlatformPaymentSettingsAction(
         toast: { type: 'success', message: 'Moyens de paiement enregistrés.' },
     };
 }
+
+const seoSettingsSchema = z.object({
+    metaTitle: z.string().trim().max(160),
+    metaDescription: z.string().trim().max(320),
+    metaKeywords: z.string().trim().max(300),
+    canonicalBaseUrl: z.string().trim().max(200),
+    ogImage: z.string().trim().max(500),
+    twitterCard: z.enum(['summary', 'summary_large_image']),
+    twitterHandle: z.string().trim().max(60),
+    googleSiteVerification: z.string().trim().max(120),
+    googleAnalyticsId: z.string().trim().max(50),
+    robotsIndexing: z.enum(['index_follow', 'noindex_nofollow']),
+    organizationName: z.string().trim().max(120),
+    businessType: z.enum([
+        'LodgingBusiness',
+        'RealEstateAgent',
+        'LocalBusiness',
+        'Organization',
+    ]),
+    storeCountry: z.string().trim().max(10),
+    storeCity: z.string().trim().max(100),
+    storePostalCode: z.string().trim().max(20),
+    storeStreetAddress: z.string().trim().max(200),
+    storePhone: z.string().trim().max(50),
+    storeEmail: z.string().trim().max(120),
+    storePriceRange: z.string().trim().max(30),
+    rssBeforeContent: z.string().trim().max(500),
+    rssAfterContent: z.string().trim().max(500),
+});
+
+export async function updatePlatformSeoSettingsAction(
+    input: PlatformSeoSettings,
+): Promise<ActionResult<PlatformSeoSettings>> {
+    const access = await resolveAdminAccess('/admin/seo');
+    if (access === 'setup' || access === 'forbidden') {
+        return { ok: false, error: 'Accès réservé aux administrateurs.' };
+    }
+
+    const parsed = seoSettingsSchema.safeParse(input);
+    if (!parsed.success) {
+        return {
+            ok: false,
+            error: parsed.error.issues[0]?.message ?? 'Paramètres SEO invalides.',
+        };
+    }
+
+    const value = JSON.stringify(parsed.data);
+    await prisma.platformSetting.upsert({
+        where: { key: SEO_SETTINGS_KEY },
+        create: {
+            key: SEO_SETTINGS_KEY,
+            value,
+            description: 'Configuration SEO, OpenGraph, JSON-LD et moteurs de recherche',
+        },
+        update: { value },
+    });
+
+    revalidatePath('/admin/seo');
+    revalidatePath('/', 'layout');
+    revalidatePath('/logements', 'layout');
+
+    return {
+        ok: true,
+        data: parsed.data,
+        toast: {
+            type: 'success',
+            message: 'Paramètres SEO et métadonnées enregistrés avec succès.',
+        },
+    };
+}
+

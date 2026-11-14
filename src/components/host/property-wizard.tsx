@@ -64,7 +64,7 @@ type StepMeta = {
     description: string;
 };
 
-const ALL_WIZARD_STEPS: Record<WizardStepKey, StepMeta> = {
+const SHORT_TERM_WIZARD_STEPS: Record<WizardStepKey, StepMeta> = {
     owner: {
         key: 'owner',
         label: 'Propriétaire',
@@ -87,7 +87,7 @@ const ALL_WIZARD_STEPS: Record<WizardStepKey, StepMeta> = {
         key: 'capacity',
         label: 'Capacité',
         description:
-            'Précisez la capacité d’accueil, les chambres, les lits et les salles de bain.',
+            'Précisez la capacité d’accueil, les chambres, les lits et les salles de bain pour les voyageurs.',
     },
     amenities: {
         key: 'amenities',
@@ -108,6 +108,57 @@ const ALL_WIZARD_STEPS: Record<WizardStepKey, StepMeta> = {
             'Ajoutez les photos du logement, vérifiez le récapitulatif et finalisez la création.',
     },
 };
+
+const LONG_TERM_WIZARD_STEPS: Record<WizardStepKey, StepMeta> = {
+    owner: {
+        key: 'owner',
+        label: 'Propriétaire',
+        description:
+            'Attribuez ce logement à un compte existant ou créez un compte propriétaire pour la gestion du bail.',
+    },
+    details: {
+        key: 'details',
+        label: 'Bail & Description',
+        description:
+            'Renseignez le titre de l’annonce immobilière, la formule de bail et la description détaillée du bien.',
+    },
+    location: {
+        key: 'location',
+        label: 'Emplacement',
+        description:
+            'Indiquez la ville, l’adresse exacte et la situation géographique du bien.',
+    },
+    capacity: {
+        key: 'capacity',
+        label: 'Configuration & Pièces',
+        description:
+            'Précisez la disposition réelle du logement : nombre de chambres et de salles de bain.',
+    },
+    amenities: {
+        key: 'amenities',
+        label: 'Prestations & Équipements',
+        description:
+            'Sélectionnez les prestations incluses dans le logement (cuisine équipée, balcon, ascenseur, parking, fibre...).',
+    },
+    pricing: {
+        key: 'pricing',
+        label: 'Loyer & Conditions du bail',
+        description:
+            'Définissez le loyer mensuel, les charges locatives, le dépôt de garantie, la durée du bail et les visites.',
+    },
+    photos: {
+        key: 'photos',
+        label: 'Photos & Publication',
+        description:
+            'Ajoutez les photos du logement, vérifiez le récapitulatif du contrat de location et publiez votre annonce.',
+    },
+};
+
+function getWizardStepMeta(key: WizardStepKey, isLongTerm: boolean): StepMeta {
+    return isLongTerm
+        ? (LONG_TERM_WIZARD_STEPS[key] ?? SHORT_TERM_WIZARD_STEPS[key])
+        : SHORT_TERM_WIZARD_STEPS[key];
+}
 
 const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     owner_mode: 'owner',
@@ -286,14 +337,28 @@ function readStepValuesFromForm(
                 latitude: String(fd.get('latitude') ?? ''),
                 longitude: String(fd.get('longitude') ?? ''),
             };
-        case 'capacity':
+        case 'capacity': {
+            const bedrooms = Number(fd.get('bedrooms') ?? current.bedrooms);
+            const bathrooms = Number(fd.get('bathrooms') ?? current.bathrooms);
+            const rawGuests = fd.get('max_guests');
+            const rawBeds = fd.get('beds');
+            const max_guests =
+                rawGuests != null && rawGuests !== ''
+                    ? Number(rawGuests)
+                    : Math.max(1, (bedrooms || 1) * 2);
+            const beds =
+                rawBeds != null && rawBeds !== ''
+                    ? Number(rawBeds)
+                    : Math.max(0, bedrooms || 0);
+
             return {
                 ...current,
-                max_guests: Number(fd.get('max_guests') ?? current.max_guests),
-                bedrooms: Number(fd.get('bedrooms') ?? current.bedrooms),
-                beds: Number(fd.get('beds') ?? current.beds),
-                bathrooms: Number(fd.get('bathrooms') ?? current.bathrooms),
+                max_guests,
+                bedrooms,
+                beds,
+                bathrooms,
             };
+        }
         case 'amenities':
             return {
                 ...current,
@@ -573,7 +638,8 @@ export function PropertyWizard({
     const [finalizing, setFinalizing] = useState(false);
 
     const currentIndex = stepKeys.indexOf(currentStep);
-    const stepMeta = ALL_WIZARD_STEPS[currentStep];
+    const isLongTerm = values.rental_duration === 'long_term';
+    const stepMeta = getWizardStepMeta(currentStep, isLongTerm);
     const editableSlice = toEditablePropertySlice(values);
 
     const filteredOwners = ownerSearch.trim()
@@ -891,7 +957,7 @@ export function PropertyWizard({
                     className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7"
                 >
                     {stepKeys.map((key, index) => {
-                        const meta = ALL_WIZARD_STEPS[key];
+                        const meta = getWizardStepMeta(key, isLongTerm);
                         const isActive = key === currentStep;
                         const isDone =
                             index < currentIndex ||
@@ -912,7 +978,9 @@ export function PropertyWizard({
                                     className={cn(
                                         'flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-medium transition-colors',
                                         isActive
-                                            ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-500/40 dark:bg-primary-950/60 dark:text-primary-300'
+                                            ? isLongTerm
+                                                ? 'bg-secondary-50 text-secondary-800 ring-1 ring-secondary-500/40 dark:bg-secondary-950/60 dark:text-secondary-300'
+                                                : 'bg-primary-50 text-primary-700 ring-1 ring-primary-500/40 dark:bg-primary-950/60 dark:text-primary-300'
                                             : isDone
                                               ? 'bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:text-emerald-300'
                                               : canJump
@@ -924,7 +992,9 @@ export function PropertyWizard({
                                         className={cn(
                                             'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
                                             isActive
-                                                ? 'bg-primary-600 text-white'
+                                                ? isLongTerm
+                                                    ? 'bg-secondary-600 text-white'
+                                                    : 'bg-primary-600 text-white'
                                                 : isDone
                                                   ? 'bg-emerald-600 text-white'
                                                   : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
@@ -941,6 +1011,73 @@ export function PropertyWizard({
                     })}
                 </ol>
             </Card>
+
+            {/* Formule de location active */}
+            <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-white p-3.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2.5">
+                    <span
+                        className={cn(
+                            'flex size-7 items-center justify-center rounded-xl text-xs font-bold text-white shadow-xs',
+                            isLongTerm ? 'bg-secondary-600' : 'bg-primary-600',
+                        )}
+                    >
+                        {isLongTerm ? 'B' : 'S'}
+                    </span>
+                    <div>
+                        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                            Formule sélectionnée :{' '}
+                            <span className={isLongTerm ? 'text-secondary-600 dark:text-secondary-400' : 'text-primary-600 dark:text-primary-400'}>
+                                {isLongTerm
+                                    ? 'Location standard (Bail d’habitation)'
+                                    : 'Location saisonnière (Vacances)'}
+                            </span>
+                        </p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {isLongTerm
+                                ? 'Le formulaire est automatiquement configuré pour un bail résidentiel (loyer, charges, caution, pièces).'
+                                : 'Le formulaire est configuré pour des séjours touristiques (prix par nuit, calendrier, vacanciers).'}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <button
+                        type="button"
+                        disabled={saving || finalizing}
+                        onClick={() => {
+                            setValues((prev) => ({
+                                ...prev,
+                                rental_duration: 'short_term',
+                            }));
+                        }}
+                        className={cn(
+                            'rounded-xl px-3 py-1.5 text-xs font-semibold transition',
+                            !isLongTerm
+                                ? 'bg-primary-600 text-white shadow-xs ring-1 ring-primary-600'
+                                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300',
+                        )}
+                    >
+                        Location saisonnière
+                    </button>
+                    <button
+                        type="button"
+                        disabled={saving || finalizing}
+                        onClick={() => {
+                            setValues((prev) => ({
+                                ...prev,
+                                rental_duration: 'long_term',
+                            }));
+                        }}
+                        className={cn(
+                            'rounded-xl px-3 py-1.5 text-xs font-semibold transition',
+                            isLongTerm
+                                ? 'bg-secondary-600 text-white shadow-xs ring-1 ring-secondary-600'
+                                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300',
+                        )}
+                    >
+                        Location standard
+                    </button>
+                </div>
+            </div>
 
             {generalError && <Alert tone="warning">{generalError}</Alert>}
 
@@ -1017,7 +1154,7 @@ export function PropertyWizard({
                             </div>
                             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                                 {createdProperty.rental_duration === 'long_term'
-                                    ? `${plural(createdProperty.bedrooms, 'chambre')} · Caution ${formatPrice(createdProperty.security_deposit)} (${createdProperty.charges_included ? 'charges comprises' : `charges ${formatPrice(createdProperty.monthly_charges)}/mois`}) · ${BOOKING_MODE_LABELS[createdProperty.booking_mode as BookingMode] ?? createdProperty.booking_mode}`
+                                    ? `${plural(createdProperty.bedrooms, 'chambre')} · ${plural(createdProperty.bathrooms, 'salle de bain')} · Caution ${formatPrice(createdProperty.security_deposit)} (${createdProperty.charges_included ? 'charges comprises' : `charges ${formatPrice(createdProperty.monthly_charges)}/mois`}) · Bail min. ${createdProperty.min_lease_months ? (createdProperty.min_lease_months >= 12 && createdProperty.min_lease_months % 12 === 0 ? `${createdProperty.min_lease_months / 12} an${createdProperty.min_lease_months / 12 > 1 ? 's' : ''}` : `${createdProperty.min_lease_months} mois`) : '1 an'}`
                                     : `${plural(createdProperty.max_guests, 'voyageur')} · ${plural(createdProperty.bedrooms, 'chambre')} · ${plural(createdProperty.beds, 'lit')} · ${plural(createdProperty.amenities.length, 'équipement')} · ${BOOKING_MODE_LABELS[createdProperty.booking_mode as BookingMode] ?? createdProperty.booking_mode} · Arrivée ${createdProperty.check_in_time} / Départ ${createdProperty.check_out_time}`}
                             </p>
                         </div>

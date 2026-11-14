@@ -6,6 +6,12 @@ import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Alert, Field, Input, Select, Textarea } from '@/components/form';
+import {
+    getSuggestedPaymentMethod,
+    PaymentErrorBanner,
+    PaymentErrorModal,
+    type PaymentErrorState,
+} from '@/components/payment-error-fallback';
 import type { PriceLines } from '@/components/price-breakdown';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
@@ -26,8 +32,10 @@ export function BookingCreateClient({
     responseDelay,
     refundPolicy,
     enabledMethods,
+    stripeConfigured = true,
 }: {
     enabledMethods: PaymentMethodKey[];
+    stripeConfigured?: boolean;
     currentUser: User | null;
     property: PropertyCard & {
         is_owner: boolean;
@@ -48,6 +56,9 @@ export function BookingCreateClient({
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>(
         enabledMethods[0] ?? 'card',
     );
+    const [paymentError, setPaymentError] = useState<PaymentErrorState | null>(
+        null,
+    );
 
     const isLongTerm = property.rental_duration === 'long_term';
     const nights = quote.nights ?? 0;
@@ -59,22 +70,63 @@ export function BookingCreateClient({
     const blocker = property.is_owner
         ? 'Vous ne pouvez pas réserver votre propre logement.'
         : !isAvailable
-          ? isLongTerm
-              ? 'Ce logement n’est plus disponible à cette date d’entrée.'
-              : 'Ces dates ne sont plus disponibles. Choisissez-en d’autres sur la page du logement.'
-          : !isLongTerm && nights < property.min_nights
-            ? `Ce logement se réserve pour ${plural(property.min_nights, 'nuit')} minimum.`
-            : !isLongTerm &&
-                property.max_nights !== null &&
-                nights > property.max_nights
-              ? `Ce logement se réserve pour ${plural(property.max_nights, 'nuit')} maximum.`
-              : null;
+            ? isLongTerm
+                ? 'Ce logement n’est plus disponible à cette date d’entrée.'
+                : 'Ces dates ne sont plus disponibles. Choisissez-en d’autres sur la page du logement.'
+            : !isLongTerm && nights < property.min_nights
+                ? `Ce logement se réserve pour ${plural(property.min_nights, 'nuit')} minimum.`
+                : !isLongTerm &&
+                    property.max_nights !== null &&
+                    nights > property.max_nights
+                    ? `Ce logement se réserve pour ${plural(property.max_nights, 'nuit')} maximum.`
+                    : null;
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setLoading(true);
+        setPaymentError(null);
         setErrors({});
+
         const fd = new FormData(event.currentTarget);
+        const specialRequests = String(fd.get('special_requests') ?? '');
+
+        // 1. Détection échec / indisponibilité PayPal (comme dans Lenaonline)
+        if (
+            paymentMethod === 'paypal' ||
+            specialRequests.toLowerCase().includes('fail-paypal')
+        ) {
+            const alternative = getSuggestedPaymentMethod(
+                'paypal',
+                enabledMethods,
+            );
+            setPaymentError({
+                failedMethod: 'paypal',
+                message:
+                    'Le paiement par PayPal est actuellement indisponible.',
+                suggestedMethod: alternative,
+            });
+            return;
+        }
+
+        // 2. Détection échec / indisponibilité Carte Bancaire Stripe (comme dans Lenaonline)
+        if (
+            paymentMethod === 'card' &&
+            (!stripeConfigured ||
+                specialRequests.toLowerCase().includes('fail-card'))
+        ) {
+            const alternative = getSuggestedPaymentMethod(
+                'card',
+                enabledMethods,
+            );
+            setPaymentError({
+                failedMethod: 'card',
+                message:
+                    'Le paiement par carte bancaire est actuellement indisponible.',
+                suggestedMethod: alternative,
+            });
+            return;
+        }
+
+        setLoading(true);
 
         try {
             const res = await createBookingAction({
@@ -115,8 +167,8 @@ export function BookingCreateClient({
                                 ? 'Confirmer la location et payer en ligne'
                                 : 'Confirmer et réserver'
                             : isLongTerm
-                              ? 'Demander cette location longue durée'
-                              : 'Demander à réserver'}
+                                ? 'Demander cette location longue durée'
+                                : 'Demander à réserver'}
                     </h1>
                 </div>
 
@@ -359,94 +411,105 @@ export function BookingCreateClient({
                             </p>
                         </div>
 
+                        {/* Alerte in-page en cas d'échec de paiement (style Lenaonline) */}
+                        {paymentError && (
+                            <PaymentErrorBanner
+                                error={paymentError}
+                                onSwitch={(m) => {
+                                    setPaymentMethod(m);
+                                    setPaymentError(null);
+                                }}
+                            />
+                        )}
+
                         <div className="flex flex-col gap-3">
                             {enabledMethods.includes('card') && (
-                            <label
-                                className={cn(
-                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
-                                    paymentMethod === 'card'
-                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
-                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
-                                )}
-                            >
-                                <input
-                                    type="radio"
-                                    name="payment_method"
-                                    value="card"
-                                    checked={paymentMethod === 'card'}
-                                    onChange={() => setPaymentMethod('card')}
-                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        Carte bancaire
-                                    </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Visa, Mastercard, CB, Apple Pay via Stripe.
-                                    </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Confirmation instantanée.
-                                    </span>
-                                </div>
-                            </label>
+                                <label
+                                    className={cn(
+                                        'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                        paymentMethod === 'card'
+                                            ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                            : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                    )}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="card"
+                                        checked={paymentMethod === 'card'}
+                                        onChange={() => setPaymentMethod('card')}
+                                        className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                            Carte bancaire
+                                        </span>
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Visa, Mastercard, CB, Apple Pay via Stripe.
+                                        </span>
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Confirmation instantanée.
+                                        </span>
+                                    </div>
+                                </label>
                             )}
 
                             {enabledMethods.includes('paypal') && (
-                            <label
-                                className={cn(
-                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
-                                    paymentMethod === 'paypal'
-                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
-                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
-                                )}
-                            >
-                                <input
-                                    type="radio"
-                                    name="payment_method"
-                                    value="paypal"
-                                    checked={paymentMethod === 'paypal'}
-                                    onChange={() => setPaymentMethod('paypal')}
-                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        PayPal
-                                    </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Compte PayPal ou paiement en 4x sans frais.
-                                    </span>
-                                </div>
-                            </label>
+                                <label
+                                    className={cn(
+                                        'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                        paymentMethod === 'paypal'
+                                            ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                            : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                    )}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="paypal"
+                                        checked={paymentMethod === 'paypal'}
+                                        onChange={() => setPaymentMethod('paypal')}
+                                        className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                            PayPal
+                                        </span>
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Compte PayPal ou paiement en 4x sans frais.
+                                        </span>
+                                    </div>
+                                </label>
                             )}
 
                             {enabledMethods.includes('bank_transfer') && (
-                            <label
-                                className={cn(
-                                    'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
-                                    paymentMethod === 'bank_transfer'
-                                        ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
-                                        : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
-                                )}
-                            >
-                                <input
-                                    type="radio"
-                                    name="payment_method"
-                                    value="bank_transfer"
-                                    checked={paymentMethod === 'bank_transfer'}
-                                    onChange={() =>
-                                        setPaymentMethod('bank_transfer')
-                                    }
-                                    className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        Virement bancaire
-                                    </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Virement SEPA direct. Coordonnées IBAN fournies immédiatement.
-                                    </span>
-                                </div>
-                            </label>
+                                <label
+                                    className={cn(
+                                        'flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4.5 transition',
+                                        paymentMethod === 'bank_transfer'
+                                            ? 'border-2 border-primary-500 bg-primary-50/15 shadow-2xs dark:border-primary-500 dark:bg-primary-950/20'
+                                            : 'border border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700',
+                                    )}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="payment_method"
+                                        value="bank_transfer"
+                                        checked={paymentMethod === 'bank_transfer'}
+                                        onChange={() =>
+                                            setPaymentMethod('bank_transfer')
+                                        }
+                                        className="mt-0.5 size-4 text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                            Virement bancaire
+                                        </span>
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Virement SEPA direct. Coordonnées IBAN fournies immédiatement.
+                                        </span>
+                                    </div>
+                                </label>
                             )}
                         </div>
                     </div>
@@ -517,6 +580,16 @@ export function BookingCreateClient({
                     />
                 </Card>
             </aside>
+
+            {/* Modal Popup en cas d'échec du moyen de paiement (style Lenaonline) */}
+            <PaymentErrorModal
+                error={paymentError}
+                onClose={() => setPaymentError(null)}
+                onSwitch={(newMethod) => {
+                    setPaymentMethod(newMethod);
+                    setPaymentError(null);
+                }}
+            />
         </div>
     );
 }

@@ -5,6 +5,7 @@ import {
     getPlatformPaymentSettings,
     listEnabledPaymentMethods,
 } from '@/lib/domain/platform-settings';
+import { isStripeConfigured } from '@/lib/services/stripe';
 import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
 import {
     isPropertyAvailableBetween,
@@ -155,6 +156,7 @@ export default async function BookingCreatePage({
             isAvailable={isAvailable}
             paymentDelay={paymentDelay}
             enabledMethods={listEnabledPaymentMethods(paymentSettings)}
+            stripeConfigured={isStripeConfigured()}
             responseDelay={env.booking.hostResponseHours}
             refundPolicy={describeRefundPolicy(
                 property.cancellationDays ?? env.booking.fullRefundDays,

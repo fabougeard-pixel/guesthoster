@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+    getPaymentMethodLabel,
+    getSuggestedPaymentMethod,
+} from '@/components/payment-error-fallback';
+import {
     canBookingTransitionTo,
     canPropertyTransitionTo,
     isPropertyEditable,
 } from '@/lib/domain/enums';
 import {
     DEFAULT_PLATFORM_RENTAL_SETTINGS,
+    DEFAULT_PLATFORM_SEO_SETTINGS,
+    SEO_SETTINGS_KEY,
     formatLeaseDuration,
 } from '@/lib/domain/platform-settings';
 import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
@@ -16,6 +22,9 @@ import {
 import {
     addDays,
     diffInDays,
+    formatDate,
+    formatLongDateFr,
+    formatShortDateFr,
     formatPrice,
     isValidIsoDate,
 } from '@/lib/format';
@@ -192,5 +201,55 @@ describe('Date, price and slug formatting helpers', () => {
         expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermVisitFeeMode).toBe('individual');
         expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermWidgetButtonLabel).toBe('Prendre rendez-vous');
     });
+
+    it('suggests viable alternative payment methods on failure (Lenaonline pattern)', () => {
+        expect(getPaymentMethodLabel('card')).toBe('Carte bancaire');
+        expect(getPaymentMethodLabel('paypal')).toBe('PayPal');
+        expect(getPaymentMethodLabel('bank_transfer')).toBe('Virement bancaire SEPA');
+
+        // If card fails, fallback to bank_transfer if available
+        expect(getSuggestedPaymentMethod('card', ['card', 'paypal', 'bank_transfer'])).toBe('bank_transfer');
+        // If card fails and only paypal is available
+        expect(getSuggestedPaymentMethod('card', ['card', 'paypal'])).toBe('paypal');
+        // If paypal fails, fallback to card if available
+        expect(getSuggestedPaymentMethod('paypal', ['card', 'paypal', 'bank_transfer'])).toBe('card');
+        // If paypal fails and only bank_transfer is available
+        expect(getSuggestedPaymentMethod('paypal', ['paypal', 'bank_transfer'])).toBe('bank_transfer');
+    });
+
+    it('provides sensible default SEO settings inspired by Lenaonline', () => {
+        expect(SEO_SETTINGS_KEY).toBe('platform_seo_settings');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.metaTitle).toContain('GuestHoster');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.businessType).toBe('LodgingBusiness');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.storeCountry).toBe('FR');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.robotsIndexing).toBe('index_follow');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.twitterCard).toBe('summary_large_image');
+        expect(DEFAULT_PLATFORM_SEO_SETTINGS.rssAfterContent).toContain('{post_link}');
+    });
+
+    it('safely formats and calculates dates without throwing RangeError on null, empty or invalid values', () => {
+        expect(formatDate(null)).toBe('');
+        expect(formatDate(undefined)).toBe('');
+        expect(formatDate('')).toBe('');
+        expect(formatDate('invalid-date')).toBe('');
+        expect(formatDate('2026-11-20')).toContain('2026');
+
+        expect(formatLongDateFr(null)).toBe('');
+        expect(formatLongDateFr('')).toBe('');
+        expect(formatLongDateFr('2026-11-20')).toContain('novembre');
+
+        expect(formatShortDateFr(null)).toBe('');
+        expect(formatShortDateFr('')).toBe('');
+        expect(formatShortDateFr('2026-11-20')).toContain('nov.');
+
+        expect(diffInDays(null, '2026-11-20')).toBe(0);
+        expect(diffInDays('', '2026-11-20')).toBe(0);
+        expect(diffInDays('2026-11-10', null)).toBe(0);
+        expect(diffInDays('2026-11-10', '2026-11-15')).toBe(5);
+
+        expect(addDays('', 3)).toBeTruthy();
+        expect(addDays('2026-11-10', 2)).toBe('2026-11-12');
+    });
 });
+
 

@@ -98,6 +98,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             href: '/admin/paiements',
                             icon: 'settings',
                         },
+                        {
+                            label: 'Paramètres SEO',
+                            href: '/admin/seo',
+                            icon: 'globe',
+                        },
                     ],
                 },
             ]}

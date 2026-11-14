@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+    getPropertyFormStepLabel,
+    LONG_TERM_PROPERTY_FORM_STEP_LABELS,
+    PROPERTY_FORM_STEP_LABELS,
+} from '@/lib/domain/enums';
+import {
     adminOwnerSchema,
     capacitySchema,
     detailsSchema,
@@ -375,5 +380,31 @@ describe('Sidebar active link matching', () => {
             isSectionLinkActive('/hote/logements/nouveau', hostCreateLink),
         ).toBe(true);
     });
+
+    it('adapts step labels distinctly between short term and long term', () => {
+        expect(getPropertyFormStepLabel('details', 'short_term')).toBe(
+            PROPERTY_FORM_STEP_LABELS.details,
+        );
+        expect(getPropertyFormStepLabel('capacity', 'short_term')).toBe(
+            PROPERTY_FORM_STEP_LABELS.capacity,
+        );
+        expect(getPropertyFormStepLabel('pricing', 'short_term')).toBe(
+            PROPERTY_FORM_STEP_LABELS.pricing,
+        );
+
+        expect(getPropertyFormStepLabel('details', 'long_term')).toBe(
+            LONG_TERM_PROPERTY_FORM_STEP_LABELS.details,
+        );
+        expect(getPropertyFormStepLabel('capacity', 'long_term')).toBe(
+            'Configuration & Pièces',
+        );
+        expect(getPropertyFormStepLabel('pricing', 'long_term')).toBe(
+            'Loyer & Conditions du bail',
+        );
+        expect(getPropertyFormStepLabel('amenities', 'long_term')).toBe(
+            'Prestations & Équipements',
+        );
+    });
 });
+
 

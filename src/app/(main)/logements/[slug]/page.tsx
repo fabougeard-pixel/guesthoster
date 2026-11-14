@@ -6,6 +6,7 @@ import {
     getPlatformRentalSettings,
     listEnabledPaymentMethods,
 } from '@/lib/domain/platform-settings';
+import { isStripeConfigured } from '@/lib/services/stripe';
 import { getPropertyDetailForViewer } from '@/lib/domain/properties';
 import { env } from '@/lib/env';
 import { isValidIsoDate, todayIso } from '@/lib/format';
@@ -87,6 +88,7 @@ export default async function PropertyShowPage({
             serviceFeeRate={env.booking.serviceFeeRate}
             rentalSettings={rentalSettings}
             enabledMethods={listEnabledPaymentMethods(paymentSettings)}
+            stripeConfigured={isStripeConfigured()}
             reviews={detail.reviews}
             initialStay={initialStay}
             initialGuests={initialGuests}

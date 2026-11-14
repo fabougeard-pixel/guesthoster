@@ -28,7 +28,11 @@ import {
     withdrawPropertyAction,
 } from '@/lib/actions/host';
 import type { FieldErrors } from '@/lib/actions/types';
-import { type PropertyFormStep, USER_ROLE_LABELS } from '@/lib/domain/enums';
+import {
+    getPropertyFormStepLabel,
+    type PropertyFormStep,
+    USER_ROLE_LABELS,
+} from '@/lib/domain/enums';
 import { cn } from '@/lib/utils';
 import type {
     AdminOwnerOption,
@@ -337,7 +341,10 @@ export function EditPropertyClient({
                                         >
                                             {missing ? index + 1 : '✓'}
                                         </span>
-                                        {item.label}
+                                        {getPropertyFormStepLabel(
+                                            item.value as PropertyFormStep,
+                                            property.rental_duration,
+                                        )}
                                         {missing && (
                                             <span className="sr-only">
                                                 {' '}
@@ -353,7 +360,10 @@ export function EditPropertyClient({
 
                 <Card className="flex-1 p-6">
                     <h2 className="text-lg font-semibold">
-                        {currentStep.label}
+                        {getPropertyFormStepLabel(
+                            currentStep.value as PropertyFormStep,
+                            property.rental_duration,
+                        )}
                     </h2>
                     {property.missing[currentStep.value] && (
                         <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">

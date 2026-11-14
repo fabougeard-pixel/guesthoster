@@ -6,9 +6,7 @@ import { pricingSchema } from '@/lib/domain/property-schemas';
 describe('Rental duration & standard rentals', () => {
     it('provides clear labels distinguishing standard and seasonal rentals', () => {
         expect(RENTAL_DURATION_LABELS.short_term).toBe('Location saisonnière');
-        expect(RENTAL_DURATION_LABELS.long_term).toBe(
-            'Location standard (Bail 1 an)',
-        );
+        expect(RENTAL_DURATION_LABELS.long_term).toBe('Location standard');
     });
 
     it('validates pricing with visit fee for long term properties', () => {

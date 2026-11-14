@@ -1,11 +1,21 @@
 import type { MetadataRoute } from 'next';
+import { getPlatformSeoSettings } from '@/lib/domain/platform-settings';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const base = env.appUrl;
+    let base = env.appUrl;
+    try {
+        const seo = await getPlatformSeoSettings();
+        if (seo.canonicalBaseUrl.trim()) {
+            base = seo.canonicalBaseUrl.trim().replace(/\/$/, '');
+        }
+    } catch {
+        // Fallback default
+    }
+
     const entries: MetadataRoute.Sitemap = [
         { url: `${base}/` },
         { url: `${base}/logements` },

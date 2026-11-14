@@ -211,9 +211,24 @@ export function SearchBar({
         if (checkOut && val && val >= checkOut) {
             setCheckOut('');
         }
+        if (val) {
+            setTimeout(() => {
+                checkOutRef.current?.showPicker?.();
+            }, 120);
+        }
     }
 
     function handleCheckOutChange(val: string) {
+        if (!checkIn && val) {
+            // Si le départ est sélectionné alors qu'Arrivée est vide,
+            // cette date devient l'Arrivée et on ouvre le calendrier de départ
+            setCheckIn(val);
+            setCheckOut('');
+            setTimeout(() => {
+                checkOutRef.current?.showPicker?.();
+            }, 120);
+            return;
+        }
         setCheckOut(val);
     }
 
@@ -226,6 +241,11 @@ export function SearchBar({
             const raw = data.get(key);
             const value = typeof raw === 'string' ? raw.trim() : '';
             query[key] = value === '' ? undefined : value;
+        }
+
+        if (query.check_out && !query.check_in) {
+            query.check_in = query.check_out;
+            query.check_out = undefined;
         }
 
         const qs = buildQueryString(query);
@@ -427,14 +447,24 @@ export function SearchBar({
 
                 {/* 3. Case Départ (Même icône violette réutilisée, sans icône native noire) */}
                 <div
-                    onClick={() => checkOutRef.current?.showPicker?.()}
+                    onClick={() => {
+                        if (!checkIn) {
+                            checkInRef.current?.showPicker?.();
+                        } else {
+                            checkOutRef.current?.showPicker?.();
+                        }
+                    }}
                     className="relative flex cursor-pointer items-center gap-2.5 border-t border-zinc-200 px-4 py-2 transition-colors hover:bg-zinc-50/80 lg:border-t-0 lg:border-l lg:py-1.5 dark:border-zinc-800 dark:hover:bg-zinc-800/40"
                 >
                     <button
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
-                            checkOutRef.current?.showPicker?.();
+                            if (!checkIn) {
+                                checkInRef.current?.showPicker?.();
+                            } else {
+                                checkOutRef.current?.showPicker?.();
+                            }
                         }}
                         aria-label="Sélectionner la date de départ"
                         className="shrink-0"
@@ -456,6 +486,12 @@ export function SearchBar({
                                     : addDays(today, 1)
                             }
                             value={checkOut}
+                            onClick={(e) => {
+                                if (!checkIn) {
+                                    e.preventDefault();
+                                    checkInRef.current?.showPicker?.();
+                                }
+                            }}
                             onChange={(e) =>
                                 handleCheckOutChange(e.target.value)
                             }
@@ -798,6 +834,12 @@ export function SearchBar({
                         type="date"
                         min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
                         value={checkOut}
+                        onClick={(e) => {
+                            if (!checkIn) {
+                                e.preventDefault();
+                                checkInRef.current?.showPicker?.();
+                            }
+                        }}
                         onChange={(e) => handleCheckOutChange(e.target.value)}
                         className="block h-10 w-full cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 shadow-xs transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
                     />
