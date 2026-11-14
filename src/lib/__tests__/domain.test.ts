@@ -250,6 +250,19 @@ describe('Date, price and slug formatting helpers', () => {
         expect(addDays('', 3)).toBeTruthy();
         expect(addDays('2026-11-10', 2)).toBe('2026-11-12');
     });
+
+    it('suggests bank transfer when credit card fails', () => {
+        expect(
+            getSuggestedPaymentMethod('card', [
+                'card',
+                'paypal',
+                'bank_transfer',
+            ]),
+        ).toBe('bank_transfer');
+        expect(getPaymentMethodLabel('bank_transfer')).toBe(
+            'Virement bancaire SEPA',
+        );
+    });
 });
 
 

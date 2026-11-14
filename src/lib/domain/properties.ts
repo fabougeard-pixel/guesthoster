@@ -8,6 +8,9 @@ import {
     BOOKING_MODE_LABELS,
     BOOKING_MODE_OPTIONS,
     type BookingMode,
+    FURNISHING_TYPE_LABELS,
+    FURNISHING_TYPE_OPTIONS,
+    type FurnishingType,
     PROPERTY_STATUS_LABELS,
     type PropertyStatus,
     RENTAL_DURATION_OPTIONS,
@@ -135,6 +138,12 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
     const cover = property.images[0];
     const rentalDuration: RentalDuration =
         property.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
+    const furnishingType =
+        (property.furnishingType as FurnishingType) ?? 'furnished';
+    const furnishingLabel =
+        rentalDuration === 'long_term'
+            ? FURNISHING_TYPE_LABELS[furnishingType] ?? 'Meublé'
+            : null;
 
     return {
         id: property.id,
@@ -142,6 +151,8 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
         title: property.title,
         type: property.propertyType.name,
         rental_duration: rentalDuration,
+        furnishing_type: furnishingType,
+        furnishing_label: furnishingLabel,
         city: property.city?.name ?? '',
         country: property.city?.country.name ?? '',
         cover_url: cover
@@ -599,6 +610,15 @@ export async function getPropertyDetailForViewer(
                     id: true,
                     name: true,
                     hostType: true,
+                    accountType: true,
+                    companyName: true,
+                    companyRegistration: true,
+                    profession: true,
+                    bio: true,
+                    spokenLanguages: true,
+                    responseTime: true,
+                    responseRate: true,
+                    avatarUrl: true,
                     createdAt: true,
                     suspendedAt: true,
                 },
@@ -700,6 +720,12 @@ export async function getPropertyDetailForViewer(
     const bookingMode = row.bookingMode as BookingMode;
     const rentalDuration: RentalDuration =
         row.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
+    const furnishingType =
+        (row.furnishingType as FurnishingType) ?? 'furnished';
+    const furnishingLabel =
+        rentalDuration === 'long_term'
+            ? FURNISHING_TYPE_LABELS[furnishingType] ?? 'Meublé'
+            : null;
 
     const property: PropertyDetail = {
         id: row.id,
@@ -708,6 +734,8 @@ export async function getPropertyDetailForViewer(
         description: row.description,
         type: row.propertyType.name,
         rental_duration: rentalDuration,
+        furnishing_type: furnishingType,
+        furnishing_label: furnishingLabel,
         status,
         status_label: PROPERTY_STATUS_LABELS[status] ?? status,
         is_instant: bookingMode === 'instant',
@@ -762,6 +790,16 @@ export async function getPropertyDetailForViewer(
                     year: 'numeric',
                 }).format(row.owner.createdAt)
                 : null,
+            account_type: (row.owner.accountType as 'individual' | 'company') ?? 'individual',
+            company_name: row.owner.companyName,
+            company_registration: row.owner.companyRegistration,
+            profession: row.owner.profession,
+            bio: row.owner.bio,
+            spoken_languages: row.owner.spokenLanguages ?? 'Français',
+            response_time: row.owner.responseTime ?? "dans l'heure",
+            response_rate: row.owner.responseRate ?? 100,
+            avatar_url: row.owner.avatarUrl,
+            is_professional: row.owner.accountType === 'company',
         },
     };
 
@@ -821,6 +859,7 @@ export async function getHostFormOptions(): Promise<HostFormOptions> {
     return {
         types: types.map((t) => ({ value: String(t.id), label: t.name })),
         rentalDurations: RENTAL_DURATION_OPTIONS,
+        furnishingTypes: FURNISHING_TYPE_OPTIONS,
         bookingModes: BOOKING_MODE_OPTIONS,
         countries: countries
             .filter((c) => c.cities.length > 0)
@@ -879,6 +918,12 @@ export async function getHostPropertyForEdit(
     const status = row.status as PropertyStatus;
     const rentalDuration: RentalDuration =
         row.rentalDuration === 'long_term' ? 'long_term' : 'short_term';
+    const furnishingType =
+        (row.furnishingType as FurnishingType) ?? 'furnished';
+    const furnishingLabel =
+        rentalDuration === 'long_term'
+            ? FURNISHING_TYPE_LABELS[furnishingType] ?? 'Meublé'
+            : null;
 
     return {
         id: row.id,
@@ -888,6 +933,8 @@ export async function getHostPropertyForEdit(
         title: row.title,
         property_type_id: row.propertyTypeId,
         rental_duration: rentalDuration,
+        furnishing_type: furnishingType,
+        furnishing_label: furnishingLabel,
         description: row.description,
         status,
         status_label: PROPERTY_STATUS_LABELS[status] ?? status,

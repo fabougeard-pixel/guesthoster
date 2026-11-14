@@ -34,7 +34,7 @@ export default async function BookingPaymentReturnPage({
     redirect(
         confirmed
             ? `/reservations/${reference}?paid=1`
-            : `/reservations/${reference}`,
+            : `/reservations/${reference}?payment_failed=card`,
     );
 }
 

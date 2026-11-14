@@ -257,6 +257,7 @@ export async function createPropertyAction(input: {
         data: {
             userId: user.id,
             rentalDuration: parsed.data.rental_duration,
+            furnishingType: 'furnished',
             title: parsed.data.title,
             slug: generatePropertySlug(parsed.data.title),
             propertyTypeId: propertyType.id,
@@ -415,6 +416,7 @@ export async function saveWizardPropertyAction(input: {
                 postalCode: parsed.data.postal_code?.trim() || null,
                 latitude: parsed.data.latitude,
                 longitude: parsed.data.longitude,
+                furnishingType: parsed.data.furnishing_type ?? 'furnished',
                 maxGuests: parsed.data.max_guests,
                 bedrooms: parsed.data.bedrooms,
                 beds: parsed.data.beds,
@@ -777,6 +779,7 @@ export async function updatePropertyStepAction(input: {
                 bedrooms: parsed.data.bedrooms,
                 beds: parsed.data.beds,
                 bathrooms: parsed.data.bathrooms,
+                furnishingType: parsed.data.furnishing_type ?? 'furnished',
             },
         });
     } else if (input.step === 'amenities') {

@@ -96,6 +96,30 @@ describe('Property wizard Zod schemas', () => {
             }).success,
         ).toBe(true);
 
+        const unfurnishedCap = capacitySchema.safeParse({
+            max_guests: 2,
+            bedrooms: 1,
+            beds: 1,
+            bathrooms: 1,
+            furnishing_type: 'unfurnished',
+        });
+        expect(unfurnishedCap.success).toBe(true);
+        if (unfurnishedCap.success) {
+            expect(unfurnishedCap.data.furnishing_type).toBe('unfurnished');
+        }
+
+        const semiFurnishedCap = capacitySchema.safeParse({
+            max_guests: 2,
+            bedrooms: 1,
+            beds: 1,
+            bathrooms: 1,
+            furnishing_type: 'semi_furnished',
+        });
+        expect(semiFurnishedCap.success).toBe(true);
+        if (semiFurnishedCap.success) {
+            expect(semiFurnishedCap.data.furnishing_type).toBe('semi_furnished');
+        }
+
         expect(
             pricingSchema.safeParse({
                 price_per_night: 85.5,

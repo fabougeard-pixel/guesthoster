@@ -13,9 +13,18 @@ model User {
     id              Int        @id @default(autoincrement())
     name            String
     email           String     @unique
-    role            String     @default("client")
-    hostType        String?    @default("Hôte Standard") @map("host_type")
-    suspendedAt     DateTime?  @map("suspended_at")
+    role                String     @default("client")
+    hostType            String?    @default("Hôte Standard") @map("host_type")
+    accountType         String     @default("individual") @map("account_type") @db.VarChar(20)
+    companyName         String?    @map("company_name") @db.VarChar(120)
+    companyRegistration String?    @map("company_registration") @db.VarChar(60)
+    profession          String?    @db.VarChar(120)
+    bio                 String?    @db.Text
+    spokenLanguages     String?    @default("Français") @map("spoken_languages") @db.VarChar(255)
+    responseTime        String?    @default("dans l'heure") @map("response_time") @db.VarChar(50)
+    responseRate        Int?       @default(100) @map("response_rate")
+    avatarUrl           String?    @map("avatar_url")
+    suspendedAt         DateTime?  @map("suspended_at")
     emailVerifiedAt DateTime?  @map("email_verified_at")
     password        String
     rememberToken   String?    @map("remember_token") @db.VarChar(100)
@@ -118,6 +127,7 @@ model Property {
     propertyTypeId  Int       @map("property_type_id")
     status            String    @default("draft") @db.VarChar(20)
     rentalDuration    String    @default("short_term") @map("rental_duration") @db.VarChar(20)
+    furnishingType    String?   @default("furnished") @map("furnishing_type") @db.VarChar(20)
     bookingMode       String    @default("request") @map("booking_mode") @db.VarChar(20)
     address           String?
     postalCode        String?   @map("postal_code") @db.VarChar(20)
@@ -243,6 +253,11 @@ model Booking {
     expiresAt               DateTime? @map("expires_at")
     stripeCheckoutSessionId String?   @map("stripe_checkout_session_id")
     stripePaymentIntentId   String?   @map("stripe_payment_intent_id")
+    paymentMethod           String?   @map("payment_method") @db.VarChar(30)
+    transferType            String?   @map("transfer_type") @db.VarChar(30)
+    transferReceiptUrl      String?   @map("transfer_receipt_url") @db.Text
+    transferDeclaredAt      DateTime? @map("transfer_declared_at")
+    transferBankReference   String?   @map("transfer_bank_reference") @db.VarChar(100)
     paidAt                  DateTime? @map("paid_at")
     refundedAmount          Int       @default(0) @map("refunded_amount")
     stripeRefundId          String?   @map("stripe_refund_id")

@@ -1,5 +1,7 @@
 'use server';
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
@@ -15,8 +17,17 @@ import {
 } from '@/lib/domain/bookings';
 import { DomainError } from '@/lib/domain/properties';
 import { env } from '@/lib/env';
-import { addDays, formatLongDateFr, isValidIsoDate, todayIso } from '@/lib/format';
-import { notifyNewMessage } from '@/lib/notifications/service';
+import {
+    addDays,
+    formatLongDateFr,
+    formatPrice,
+    isValidIsoDate,
+    todayIso,
+} from '@/lib/format';
+import {
+    notifyBookingConfirmed,
+    notifyNewMessage,
+} from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
 import {
     createCheckoutSession,
@@ -319,7 +330,7 @@ export async function initiateBookingPaymentAction(
             chargesIncluded: booking.chargesIncluded,
         },
         successUrl: `${env.appUrl}/reservations/${booking.reference}/paiement/retour?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${env.appUrl}/reservations/${booking.reference}`,
+        cancelUrl: `${env.appUrl}/reservations/${booking.reference}?payment_failed=card`,
     });
 
     await prisma.booking.update({
@@ -524,6 +535,257 @@ export async function markAllNotificationsReadAction(): Promise<ActionResult> {
     return {
         ok: true,
         toast: { type: 'info', message: 'Toutes les notifications sont lues.' },
+    };
+}
+
+export async function submitTransferProofAction(
+    formData: FormData,
+): Promise<
+    ActionResult<{
+        reference: string;
+        status: string;
+        transferType: 'instant' | 'sepa';
+    }>
+> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const reference = String(formData.get('reference') ?? '').trim();
+    const rawType = String(formData.get('transferType') ?? 'instant').trim();
+    const transferType: 'instant' | 'sepa' =
+        rawType === 'sepa' ? 'sepa' : 'instant';
+    const bankReference = String(formData.get('bankReference') ?? '').trim();
+    const file = formData.get('file');
+
+    if (!reference) {
+        return { ok: false, error: 'Référence de réservation manquante.' };
+    }
+
+    if (!file || !(file instanceof File) || file.size === 0) {
+        return {
+            ok: false,
+            error: 'Veuillez joindre l’ordre ou justificatif de virement.',
+        };
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        return {
+            ok: false,
+            error: 'Le fichier dépasse la taille maximale autorisée (10 Mo).',
+        };
+    }
+
+    const allowedMimes = new Set([
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ]);
+    if (!allowedMimes.has(file.type)) {
+        return {
+            ok: false,
+            error: 'Format non supporté. Veuillez joindre un document PDF ou une image (JPEG, PNG, WebP).',
+        };
+    }
+
+    const booking = await prisma.booking.findUnique({
+        where: { reference },
+        include: {
+            property: { select: { title: true, userId: true } },
+        },
+    });
+
+    if (!booking || (booking.userId !== user.id && user.role !== 'admin')) {
+        return { ok: false, error: 'Réservation introuvable ou non autorisée.' };
+    }
+
+    if (
+        booking.status !== 'awaiting_payment' &&
+        booking.status !== 'pending' &&
+        booking.status !== 'confirmed'
+    ) {
+        return {
+            ok: false,
+            error: 'Cette réservation ne peut plus recevoir de règlement.',
+        };
+    }
+
+    const rawExt = file.name.split('.').pop()?.toLowerCase();
+    const ext =
+        rawExt && ['pdf', 'jpg', 'jpeg', 'png', 'webp'].includes(rawExt)
+            ? rawExt
+            : file.type.includes('pdf')
+              ? 'pdf'
+              : 'jpg';
+
+    const safeRef = booking.reference.replace(/[^a-zA-Z0-9_-]/g, '');
+    const fileName = `virement-${safeRef}-${Date.now()}.${ext}`;
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'transfers');
+
+    try {
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+        const arrayBuffer = await file.arrayBuffer();
+        await fs.writeFile(filePath, Buffer.from(arrayBuffer));
+    } catch (err) {
+        console.error('Erreur enregistrement ordre de virement :', err);
+        return {
+            ok: false,
+            error: 'Erreur lors de l’enregistrement du justificatif de virement.',
+        };
+    }
+
+    const fileUrl = `/uploads/transfers/${fileName}`;
+    const now = new Date();
+
+    if (transferType === 'instant') {
+        await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+                paymentMethod: 'bank_transfer',
+                transferType: 'instant',
+                transferReceiptUrl: fileUrl,
+                transferDeclaredAt: now,
+                transferBankReference: bankReference || null,
+                status: 'confirmed',
+                confirmedAt: now,
+                paidAt: now,
+                expiresAt: null,
+            },
+        });
+
+        await prisma.message.create({
+            data: {
+                bookingId: booking.id,
+                userId: user.id,
+                body: `⚡ Ordre de virement instantané transmis pour ${formatPrice(booking.totalPrice)} (Réf : ${booking.reference}${bankReference ? ` · Opération : ${bankReference}` : ''}). Séjour confirmé immédiatement.`,
+            },
+        });
+
+        await notifyBookingConfirmed(booking.id);
+
+        revalidatePath(`/reservations/${booking.reference}`);
+        revalidatePath('/voyages');
+        revalidatePath('/hote/reservations');
+        revalidatePath('/admin/reservations');
+
+        return {
+            ok: true,
+            data: {
+                reference: booking.reference,
+                status: 'confirmed',
+                transferType: 'instant',
+            },
+            toast: {
+                type: 'success',
+                message:
+                    'Virement instantané validé ! Votre réservation est confirmée immédiatement.',
+            },
+        };
+    } else {
+        // Virement SEPA classique : dates bloquées, confirmation sous 24h à réception
+        const extendedExpiry = new Date(Date.now() + 48 * 3600 * 1000);
+        await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+                paymentMethod: 'bank_transfer',
+                transferType: 'sepa',
+                transferReceiptUrl: fileUrl,
+                transferDeclaredAt: now,
+                transferBankReference: bankReference || null,
+                status: 'awaiting_payment',
+                expiresAt: extendedExpiry,
+            },
+        });
+
+        await prisma.message.create({
+            data: {
+                bookingId: booking.id,
+                userId: user.id,
+                body: `⏱️ Ordre de virement SEPA transmis pour ${formatPrice(booking.totalPrice)} (Réf : ${booking.reference}${bankReference ? ` · Opération : ${bankReference}` : ''}). Réservation confirmée sous 24h sous réserve de réception du paiement.`,
+            },
+        });
+
+        revalidatePath(`/reservations/${booking.reference}`);
+        revalidatePath('/voyages');
+        revalidatePath('/hote/reservations');
+        revalidatePath('/admin/reservations');
+
+        return {
+            ok: true,
+            data: {
+                reference: booking.reference,
+                status: 'awaiting_payment',
+                transferType: 'sepa',
+            },
+            toast: {
+                type: 'info',
+                message:
+                    'Ordre de virement SEPA transmis ! Vos dates restent bloquées. Réservation confirmée sous 24h sous réserve de réception du paiement.',
+            },
+        };
+    }
+}
+
+export async function confirmBankTransferPaymentAction(
+    reference: string,
+): Promise<ActionResult> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const booking = await prisma.booking.findUnique({
+        where: { reference },
+        include: {
+            property: { select: { userId: true } },
+        },
+    });
+
+    if (!booking) {
+        return { ok: false, error: 'Réservation introuvable.' };
+    }
+
+    const isHost = booking.property.userId === user.id;
+    const isAdmin = user.role === 'admin';
+    if (!isHost && !isAdmin) {
+        return { ok: false, error: 'Action non autorisée.' };
+    }
+
+    const now = new Date();
+    await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+            status: 'confirmed',
+            confirmedAt: now,
+            paidAt: now,
+            expiresAt: null,
+        },
+    });
+
+    await prisma.message.create({
+        data: {
+            bookingId: booking.id,
+            userId: user.id,
+            body: `✅ Réception des fonds confirmée. La réservation est officiellement validée.`,
+        },
+    });
+
+    await notifyBookingConfirmed(booking.id);
+
+    revalidatePath(`/reservations/${reference}`);
+    revalidatePath('/voyages');
+    revalidatePath('/hote/reservations');
+    revalidatePath('/admin/reservations');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'success',
+            message: 'Paiement par virement validé avec succès. Séjour confirmé.',
+        },
     };
 }
 

@@ -14,7 +14,9 @@ import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import {
     cancelBookingAction,
+    confirmBankTransferPaymentAction,
     initiateBookingPaymentAction,
+    submitTransferProofAction,
 } from '@/lib/actions/bookings';
 import type { FieldErrors } from '@/lib/actions/types';
 import type { PaymentMethodKey } from '@/lib/domain/platform-settings';
@@ -37,6 +39,15 @@ function StatusMessage({ booking }: { booking: Booking }) {
                 </Alert>
             );
         case 'awaiting_payment':
+            if (booking.transfer_receipt_url) {
+                return (
+                    <Alert tone="info">
+                        {isHost
+                            ? `Le voyageur a transmis un justificatif d’ordre de virement (${booking.transfer_type === 'instant' ? 'Virement instantané' : 'Virement SEPA'}). Veuillez vérifier votre compte bancaire pour confirmer le séjour.`
+                            : `Votre ordre de virement ${booking.transfer_type === 'instant' ? 'instantané' : 'SEPA'} a bien été transmis. Vos dates restent bloquées. Réservation confirmée sous 24h sous réserve de réception du paiement.`}
+                    </Alert>
+                );
+            }
             return (
                 <Alert tone="info">
                     {isHost
@@ -48,8 +59,12 @@ function StatusMessage({ booking }: { booking: Booking }) {
             return (
                 <Alert tone="success">
                     {isHost
-                        ? 'Séjour payé et confirmé.'
-                        : 'Paiement reçu, séjour confirmé. Bon voyage !'}
+                        ? booking.payment_method === 'bank_transfer'
+                            ? 'Séjour réglé par virement bancaire et confirmé.'
+                            : 'Séjour payé et confirmé.'
+                        : booking.payment_method === 'bank_transfer'
+                          ? 'Paiement par virement validé, séjour confirmé. Bon voyage !'
+                          : 'Paiement reçu, séjour confirmé. Bon voyage !'}
                 </Alert>
             );
         case 'declined':
@@ -80,11 +95,13 @@ function StatusMessage({ booking }: { booking: Booking }) {
 export function BookingShowClient({
     booking,
     justPaid,
+    paymentFailed,
     enabledMethods,
     bank,
 }: {
     booking: Booking;
     justPaid: boolean;
+    paymentFailed?: string | null;
     enabledMethods: PaymentMethodKey[];
     bank: {
         holder: string;
@@ -100,16 +117,159 @@ export function BookingShowClient({
     const [payLoading, setPayLoading] = useState(false);
     const [paypalLoading, setPaypalLoading] = useState(false);
     const [bankModalOpen, setBankModalOpen] = useState(false);
+    const [bankStep, setBankStep] = useState<'details' | 'upload'>('details');
+    const [transferTypeChoice, setTransferTypeChoice] = useState<'instant' | 'sepa'>('instant');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+    const [bankRefInput, setBankRefInput] = useState('');
+    const [uploadLoading, setUploadLoading] = useState(false);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+    const [confirmTransferLoading, setConfirmTransferLoading] = useState(false);
     const [paymentFailure, setPaymentFailure] = useState<{
         failedMethod: string;
         reason: string;
         viableMethod: string;
-        action: () => void;
+        targetAction: 'bank' | 'stripe';
         actionLabel: string;
-    } | null>(null);
+    } | null>(() => {
+        if (!paymentFailed) {
+            return null;
+        }
+        if (paymentFailed === 'card' || paymentFailed === 'stripe') {
+            return {
+                failedMethod: 'Carte bancaire (Stripe)',
+                reason:
+                    'La passerelle de paiement par carte bancaire n’a pu aboutir ou la transaction a été interrompue.',
+                viableMethod: 'Virement bancaire (instantané ou SEPA)',
+                targetAction: 'bank',
+                actionLabel: 'Payer par Virement bancaire',
+            };
+        }
+        if (paymentFailed === 'paypal') {
+            return {
+                failedMethod: 'PayPal',
+                reason:
+                    'La passerelle de paiement PayPal est momentanément indisponible pour cette transaction.',
+                viableMethod: enabledMethods.includes('card')
+                    ? 'Carte bancaire sécurisée (Stripe)'
+                    : 'Virement bancaire (instantané ou SEPA)',
+                targetAction: enabledMethods.includes('card') ? 'stripe' : 'bank',
+                actionLabel: enabledMethods.includes('card')
+                    ? 'Payer par Carte bancaire sécurisée'
+                    : 'Payer par Virement bancaire',
+            };
+        }
+        return null;
+    });
     const [errors, setErrors] = useState<FieldErrors>({});
 
     const isHost = booking.viewer === 'host';
+
+    function handlePaymentFailureAction() {
+        if (!paymentFailure) {
+            return;
+        }
+        const target = paymentFailure.targetAction;
+        setPaymentFailure(null);
+        if (target === 'bank') {
+            setBankStep('details');
+            setBankModalOpen(true);
+        } else {
+            void handlePayStripe();
+        }
+    }
+
+    function copyToClipboard(text: string, label: string) {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            void navigator.clipboard.writeText(text);
+            setCopiedField(label);
+            setTimeout(() => setCopiedField(null), 2000);
+            pushToast({
+                type: 'info',
+                message: `${label} copié dans le presse-papier !`,
+            });
+        }
+    }
+
+    function handleFileChange(file: File | null) {
+        if (proofPreviewUrl) {
+            URL.revokeObjectURL(proofPreviewUrl);
+        }
+        setProofFile(file);
+        if (file && file.type.startsWith('image/')) {
+            setProofPreviewUrl(URL.createObjectURL(file));
+        } else {
+            setProofPreviewUrl(null);
+        }
+    }
+
+    async function handleSubmitProof(e: FormEvent) {
+        e.preventDefault();
+        if (!proofFile) {
+            pushToast({
+                type: 'error',
+                message: 'Veuillez joindre l’ordre ou justificatif de virement.',
+            });
+            return;
+        }
+
+        setUploadLoading(true);
+        try {
+            const fd = new FormData();
+            fd.append('reference', booking.reference);
+            fd.append('transferType', transferTypeChoice);
+            if (bankRefInput.trim()) {
+                fd.append('bankReference', bankRefInput.trim());
+            }
+            fd.append('file', proofFile);
+
+            const res = await submitTransferProofAction(fd);
+            if (res.ok) {
+                pushToast(
+                    res.toast ?? {
+                        type: 'success',
+                        message: 'Ordre de virement transmis avec succès !',
+                    },
+                );
+                setBankModalOpen(false);
+                setBankStep('details');
+                setProofFile(null);
+                setProofPreviewUrl(null);
+                setBankRefInput('');
+                router.refresh();
+            } else {
+                pushToast({
+                    type: 'error',
+                    message: res.error || 'Erreur lors de la transmission.',
+                });
+            }
+        } finally {
+            setUploadLoading(false);
+        }
+    }
+
+    async function handleConfirmBankTransfer() {
+        setConfirmTransferLoading(true);
+        try {
+            const res = await confirmBankTransferPaymentAction(booking.reference);
+            if (res.ok) {
+                pushToast(
+                    res.toast ?? {
+                        type: 'success',
+                        message: 'Paiement par virement validé. Séjour confirmé.',
+                    },
+                );
+                router.refresh();
+            } else {
+                pushToast({
+                    type: 'error',
+                    message: res.error || 'Erreur lors de la validation.',
+                });
+            }
+        } finally {
+            setConfirmTransferLoading(false);
+        }
+    }
 
     useEffect(() => {
         if (justPaid && booking.status === 'confirmed') {
@@ -143,13 +303,10 @@ export function BookingShowClient({
                 failedMethod: 'Carte bancaire (Stripe)',
                 reason:
                     (!res.ok && res.error) ||
-                    'La passerelle de paiement par carte bancaire est temporairement indisponible.',
-                viableMethod: 'Virement bancaire SEPA',
-                actionLabel: 'Utiliser le virement bancaire',
-                action: () => {
-                    setPaymentFailure(null);
-                    setBankModalOpen(true);
-                },
+                    'La passerelle de paiement par carte bancaire est temporairement indisponible pour cette transaction.',
+                viableMethod: 'Virement bancaire (instantané ou SEPA)',
+                targetAction: 'bank',
+                actionLabel: 'Payer par Virement bancaire',
             });
         } finally {
             setPayLoading(false);
@@ -165,12 +322,13 @@ export function BookingShowClient({
                 failedMethod: 'PayPal',
                 reason:
                     'La passerelle de paiement PayPal est momentanément indisponible pour cette transaction.',
-                viableMethod: 'Carte bancaire sécurisée (Stripe)',
-                actionLabel: 'Payer par Carte bancaire sécurisée',
-                action: () => {
-                    setPaymentFailure(null);
-                    void handlePayStripe();
-                },
+                viableMethod: enabledMethods.includes('card')
+                    ? 'Carte bancaire sécurisée (Stripe)'
+                    : 'Virement bancaire (instantané ou SEPA)',
+                targetAction: enabledMethods.includes('card') ? 'stripe' : 'bank',
+                actionLabel: enabledMethods.includes('card')
+                    ? 'Payer par Carte bancaire sécurisée'
+                    : 'Payer par Virement bancaire',
             });
         }, 800);
     }
@@ -483,7 +641,10 @@ export function BookingShowClient({
                                     type="button"
                                     variant="outline"
                                     size="md"
-                                    onClick={() => setBankModalOpen(true)}
+                                    onClick={() => {
+                                        setBankStep('details');
+                                        setBankModalOpen(true);
+                                    }}
                                     className="w-full"
                                 >
                                     Payer par Virement bancaire SEPA
@@ -495,6 +656,70 @@ export function BookingShowClient({
                                 </p>
                             </div>
                         )}
+
+                        {booking.transfer_receipt_url && (
+                            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs dark:border-blue-900/50 dark:bg-blue-950/25">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-blue-950 dark:text-blue-100">
+                                        Ordre de virement transmis
+                                    </span>
+                                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+                                        {booking.transfer_type === 'instant'
+                                            ? '⚡ Virement instantané'
+                                            : '⏱️ Virement SEPA'}
+                                    </span>
+                                </div>
+                                <p className="mt-1.5 text-blue-800 dark:text-blue-300">
+                                    {booking.status === 'confirmed'
+                                        ? 'Paiement validé avec succès. Séjour confirmé.'
+                                        : 'Vérification bancaire en cours sous 24h. Vos dates restent bloquées.'}
+                                </p>
+                                <div className="mt-3 flex flex-col gap-2">
+                                    <a
+                                        href={booking.transfer_receipt_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-300 bg-white px-3 py-2 font-semibold text-blue-900 shadow-xs transition hover:bg-blue-50 dark:border-blue-800 dark:bg-zinc-900 dark:text-blue-200"
+                                    >
+                                        <svg
+                                            className="size-4 text-blue-700 dark:text-blue-400"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                            />
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                            />
+                                        </svg>
+                                        Consulter l’ordre de virement
+                                    </a>
+
+                                    {isHost &&
+                                        booking.status === 'awaiting_payment' && (
+                                            <Button
+                                                size="sm"
+                                                loading={confirmTransferLoading}
+                                                onClick={() =>
+                                                    void handleConfirmBankTransfer()
+                                                }
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                                            >
+                                                Valider la réception des fonds
+                                            </Button>
+                                        )}
+                                </div>
+                            </div>
+                        )}
+
                         {booking.viewer === 'guest' &&
                             booking.status !== 'cancelled' && (
                                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -556,7 +781,7 @@ export function BookingShowClient({
                 </form>
             </Modal>
 
-            {/* Modale d'échec de paiement avec proposition d'option viable */}
+            {/* Modale d'échec de paiement avec recommandation de virement bancaire */}
             <Modal
                 open={paymentFailure !== null}
                 onClose={() => setPaymentFailure(null)}
@@ -587,7 +812,7 @@ export function BookingShowClient({
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
                             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                                 Option de paiement viable recommandée
                             </p>
@@ -605,8 +830,8 @@ export function BookingShowClient({
                                 Choisir un autre moyen
                             </Button>
                             <Button
-                                onClick={() => paymentFailure.action()}
-                                className="bg-primary-600 hover:bg-primary-700"
+                                onClick={handlePaymentFailureAction}
+                                className="bg-[#c2410c] hover:bg-[#9a3412] text-white font-semibold"
                             >
                                 {paymentFailure.actionLabel}
                             </Button>
@@ -615,74 +840,365 @@ export function BookingShowClient({
                 )}
             </Modal>
 
-            {/* Modale d'instructions de virement bancaire SEPA */}
+            {/* Modale Règlement par Virement bancaire & Envoi de justificatif */}
             <Modal
                 open={bankModalOpen}
-                onClose={() => setBankModalOpen(false)}
-                title="Règlement par Virement bancaire SEPA"
+                onClose={() => {
+                    setBankModalOpen(false);
+                    setBankStep('details');
+                }}
+                title={
+                    bankStep === 'details'
+                        ? 'Règlement par Virement bancaire SEPA'
+                        : 'Joindre l’ordre de virement bancaire'
+                }
             >
-                <div className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-300">
-                    <p>
-                        {bank.instructions ||
-                            'Veuillez émettre votre virement bancaire aux coordonnées ci-dessous.'}
-                    </p>
+                {bankStep === 'details' ? (
+                    <div className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-300">
+                        <p>
+                            {bank.instructions ||
+                                'Veuillez effectuer le virement sur le compte ci-dessous en indiquant la référence.'}
+                        </p>
 
-                    <div className="flex flex-col gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
-                            <span className="text-xs text-zinc-500">Bénéficiaire</span>
-                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                                {bank.holder}
-                            </span>
+                        <div className="flex flex-col gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                            <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                                <span className="text-xs text-zinc-500">Bénéficiaire</span>
+                                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {bank.holder || 'GUEST HOSTER'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                                <span className="text-xs text-zinc-500">Banque</span>
+                                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {bank.bankName || 'KANTONAL BANQUE'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-zinc-500">IBAN</span>
+                                    <span className="font-mono font-bold tracking-wider text-[#c2410c] select-all dark:text-orange-400">
+                                        {bank.iban}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(bank.iban, 'IBAN')}
+                                    className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                >
+                                    {copiedField === 'IBAN' ? 'Copié !' : 'Copier'}
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-zinc-500">BIC / SWIFT</span>
+                                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {bank.bic}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(bank.bic, 'BIC')}
+                                    className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                >
+                                    {copiedField === 'BIC' ? 'Copié !' : 'Copier'}
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">
+                                        Libellé / Référence obligatoire
+                                    </span>
+                                    <span className="font-mono text-base font-bold text-zinc-900 select-all dark:text-zinc-100">
+                                        {booking.reference}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(booking.reference, 'Référence')}
+                                    className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                >
+                                    {copiedField === 'Référence' ? 'Copié !' : 'Copier'}
+                                </button>
+                            </div>
+                            <div className="flex justify-between pt-1">
+                                <span className="text-xs text-zinc-500">Montant total</span>
+                                <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                                    {formatPrice(booking.total_price)}
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
-                            <span className="text-xs text-zinc-500">Banque</span>
-                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                                {bank.bankName}
-                            </span>
+
+                        {/* Précision du type de virement requis */}
+                        <div className="grid gap-2.5 sm:grid-cols-2">
+                            <div className="flex flex-col gap-1 rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/20">
+                                <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-100">
+                                    <span>⚡</span>
+                                    <span>Virement instantané</span>
+                                </div>
+                                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                                    (Confirmation de réservation immédiate)
+                                </p>
+                                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                    Exécuté en temps réel par votre banque : votre réservation est validée dès transmission de votre ordre de virement.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col gap-1 rounded-2xl border border-blue-200 bg-blue-50/80 p-3.5 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+                                <div className="flex items-center gap-1.5 font-bold text-blue-950 dark:text-blue-100">
+                                    <span>⏱️</span>
+                                    <span>Virement SEPA</span>
+                                </div>
+                                <p className="font-semibold text-blue-800 dark:text-blue-300">
+                                    (Réservation confirmée sous 24h sous réserve de réception du paiement)
+                                </p>
+                                <p className="text-[11px] text-blue-700 dark:text-blue-400">
+                                    Délai interbancaire classique : vos dates restent bloquées le temps de la réception des fonds sur notre compte.
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
-                            <span className="text-xs text-zinc-500">IBAN</span>
-                            <span className="font-mono font-bold tracking-wider text-primary-700 select-all dark:text-primary-400">
-                                {bank.iban}
-                            </span>
-                        </div>
-                        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
-                            <span className="text-xs text-zinc-500">BIC / SWIFT</span>
-                            <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
-                                {bank.bic}
-                            </span>
-                        </div>
-                        <div className="flex flex-col gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
-                            <span className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">
-                                Libellé / Référence obligatoire
-                            </span>
-                            <span className="font-mono text-base font-bold text-zinc-900 select-all dark:text-zinc-100">
-                                {booking.reference}
-                            </span>
-                        </div>
-                        <div className="flex justify-between pt-1">
-                            <span className="text-xs text-zinc-500">Montant total</span>
-                            <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
-                                {formatPrice(booking.total_price)}
-                            </span>
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setBankModalOpen(false);
+                                    pushToast({
+                                        type: 'info',
+                                        message:
+                                            'Coordonnées de virement notées. Vos dates restent réservées.',
+                                    });
+                                }}
+                            >
+                                J’ai noté les informations
+                            </Button>
+                            <Button
+                                onClick={() => setBankStep('upload')}
+                                className="bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold inline-flex items-center gap-2"
+                            >
+                                <svg
+                                    className="size-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M5 13l4 4L19 7"
+                                    />
+                                </svg>
+                                <span>Paiement Effectué</span>
+                            </Button>
                         </div>
                     </div>
+                ) : (
+                    /* Étape 2 : Transmission de l'ordre de virement */
+                    <form
+                        onSubmit={(e) => void handleSubmitProof(e)}
+                        className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-300"
+                    >
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                            Afin de valider votre réservation, veuillez préciser le type de virement effectué et joindre votre ordre de virement (attestation, reçu bancaire ou capture d’écran).
+                        </p>
 
-                    <div className="flex justify-end gap-2 pt-2">
-                        <Button
-                            variant="primary"
-                            onClick={() => {
-                                setBankModalOpen(false);
-                                pushToast({
-                                    type: 'info',
-                                    message: 'Coordonnées de virement notées. Vos dates restent réservées.',
-                                });
-                            }}
-                        >
-                            J’ai noté les informations
-                        </Button>
-                    </div>
-                </div>
+                        {/* Choix du type de virement */}
+                        <div>
+                            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                Type de virement exécuté <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid gap-2.5 sm:grid-cols-2">
+                                <label
+                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${
+                                        transferTypeChoice === 'instant'
+                                            ? 'border-[#c2410c] bg-orange-50/50 ring-2 ring-orange-400/20 dark:border-orange-500 dark:bg-orange-950/20'
+                                            : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 font-bold text-zinc-900 dark:text-zinc-100">
+                                            <span>⚡</span>
+                                            <span>Virement instantané</span>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            name="transferType"
+                                            value="instant"
+                                            checked={transferTypeChoice === 'instant'}
+                                            onChange={() => setTransferTypeChoice('instant')}
+                                            className="accent-[#c2410c]"
+                                        />
+                                    </div>
+                                    <p className="text-[11px] font-semibold text-orange-800 dark:text-orange-300">
+                                        Confirmation de réservation immédiate
+                                    </p>
+                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                                        Virement reçu en temps réel. Validation instantanée dès transmission du reçu.
+                                    </p>
+                                </label>
+
+                                <label
+                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${
+                                        transferTypeChoice === 'sepa'
+                                            ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-400/20 dark:border-blue-500 dark:bg-blue-950/20'
+                                            : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 font-bold text-zinc-900 dark:text-zinc-100">
+                                            <span>⏱️</span>
+                                            <span>Virement SEPA</span>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            name="transferType"
+                                            value="sepa"
+                                            checked={transferTypeChoice === 'sepa'}
+                                            onChange={() => setTransferTypeChoice('sepa')}
+                                            className="accent-blue-600"
+                                        />
+                                    </div>
+                                    <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300">
+                                        Réservation confirmée sous 24h
+                                    </p>
+                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                                        Sous réserve de réception du paiement. Vos dates restent bloquées.
+                                    </p>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Référence bancaire facultative */}
+                        <div>
+                            <label
+                                htmlFor="bankRefInput"
+                                className="mb-1 block text-xs font-semibold text-zinc-700 dark:text-zinc-300"
+                            >
+                                Référence ou N° d’opération bancaire (facultatif)
+                            </label>
+                            <input
+                                id="bankRefInput"
+                                type="text"
+                                value={bankRefInput}
+                                onChange={(e) => setBankRefInput(e.target.value)}
+                                placeholder="ex. VIR-8392019 ou ID transaction de votre banque"
+                                className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-xs text-zinc-900 outline-none transition focus:border-[#c2410c] focus:ring-2 focus:ring-orange-400/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                            />
+                        </div>
+
+                        {/* Téléversement de l'ordre de virement */}
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                Joindre l’ordre du virement (justificatif obligatoire) <span className="text-red-500">*</span>
+                            </label>
+
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    id="transferProofFileInput"
+                                    accept=".pdf,image/jpeg,image/png,image/webp"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0] ?? null;
+                                        handleFileChange(file);
+                                    }}
+                                    className="hidden"
+                                />
+
+                                {!proofFile ? (
+                                    <label
+                                        htmlFor="transferProofFileInput"
+                                        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50/70 p-6 text-center transition hover:border-[#c2410c] hover:bg-orange-50/30 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-orange-500"
+                                    >
+                                        <div className="flex size-11 items-center justify-center rounded-full bg-orange-100 text-[#c2410c] dark:bg-orange-950/60 dark:text-orange-400">
+                                            <svg
+                                                className="size-6"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                                />
+                                            </svg>
+                                        </div>
+                                        <div className="text-xs">
+                                            <p className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                                Cliquez pour téléverser votre ordre de virement
+                                            </p>
+                                            <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">
+                                                PDF, JPG, PNG ou WebP (max. 10 Mo)
+                                            </p>
+                                        </div>
+                                    </label>
+                                ) : (
+                                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 dark:border-zinc-800 dark:bg-zinc-900">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {proofPreviewUrl ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    src={proofPreviewUrl}
+                                                    alt="Aperçu"
+                                                    className="size-12 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-700"
+                                                />
+                                            ) : (
+                                                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-[#c2410c] dark:bg-orange-950/60 dark:text-orange-400">
+                                                    <svg
+                                                        className="size-6"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth="2"
+                                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                                        />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                            <div className="min-w-0 text-xs">
+                                                <p className="truncate font-semibold text-zinc-900 dark:text-zinc-100">
+                                                    {proofFile.name}
+                                                </p>
+                                                <p className="text-zinc-500 dark:text-zinc-400">
+                                                    {(proofFile.size / (1024 * 1024)).toFixed(2)} Mo
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleFileChange(null)}
+                                            className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                        >
+                                            Changer
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setBankStep('details')}
+                            >
+                                ← Coordonnées bancaires
+                            </Button>
+                            <Button
+                                type="submit"
+                                loading={uploadLoading}
+                                className="bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold"
+                            >
+                                Valider et transmettre mon ordre de virement
+                            </Button>
+                        </div>
+                    </form>
+                )}
             </Modal>
         </>
     );

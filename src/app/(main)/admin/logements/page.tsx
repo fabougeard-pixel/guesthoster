@@ -4,6 +4,8 @@ import { ErrorView } from '@/components/error-view';
 import { requireAdminAccess } from '@/lib/auth/session';
 import {
     BOOKING_MODE_LABELS,
+    FURNISHING_TYPE_LABELS,
+    type FurnishingType,
     PROPERTY_STATUS_LABELS,
     PROPERTY_STATUSES,
     type BookingMode,
@@ -126,6 +128,8 @@ export default async function AdminPropertiesPage({
     const items: AdminProperty[] = rows.map((row) => {
         const propertyStatus = row.status as PropertyStatus;
         const bookingMode = row.bookingMode as BookingMode;
+        const rentalDuration = row.rentalDuration as RentalDuration;
+        const furnishingType = (row.furnishingType as FurnishingType) ?? 'furnished';
         const cover = row.images[0];
 
         return {
@@ -133,7 +137,12 @@ export default async function AdminPropertiesPage({
             slug: row.slug,
             title: row.title,
             type: row.propertyType.name,
-            rental_duration: row.rentalDuration as RentalDuration,
+            rental_duration: rentalDuration,
+            furnishing_type: furnishingType,
+            furnishing_label:
+                rentalDuration === 'long_term'
+                    ? FURNISHING_TYPE_LABELS[furnishingType] ?? 'Meublé'
+                    : null,
             booking_mode: BOOKING_MODE_LABELS[bookingMode] ?? row.bookingMode,
             cover_url: cover
                 ? resolveThumbnailUrl(

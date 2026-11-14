@@ -15,6 +15,16 @@ export default async function ProfileSettingsPage() {
         <ProfileClient
             name={user.name}
             email={user.email}
+            role={user.role}
+            accountType={
+                (user.accountType as 'individual' | 'company') ?? 'individual'
+            }
+            companyName={user.companyName ?? ''}
+            companyRegistration={user.companyRegistration ?? ''}
+            profession={user.profession ?? ''}
+            bio={user.bio ?? ''}
+            spokenLanguages={user.spokenLanguages ?? 'Français'}
+            responseTime={user.responseTime ?? "dans l'heure"}
             mustVerifyEmail={user.emailVerifiedAt === null}
             canBecomeHost={user.role === 'client'}
         />

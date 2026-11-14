@@ -7,6 +7,10 @@ import { Checkbox, Field, Input, Select, Textarea } from '@/components/form';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import { createCustomPropertyTypeAction } from '@/lib/actions/host';
 import {
+    FURNISHING_TYPES,
+    FURNISHING_TYPE_DESCRIPTIONS,
+    FURNISHING_TYPE_LABELS,
+    type FurnishingType,
     RENTAL_DURATION_OPTIONS,
     type RentalDuration,
 } from '@/lib/domain/enums';
@@ -21,6 +25,7 @@ type Errors = Partial<Record<string, string>>;
 export type PropertyEditableFields = Pick<
     HostProperty,
     | 'rental_duration'
+    | 'furnishing_type'
     | 'title'
     | 'property_type_id'
     | 'description'
@@ -426,10 +431,18 @@ export function CapacityFields({
     errors: Errors;
     property: Pick<
         PropertyEditableFields,
-        'rental_duration' | 'max_guests' | 'bedrooms' | 'beds' | 'bathrooms'
+        | 'rental_duration'
+        | 'furnishing_type'
+        | 'max_guests'
+        | 'bedrooms'
+        | 'beds'
+        | 'bathrooms'
     >;
 }) {
     const isLongTerm = property.rental_duration === 'long_term';
+    const [furnishingType, setFurnishingType] = useState<FurnishingType>(
+        property.furnishing_type ?? 'furnished',
+    );
     const [bedrooms, setBedrooms] = useState<number>(property.bedrooms ?? 1);
     const [bathrooms, setBathrooms] = useState<number>(property.bathrooms ?? 1);
 
@@ -449,8 +462,61 @@ export function CapacityFields({
                         </h3>
                     </div>
                     <p className="mt-1.5 text-xs text-secondary-800 dark:text-secondary-300">
-                        Pour une location classique, définissez l’agencement réel du bien en nombre de chambres et salles de bain. Les critères de vacanciers et de lits touristiques sont automatiquement masqués.
+                        Pour une location classique, définissez le type d’ameublement et l’agencement réel du bien en nombre de chambres et salles de bain.
                     </p>
+                </div>
+
+                {/* Choix de l'ameublement */}
+                <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        Type d’ameublement du logement
+                    </label>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        Indiquez si le bien est proposé meublé, semi-meublé ou vide (bail d’habitation loi 89).
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        {FURNISHING_TYPES.map((type) => {
+                            const isSelected = furnishingType === type;
+                            const icons: Record<FurnishingType, string> = {
+                                furnished: '🛋️',
+                                semi_furnished: '🪑',
+                                unfurnished: '📦',
+                            };
+                            return (
+                                <label
+                                    key={type}
+                                    className={cn(
+                                        'relative flex cursor-pointer flex-col justify-between gap-2 rounded-2xl border p-4 transition-all duration-200 select-none',
+                                        isSelected
+                                            ? 'border-secondary-600 bg-secondary-50/70 shadow-sm ring-2 ring-secondary-500/20 dark:border-secondary-500 dark:bg-secondary-950/40'
+                                            : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-850/50',
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-2xl" role="img" aria-hidden="true">
+                                            {icons[type]}
+                                        </span>
+                                        <input
+                                            type="radio"
+                                            name="furnishing_type"
+                                            value={type}
+                                            checked={isSelected}
+                                            onChange={() => setFurnishingType(type)}
+                                            className="size-4 text-secondary-600 focus:ring-secondary-500"
+                                        />
+                                    </div>
+                                    <div className="mt-1">
+                                        <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                            {FURNISHING_TYPE_LABELS[type]}
+                                        </p>
+                                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                            {FURNISHING_TYPE_DESCRIPTIONS[type]}
+                                        </p>
+                                    </div>
+                                </label>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 <div className="grid gap-6 sm:grid-cols-2">
@@ -525,6 +591,7 @@ export function CapacityFields({
 
     return (
         <div className="grid gap-6 sm:grid-cols-2">
+            <input type="hidden" name="furnishing_type" value="furnished" />
             {fields.map((field) => (
                 <Field
                     key={field.name}

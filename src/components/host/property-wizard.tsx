@@ -177,6 +177,7 @@ const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     postal_code: 'location',
     latitude: 'location',
     longitude: 'location',
+    furnishing_type: 'capacity',
     max_guests: 'capacity',
     bedrooms: 'capacity',
     beds: 'capacity',
@@ -212,6 +213,7 @@ function draftToWizardValues(
                 ? draft.status
                 : 'draft',
         rental_duration: draft.rental_duration,
+        furnishing_type: draft.furnishing_type ?? 'furnished',
         title: draft.title,
         property_type_id: draft.property_type_id
             ? String(draft.property_type_id)
@@ -255,6 +257,7 @@ function toEditablePropertySlice(
 
     return {
         rental_duration: values.rental_duration,
+        furnishing_type: values.furnishing_type,
         title: values.title,
         property_type_id:
             values.property_type_id === CUSTOM_PROPERTY_TYPE_OPTION
@@ -340,6 +343,13 @@ function readStepValuesFromForm(
         case 'capacity': {
             const bedrooms = Number(fd.get('bedrooms') ?? current.bedrooms);
             const bathrooms = Number(fd.get('bathrooms') ?? current.bathrooms);
+            const rawFurnishing = fd.get('furnishing_type');
+            const furnishing_type =
+                rawFurnishing === 'furnished' ||
+                    rawFurnishing === 'semi_furnished' ||
+                    rawFurnishing === 'unfurnished'
+                    ? rawFurnishing
+                    : current.furnishing_type ?? 'furnished';
             const rawGuests = fd.get('max_guests');
             const rawBeds = fd.get('beds');
             const max_guests =
@@ -353,6 +363,7 @@ function readStepValuesFromForm(
 
             return {
                 ...current,
+                furnishing_type,
                 max_guests,
                 bedrooms,
                 beds,
@@ -373,7 +384,7 @@ function readStepValuesFromForm(
                 const chargesIncluded = rawChargesMode !== 'false';
                 const rawMonths = Number(
                     fd.get('advance_rent_months') ??
-                        current.advance_rent_months,
+                    current.advance_rent_months,
                 );
                 return {
                     ...current,
@@ -393,8 +404,8 @@ function readStepValuesFromForm(
                             : 1,
                     min_lease_months: Number(
                         fd.get('min_lease_months') ??
-                            current.min_lease_months ??
-                            12,
+                        current.min_lease_months ??
+                        12,
                     ),
                     booking_mode:
                         fd.get('booking_mode') === 'instant'
@@ -461,8 +472,8 @@ function validateStep(
             return typeof fallback === 'string'
                 ? fallback
                 : fallback == null
-                  ? ''
-                  : String(fallback);
+                    ? ''
+                    : String(fallback);
         }
         const v = fd.get(key);
         return typeof v === 'string' ? v : '';
@@ -504,6 +515,9 @@ function validateStep(
                 bedrooms: fd ? fd.get('bedrooms') : values.bedrooms,
                 beds: fd ? fd.get('beds') : values.beds,
                 bathrooms: fd ? fd.get('bathrooms') : values.bathrooms,
+                furnishing_type: fd
+                    ? fd.get('furnishing_type')
+                    : values.furnishing_type,
             });
             return res.success ? null : zodToFieldErrors(res.error);
         }
@@ -524,8 +538,8 @@ function validateStep(
                 price_per_night: fd
                     ? fd.get('price_per_night')
                     : values.price_per_night > 0
-                      ? values.price_per_night / 100
-                      : '',
+                        ? values.price_per_night / 100
+                        : '',
                 cleaning_fee: fd
                     ? fd.get('cleaning_fee')
                     : values.cleaning_fee / 100,
@@ -537,8 +551,8 @@ function validateStep(
                 monthly_rent: fd
                     ? fd.get('monthly_rent')
                     : values.monthly_rent > 0
-                      ? values.monthly_rent / 100
-                      : '',
+                        ? values.monthly_rent / 100
+                        : '',
                 security_deposit: fd
                     ? fd.get('security_deposit')
                     : values.security_deposit / 100,
@@ -591,34 +605,34 @@ export function PropertyWizard({
     const stepKeys: WizardStepKey[] =
         mode === 'admin'
             ? [
-                  'owner',
-                  'details',
-                  'location',
-                  'capacity',
-                  'amenities',
-                  'pricing',
-                  'photos',
-              ]
+                'owner',
+                'details',
+                'location',
+                'capacity',
+                'amenities',
+                'pricing',
+                'photos',
+            ]
             : [
-                  'details',
-                  'location',
-                  'capacity',
-                  'amenities',
-                  'pricing',
-                  'photos',
-              ];
+                'details',
+                'location',
+                'capacity',
+                'amenities',
+                'pricing',
+                'photos',
+            ];
 
     const [values, setValues] = useState<PropertyWizardDraftValues>(() =>
         initialDraft
             ? draftToWizardValues(initialDraft, currentUserId)
             : {
-                  ...DEFAULT_WIZARD_VALUES,
-                  owner_id:
-                      defaultOwnerId != null
-                          ? String(defaultOwnerId)
-                          : DEFAULT_WIZARD_VALUES.owner_id,
-                  initial_status: mode === 'admin' ? 'published' : 'draft',
-              },
+                ...DEFAULT_WIZARD_VALUES,
+                owner_id:
+                    defaultOwnerId != null
+                        ? String(defaultOwnerId)
+                        : DEFAULT_WIZARD_VALUES.owner_id,
+                initial_status: mode === 'admin' ? 'published' : 'draft',
+            },
     );
     const [ownerList, setOwnerList] = useState<AdminOwnerOption[]>(owners);
     const [typeOptions, setTypeOptions] = useState<Option[]>(options.types);
@@ -644,12 +658,12 @@ export function PropertyWizard({
 
     const filteredOwners = ownerSearch.trim()
         ? ownerList.filter((owner) => {
-              const q = ownerSearch.trim().toLowerCase();
-              return (
-                  owner.name.toLowerCase().includes(q) ||
-                  owner.email.toLowerCase().includes(q)
-              );
-          })
+            const q = ownerSearch.trim().toLowerCase();
+            return (
+                owner.name.toLowerCase().includes(q) ||
+                owner.email.toLowerCase().includes(q)
+            );
+        })
         : ownerList;
 
     const selectedOwner = ownerList.find(
@@ -666,7 +680,7 @@ export function PropertyWizard({
     const canSubmitPhotosRequirement =
         !options.cloudinaryDirectUpload ||
         (createdProperty?.images.filter((i) => i.is_processed).length ?? 0) >=
-            options.minPhotos;
+        options.minPhotos;
 
     async function persistDraftBeforePhotos(
         nextValues: PropertyWizardDraftValues,
@@ -682,13 +696,13 @@ export function PropertyWizard({
                 owner:
                     mode === 'admin'
                         ? {
-                              owner_mode: nextValues.owner_mode,
-                              owner_id: nextValues.owner_id,
-                              owner_name: nextValues.owner_name,
-                              owner_email: nextValues.owner_email,
-                              owner_password: nextValues.owner_password,
-                              initial_status: nextValues.initial_status,
-                          }
+                            owner_mode: nextValues.owner_mode,
+                            owner_id: nextValues.owner_id,
+                            owner_name: nextValues.owner_name,
+                            owner_email: nextValues.owner_email,
+                            owner_password: nextValues.owner_password,
+                            initial_status: nextValues.initial_status,
+                        }
                         : undefined,
                 values: {
                     rental_duration: nextValues.rental_duration,
@@ -963,7 +977,7 @@ export function PropertyWizard({
                             index < currentIndex ||
                             (key === 'photos' &&
                                 (createdProperty?.images.length ?? 0) >=
-                                    options.minPhotos);
+                                options.minPhotos);
                         const canJump =
                             index <= highestVisitedIndex ||
                             index === currentIndex + 1;
@@ -982,10 +996,10 @@ export function PropertyWizard({
                                                 ? 'bg-secondary-50 text-secondary-800 ring-1 ring-secondary-500/40 dark:bg-secondary-950/60 dark:text-secondary-300'
                                                 : 'bg-primary-50 text-primary-700 ring-1 ring-primary-500/40 dark:bg-primary-950/60 dark:text-primary-300'
                                             : isDone
-                                              ? 'bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:text-emerald-300'
-                                              : canJump
-                                                ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                                                : 'cursor-not-allowed text-zinc-400 opacity-60 dark:text-zinc-600',
+                                                ? 'bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                : canJump
+                                                    ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                                                    : 'cursor-not-allowed text-zinc-400 opacity-60 dark:text-zinc-600',
                                     )}
                                 >
                                     <span
@@ -996,8 +1010,8 @@ export function PropertyWizard({
                                                     ? 'bg-secondary-600 text-white'
                                                     : 'bg-primary-600 text-white'
                                                 : isDone
-                                                  ? 'bg-emerald-600 text-white'
-                                                  : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
                                         )}
                                     >
                                         {isDone && !isActive ? '✓' : index + 1}
@@ -1104,7 +1118,7 @@ export function PropertyWizard({
                                             ? ` · ${createdProperty.address}`
                                             : ''}
                                         {createdProperty.latitude !== null &&
-                                        createdProperty.longitude !== null
+                                            createdProperty.longitude !== null
                                             ? ` · GPS ${createdProperty.latitude}, ${createdProperty.longitude}`
                                             : ''}
                                     </p>
@@ -1121,7 +1135,7 @@ export function PropertyWizard({
                                         ] ?? createdProperty.rental_duration}
                                     </Badge>
                                     {createdProperty.rental_duration ===
-                                    'long_term' ? (
+                                        'long_term' ? (
                                         <Badge tone="primary">
                                             {formatPrice(
                                                 createdProperty.monthly_rent,
@@ -1154,7 +1168,7 @@ export function PropertyWizard({
                             </div>
                             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                                 {createdProperty.rental_duration === 'long_term'
-                                    ? `${plural(createdProperty.bedrooms, 'chambre')} · ${plural(createdProperty.bathrooms, 'salle de bain')} · Caution ${formatPrice(createdProperty.security_deposit)} (${createdProperty.charges_included ? 'charges comprises' : `charges ${formatPrice(createdProperty.monthly_charges)}/mois`}) · Bail min. ${createdProperty.min_lease_months ? (createdProperty.min_lease_months >= 12 && createdProperty.min_lease_months % 12 === 0 ? `${createdProperty.min_lease_months / 12} an${createdProperty.min_lease_months / 12 > 1 ? 's' : ''}` : `${createdProperty.min_lease_months} mois`) : '1 an'}`
+                                    ? `${createdProperty.furnishing_label ?? 'Meublé'} · ${plural(createdProperty.bedrooms, 'chambre')} · ${plural(createdProperty.bathrooms, 'salle de bain')} · Caution ${formatPrice(createdProperty.security_deposit)} (${createdProperty.charges_included ? 'charges comprises' : `charges ${formatPrice(createdProperty.monthly_charges)}/mois`}) · Bail min. ${createdProperty.min_lease_months ? (createdProperty.min_lease_months >= 12 && createdProperty.min_lease_months % 12 === 0 ? `${createdProperty.min_lease_months / 12} an${createdProperty.min_lease_months / 12 > 1 ? 's' : ''}` : `${createdProperty.min_lease_months} mois`) : '1 an'}`
                                     : `${plural(createdProperty.max_guests, 'voyageur')} · ${plural(createdProperty.bedrooms, 'chambre')} · ${plural(createdProperty.beds, 'lit')} · ${plural(createdProperty.amenities.length, 'équipement')} · ${BOOKING_MODE_LABELS[createdProperty.booking_mode as BookingMode] ?? createdProperty.booking_mode} · Arrivée ${createdProperty.check_in_time} / Départ ${createdProperty.check_out_time}`}
                             </p>
                         </div>
@@ -1398,7 +1412,7 @@ export function PropertyWizard({
                                                         ) —{' '}
                                                         {
                                                             USER_ROLE_LABELS[
-                                                                owner.role
+                                                            owner.role
                                                             ]
                                                         }
                                                     </option>

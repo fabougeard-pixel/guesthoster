@@ -72,10 +72,14 @@ export default async function BookingShowPage({
 
     const booking = serializeBooking(record, user, { includeReview: true });
     const paymentSettings = await getPlatformPaymentSettings();
+    const paymentFailed =
+        typeof sp.payment_failed === 'string' ? sp.payment_failed : null;
+
     return (
         <BookingShowClient
             booking={booking}
             justPaid={sp.paid === '1'}
+            paymentFailed={paymentFailed}
             enabledMethods={listEnabledPaymentMethods(paymentSettings)}
             bank={{
                 holder: paymentSettings.bankAccountHolder,

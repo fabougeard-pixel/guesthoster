@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import type { PropertyStatus, RentalDuration } from '@/lib/domain/enums';
+import type {
+    FurnishingType,
+    PropertyStatus,
+    RentalDuration,
+} from '@/lib/domain/enums';
+import { FURNISHING_TYPES } from '@/lib/domain/enums';
 
 export const CUSTOM_PROPERTY_TYPE_OPTION = 'other';
 
@@ -179,6 +184,13 @@ export const capacitySchema = z.object({
     bedrooms: z.coerce.number().int().min(0).max(30),
     beds: z.coerce.number().int().min(0).max(50),
     bathrooms: z.coerce.number().int().min(0).max(20),
+    furnishing_type: z
+        .preprocess(
+            parseOptionalEnumInput,
+            z.enum(FURNISHING_TYPES).default('furnished'),
+        )
+        .optional()
+        .default('furnished'),
 });
 
 export const amenitiesSchema = z.object({
@@ -504,6 +516,7 @@ export const fullPropertyDraftSchema = z
         bedrooms: capacitySchema.shape.bedrooms,
         beds: capacitySchema.shape.beds,
         bathrooms: capacitySchema.shape.bathrooms,
+        furnishing_type: capacitySchema.shape.furnishing_type,
         amenities: amenitiesSchema.shape.amenities,
         ...pricingFieldsObject,
     })
@@ -542,6 +555,7 @@ export type PropertyWizardDraftValues = {
     owner_password: string;
     initial_status: 'draft' | 'pending' | 'published';
     rental_duration: RentalDuration;
+    furnishing_type: FurnishingType;
     title: string;
     property_type_id: string;
     custom_property_type: string;
@@ -581,6 +595,7 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     owner_password: '',
     initial_status: 'draft',
     rental_duration: 'short_term',
+    furnishing_type: 'furnished',
     title: '',
     property_type_id: '',
     custom_property_type: '',

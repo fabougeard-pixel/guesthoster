@@ -109,6 +109,9 @@ export function PropertyCard({
                 <div className="pointer-events-none absolute bottom-2.5 left-2.5">
                     <span className="inline-flex items-center rounded-lg bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-xs">
                         {property.type}
+                        {isLongTerm && property.furnishing_label
+                            ? ` · ${property.furnishing_label}`
+                            : ''}
                     </span>
                 </div>
 

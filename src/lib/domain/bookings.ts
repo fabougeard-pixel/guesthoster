@@ -183,6 +183,16 @@ export function serializeBooking(
         cancellation_reason: record.cancellationReason,
         expires_at: record.expiresAt ? record.expiresAt.toISOString() : null,
         paid_at: record.paidAt ? record.paidAt.toISOString() : null,
+        payment_method: record.paymentMethod ?? null,
+        transfer_type:
+            record.transferType === 'instant' || record.transferType === 'sepa'
+                ? record.transferType
+                : null,
+        transfer_receipt_url: record.transferReceiptUrl ?? null,
+        transfer_declared_at: record.transferDeclaredAt
+            ? record.transferDeclaredAt.toISOString()
+            : null,
+        transfer_bank_reference: record.transferBankReference ?? null,
         refunded_amount: record.refundedAmount,
         refund_if_cancelled: refundIfCancelled,
         refund_policy: describeRefundPolicy(

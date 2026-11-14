@@ -36,6 +36,15 @@ export function serializeUser(user: PrismaUser): User {
         name: user.name,
         email: user.email,
         role: user.role as UserRole,
+        account_type: (user.accountType as 'individual' | 'company') ?? 'individual',
+        company_name: user.companyName,
+        company_registration: user.companyRegistration,
+        profession: user.profession,
+        bio: user.bio,
+        spoken_languages: user.spokenLanguages,
+        response_time: user.responseTime,
+        response_rate: user.responseRate,
+        avatar_url: user.avatarUrl,
         email_verified_at: user.emailVerifiedAt
             ? user.emailVerifiedAt.toISOString()
             : null,

@@ -45,6 +45,13 @@ const registerSchema = z
             .email('Veuillez saisir une adresse e-mail valide.')
             .max(255),
         role: z.enum(['client', 'host']),
+        account_type: z
+            .enum(['individual', 'company'])
+            .optional()
+            .default('individual'),
+        company_name: z.string().trim().max(120).optional().nullable(),
+        company_registration: z.string().trim().max(60).optional().nullable(),
+        profession: z.string().trim().max(120).optional().nullable(),
         password: z
             .string()
             .min(8, 'Le mot de passe doit contenir au moins 8 caractères.'),
@@ -147,6 +154,10 @@ export async function registerAction(input: {
     name: string;
     email: string;
     role: 'client' | 'host';
+    account_type?: 'individual' | 'company';
+    company_name?: string;
+    company_registration?: string;
+    profession?: string;
     password: string;
     password_confirmation: string;
 }): Promise<ActionResult> {
@@ -170,12 +181,25 @@ export async function registerAction(input: {
         };
     }
 
+    const isCompany =
+        parsed.data.role === 'host' && parsed.data.account_type === 'company';
     const passwordHash = await hashPassword(parsed.data.password);
     const user = await prisma.user.create({
         data: {
             name: parsed.data.name,
             email,
             role: parsed.data.role,
+            accountType: isCompany ? 'company' : 'individual',
+            companyName: isCompany
+                ? parsed.data.company_name?.trim() || parsed.data.name
+                : null,
+            companyRegistration: isCompany
+                ? parsed.data.company_registration?.trim() || null
+                : null,
+            profession: isCompany
+                ? parsed.data.profession?.trim() || 'Professionnel de l’immobilier'
+                : null,
+            hostType: isCompany ? 'Hôte Professionnel' : 'Hôte Standard',
             password: passwordHash,
         },
     });

@@ -18,6 +18,16 @@ const profileSchema = z.object({
         .min(2, 'Le nom doit contenir au moins 2 caractères.')
         .max(255),
     email: z.string().trim().email('Adresse e-mail invalide.').max(255),
+    account_type: z
+        .enum(['individual', 'company'])
+        .optional()
+        .default('individual'),
+    company_name: z.string().trim().max(120).optional().nullable(),
+    company_registration: z.string().trim().max(60).optional().nullable(),
+    profession: z.string().trim().max(120).optional().nullable(),
+    bio: z.string().trim().max(3000).optional().nullable(),
+    spoken_languages: z.string().trim().max(255).optional().nullable(),
+    response_time: z.string().trim().max(50).optional().nullable(),
 });
 
 const passwordUpdateSchema = z
@@ -38,6 +48,13 @@ const passwordUpdateSchema = z
 export async function updateProfileAction(input: {
     name: string;
     email: string;
+    account_type?: 'individual' | 'company';
+    company_name?: string;
+    company_registration?: string;
+    profession?: string;
+    bio?: string;
+    spoken_languages?: string;
+    response_time?: string;
 }): Promise<ActionResult> {
     const user = await getFreshSessionUser();
     if (!user) {
@@ -67,11 +84,26 @@ export async function updateProfileAction(input: {
         }
     }
 
+    const isCompany = parsed.data.account_type === 'company';
     const updated = await prisma.user.update({
         where: { id: user.id },
         data: {
             name: parsed.data.name,
             email,
+            accountType: parsed.data.account_type ?? 'individual',
+            companyName: isCompany
+                ? parsed.data.company_name?.trim() || parsed.data.name
+                : null,
+            companyRegistration: isCompany
+                ? parsed.data.company_registration?.trim() || null
+                : null,
+            profession: parsed.data.profession?.trim() || null,
+            bio: parsed.data.bio?.trim() || null,
+            spokenLanguages: parsed.data.spoken_languages?.trim() || 'Français',
+            responseTime: parsed.data.response_time?.trim() || "dans l'heure",
+            ...(isCompany && user.hostType === 'Hôte Standard'
+                ? { hostType: 'Hôte Professionnel' }
+                : {}),
             ...(emailChanged ? { emailVerifiedAt: null } : {}),
         },
     });

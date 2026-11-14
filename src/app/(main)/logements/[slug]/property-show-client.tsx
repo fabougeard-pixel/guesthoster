@@ -375,19 +375,25 @@ function BookingCard({
                     </div>
 
                     {/* Caractéristiques contractuelles et financières */}
-                    <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-2.5 dark:border-zinc-800 dark:bg-zinc-850/50">
+                            <span className="text-zinc-500 dark:text-zinc-400">Ameublement</span>
+                            <p className="mt-0.5 text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                {property.furnishing_label ?? 'Meublé'}
+                            </p>
+                        </div>
                         {showDeposit && (
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-850/50">
+                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-2.5 dark:border-zinc-800 dark:bg-zinc-850/50">
                                 <span className="text-zinc-500 dark:text-zinc-400">Caution requise</span>
-                                <p className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                <p className="mt-0.5 text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100">
                                     {formatPrice(property.security_deposit)}
                                 </p>
                             </div>
                         )}
-                        <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-850/50">
+                        <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-2.5 dark:border-zinc-800 dark:bg-zinc-850/50">
                             <span className="text-zinc-500 dark:text-zinc-400">Contrat minimal</span>
-                            <p className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                {formatLeaseDuration(property.min_lease_months)} renouvelable
+                            <p className="mt-0.5 text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                {formatLeaseDuration(property.min_lease_months)}
                             </p>
                         </div>
                     </div>
@@ -1005,7 +1011,7 @@ export function PropertyShowClient({
                                 <p className="text-zinc-600 dark:text-zinc-400">
                                     {[
                                         isLongTerm
-                                            ? null
+                                            ? (property.furnishing_label ?? 'Meublé')
                                             : plural(
                                                 property.max_guests,
                                                 'voyageur',
@@ -1226,121 +1232,265 @@ export function PropertyShowClient({
                         <PropertyLocationMap property={property} />
                     </section>
 
-                    {/* Section Hôte / Propriétaire avec nom, statut, note 5 étoiles et avis en slide */}
-                    <section id={isLongTerm ? 'proprietaire' : 'hote'} className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-5 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xs sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
-                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="relative flex size-14 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-bold text-secondary-800 dark:bg-secondary-900/50 dark:text-secondary-300">
-                                        {property.host.name.slice(0, 1).toUpperCase()}
-                                        <span
-                                            title={isLongTerm ? 'Propriétaire vérifié' : 'Hôte vérifié'}
-                                            className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full bg-primary-600 text-white shadow-xs"
-                                        >
-                                            <svg
-                                                viewBox="0 0 20 20"
-                                                fill="currentColor"
-                                                className="size-3"
-                                                aria-hidden="true"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                                                {property.host.name}
-                                            </h3>
-                                            <span
-                                                className={cn(
-                                                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                                                    property.host.host_type === 'Hôte Premium'
-                                                        ? 'border border-amber-300 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300'
-                                                        : property.host.host_type === 'Superhôte'
-                                                            ? 'border border-purple-300 bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-300'
-                                                            : property.host.host_type === 'Hôte Vérifié'
-                                                                ? 'border border-sky-300 bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-300'
-                                                                : property.host.host_type === 'Conciergerie Partenaire'
-                                                                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                                                    : 'border border-zinc-200 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
-                                                )}
-                                            >
-                                                {isLongTerm
-                                                    ? (property.host.host_type
-                                                        ? property.host.host_type.replace('Hôte', 'Propriétaire')
-                                                        : 'Propriétaire')
-                                                    : (property.host.host_type ?? 'Hôte Standard')}
-                                            </span>
-                                        </div>
-                                        <div className="mt-1 flex flex-wrap items-center gap-2.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                            {property.host.member_since && (
-                                                <span>
-                                                    Sur la plateforme depuis{' '}
-                                                    {property.host.member_since_formatted ??
-                                                        property.host.member_since}
-                                                </span>
-                                            )}
-                                            <span>·</span>
-                                            <div className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-200">
-                                                <Stars
-                                                    rating={property.host.rating ?? 5}
-                                                    className="scale-90"
-                                                />
-                                                <span>
-                                                    {property.host.rating
-                                                        ? property.host.rating.toFixed(1)
-                                                        : '5.0'}{' '}
-                                                    / 5
-                                                </span>
-                                                <span className="font-normal text-zinc-500">
-                                                    ({plural(property.host.reviews_count ?? 0, 'avis')})
-                                                </span>
+                    {/* Section Hôte / Propriétaire inspirée du design d’Airbnb : Carte profil, métriques clés, présentation, garanties et avis */}
+                    {(() => {
+                        const isCompany =
+                            property.host.is_professional ||
+                            property.host.account_type === 'company';
+                        const hostDisplayName =
+                            isCompany && property.host.company_name
+                                ? property.host.company_name
+                                : property.host.name;
+                        const currentYear = new Date().getFullYear();
+                        const hostSeniorityYears = property.host.member_since
+                            ? Math.max(1, currentYear - property.host.member_since)
+                            : 1;
+                        const hostTypeLabel = isCompany
+                            ? property.host.host_type === 'Hôte Standard'
+                                ? isLongTerm
+                                    ? 'Propriétaire Professionnel'
+                                    : 'Hôte Professionnel'
+                                : isLongTerm
+                                  ? property.host.host_type?.replace('Hôte', 'Propriétaire')
+                                  : property.host.host_type
+                            : isLongTerm
+                              ? property.host.host_type?.replace('Hôte', 'Propriétaire')
+                              : (property.host.host_type ?? 'Hôte vérifié');
+
+                        return (
+                            <section
+                                id={isLongTerm ? 'proprietaire' : 'hote'}
+                                className="flex flex-col gap-6"
+                            >
+                                <div className="flex flex-col gap-1">
+                                    <h2 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
+                                        {isLongTerm
+                                            ? 'Faites connaissance avec votre propriétaire'
+                                            : 'Faites connaissance avec votre hôte'}
+                                    </h2>
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                        {isCompany
+                                            ? 'Logement géré par un professionnel déclaré avec des engagements de service rigoureux.'
+                                            : 'Découvrez le profil de votre hôte, ses avis et ses engagements de séjour.'}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+                                    {/* Colonne gauche : Carte d’identité Hôte / Entreprise flottante */}
+                                    <div className="flex flex-col gap-5 lg:col-span-5">
+                                        <div className="flex flex-col gap-6 rounded-3xl border border-zinc-200/90 bg-white p-6 shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+                                            <div className="flex items-center justify-between gap-4">
+                                                {/* Avatar & Nom */}
+                                                <div className="flex flex-col items-center text-center">
+                                                    <div className="relative flex size-20 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-2xl font-black text-secondary-800 shadow-inner ring-4 ring-white dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-800">
+                                                        {property.host.avatar_url ? (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img
+                                                                src={property.host.avatar_url}
+                                                                alt={hostDisplayName}
+                                                                className="size-full rounded-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span>
+                                                                {hostDisplayName.slice(0, 1).toUpperCase()}
+                                                            </span>
+                                                        )}
+                                                        <span
+                                                            title={
+                                                                isCompany
+                                                                    ? 'Professionnel vérifié'
+                                                                    : isLongTerm
+                                                                      ? 'Propriétaire vérifié'
+                                                                      : 'Hôte vérifié'
+                                                            }
+                                                            className="absolute -right-1 -bottom-1 flex size-6 items-center justify-center rounded-full bg-rose-500 text-white shadow-md ring-2 ring-white dark:ring-zinc-900"
+                                                        >
+                                                            <svg
+                                                                viewBox="0 0 20 20"
+                                                                fill="currentColor"
+                                                                className="size-3.5"
+                                                                aria-hidden="true"
+                                                            >
+                                                                <path
+                                                                    fillRule="evenodd"
+                                                                    d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
+                                                                    clipRule="evenodd"
+                                                                />
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="mt-2.5 text-base font-bold text-zinc-900 dark:text-zinc-100">
+                                                        {hostDisplayName}
+                                                    </h3>
+                                                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                                                        {isCompany ? '🏢 Entreprise' : '🎖️ Hôte vérifié'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Chiffres clés verticaux (style Airbnb) */}
+                                                <div className="flex flex-col gap-2.5 border-l border-zinc-100 pl-4 text-left dark:border-zinc-800">
+                                                    <div>
+                                                        <p className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                            {property.host.reviews_count ?? 0}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                                            évaluations
+                                                        </p>
+                                                    </div>
+                                                    <div className="border-t border-zinc-100 pt-1 dark:border-zinc-800">
+                                                        <p className="flex items-center gap-1 text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                            <span>
+                                                                {(property.host.rating ?? 5).toFixed(1)}
+                                                            </span>
+                                                            <span className="text-xs text-amber-500">★</span>
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                                            en note globale
+                                                        </p>
+                                                    </div>
+                                                    <div className="border-t border-zinc-100 pt-1 dark:border-zinc-800">
+                                                        <p className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                            {hostSeniorityYears}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                                            {isLongTerm
+                                                                ? 'an(s) propriétaire'
+                                                                : 'an(s) en tant qu’hôte'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Informations structurées avec icônes */}
+                                            <div className="space-y-2.5 border-t border-zinc-100 pt-4 text-xs text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+                                                <div className="flex items-start gap-2.5">
+                                                    <span className="text-sm">💼</span>
+                                                    <span>
+                                                        <strong>Ma profession :</strong>{' '}
+                                                        {property.host.profession ||
+                                                            (isCompany
+                                                                ? 'Conciergerie & gestion locative'
+                                                                : isLongTerm
+                                                                  ? 'Bailleur particulier'
+                                                                  : 'Hôte indépendant')}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-start gap-2.5">
+                                                    <span className="text-sm">🌐</span>
+                                                    <span>
+                                                        <strong>Langues parlées :</strong>{' '}
+                                                        {property.host.spoken_languages || 'Français'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-start gap-2.5">
+                                                    <span className="text-sm">🏢</span>
+                                                    <span>
+                                                        <strong>Statut :</strong>{' '}
+                                                        {isCompany
+                                                            ? `${property.host.company_name ?? 'Entreprise'}${property.host.company_registration ? ` (SIRET : ${property.host.company_registration})` : ' · Professionnel'}`
+                                                            : 'Particulier'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Bio / Présentation de l’hôte */}
+                                            <div className="border-t border-zinc-100 pt-4 text-xs text-zinc-600 leading-relaxed dark:border-zinc-800 dark:text-zinc-400">
+                                                <p className="whitespace-pre-line">
+                                                    {property.host.bio ||
+                                                        (isCompany
+                                                            ? 'En tant que gestionnaire professionnel, nous assurons une sélection soignée des logements, une assistance continue et un accueil personnalisé pour que vos séjours ou locations se déroulent en toute sérénité.'
+                                                            : isLongTerm
+                                                              ? 'Propriétaire disponible et attentif, je veille à entretenir une relation de confiance et de proximité avec mes locataires tout au long de la durée du bail.'
+                                                              : 'Heureux de vous accueillir dans mon logement ! Je reste à votre écoute pour vous conseiller les meilleures adresses locales et faciliter votre venue.')}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Colonne droite : Engagements, réactivité, sécurité et avis */}
+                                    <div className="flex flex-col gap-6 lg:col-span-7">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                                                {hostDisplayName} est {hostTypeLabel}
+                                            </h3>
+                                            <p className="mt-1.5 text-sm text-zinc-600 leading-relaxed dark:text-zinc-400">
+                                                {isCompany
+                                                    ? 'Les professionnels déclarés et conciergeries partenaires bénéficient d’une vérification d’identité rigoureuse et s’engagent à offrir des standards de confort et de disponibilité élevés.'
+                                                    : 'Les hôtes et propriétaires vérifiés ont d’excellentes évaluations et s’engagent à offrir des logements soignés et des réponses rapides.'}
+                                            </p>
+                                        </div>
+
+                                        {/* Encadré réactivité & prise de contact */}
+                                        <div className="space-y-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-850/50">
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                                {isLongTerm
+                                                    ? 'Informations sur le propriétaire'
+                                                    : 'Informations sur l’hôte'}
+                                            </h4>
+                                            <div className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                                                <p>
+                                                    <strong>Taux de réponse :</strong>{' '}
+                                                    {property.host.response_rate ?? 100} %
+                                                </p>
+                                                <p>
+                                                    <strong>Délai habituel :</strong>{' '}
+                                                    Répond {property.host.response_time ?? "dans l’heure"}
+                                                </p>
+                                            </div>
+                                            <div className="pt-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => setChatOpen(true)}
+                                                    className="w-full sm:w-auto"
+                                                >
+                                                    {isLongTerm
+                                                        ? 'Contacter le propriétaire'
+                                                        : 'Envoyer un message à l’hôte'}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Bandeau de réassurance / sécurité de paiement (style Airbnb) */}
+                                        <div className="flex items-start gap-3 rounded-2xl border border-rose-200/70 bg-rose-50/60 p-4 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200">
+                                            <span className="text-base" role="img" aria-hidden="true">
+                                                🛡️
+                                            </span>
+                                            <p className="leading-relaxed">
+                                                <strong>Garantie de protection GuestHoster :</strong>{' '}
+                                                Afin de protéger votre réservation, vos acomptes et vos échanges, utilisez toujours la messagerie et les moyens de réservation sécurisés de GuestHoster.
+                                            </p>
+                                        </div>
+
+                                        {/* Déclaration légale pro/particulier */}
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                                            {isCompany ? (
+                                                <>
+                                                    ℹ️ <strong>Activité professionnelle :</strong> Cette annonce est proposée par une entreprise / un professionnel de l’immobilier.
+                                                </>
+                                            ) : (
+                                                <>
+                                                    ℹ️ <strong>Particulier :</strong> Cette annonce est proposée par un propriétaire particulier.
+                                                </>
+                                            )}
+                                        </p>
+
+                                        {/* Slider des avis relatifs à cet hôte / propriétaire */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                                {isLongTerm
+                                                    ? 'Avis relatifs à ce propriétaire'
+                                                    : 'Avis relatifs à cet hôte'}
+                                            </h4>
+                                            <HostReviewsSlider
+                                                hostName={hostDisplayName}
+                                                reviews={property.host.reviews ?? []}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setChatOpen(true)}
-                                    className="flex items-center gap-1.5"
-                                >
-                                    <svg
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                        className="size-4 text-primary-600"
-                                        aria-hidden="true"
-                                    >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                    {isLongTerm ? 'Contacter le propriétaire' : 'Contacter l’hôte'}
-                                </Button>
-                            </div>
-
-                            {/* Slider des avis relatifs à cet hôte / propriétaire */}
-                            <div className="mt-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-                                <h4 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {isLongTerm
-                                        ? 'Avis relatifs à ce propriétaire'
-                                        : 'Avis relatifs à cet hôte'}
-                                </h4>
-                                <HostReviewsSlider
-                                    hostName={property.host.name}
-                                    reviews={property.host.reviews ?? []}
-                                />
-                            </div>
-                        </div>
-                    </section>
+                            </section>
+                        );
+                    })()}
 
                     <section id="avis" className="flex flex-col gap-6">
                         <div className="flex flex-wrap items-baseline gap-3">

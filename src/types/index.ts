@@ -1,11 +1,18 @@
 import type {
     BookingStatus,
+    FurnishingType,
     PropertyStatus,
     RentalDuration,
     UserRole,
 } from '@/lib/domain/enums';
 
-export type { BookingStatus, PropertyStatus, RentalDuration, UserRole };
+export type {
+    BookingStatus,
+    FurnishingType,
+    PropertyStatus,
+    RentalDuration,
+    UserRole,
+};
 
 export type Option = { value: string; label: string };
 export type CountedOption = Option & { count: number };
@@ -16,6 +23,15 @@ export type User = {
     name: string;
     email: string;
     role: UserRole;
+    account_type?: 'individual' | 'company' | null;
+    company_name?: string | null;
+    company_registration?: string | null;
+    profession?: string | null;
+    bio?: string | null;
+    spoken_languages?: string | null;
+    response_time?: string | null;
+    response_rate?: number | null;
+    avatar_url?: string | null;
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
@@ -38,6 +54,8 @@ export type PropertyCard = {
     title: string;
     type: string;
     rental_duration: RentalDuration;
+    furnishing_type?: FurnishingType | null;
+    furnishing_label?: string | null;
     city: string;
     country: string;
     cover_url: string | null;
@@ -76,6 +94,8 @@ export type PropertyDetail = {
     description: string;
     type: string;
     rental_duration: RentalDuration;
+    furnishing_type?: FurnishingType | null;
+    furnishing_label?: string | null;
     status: string;
     status_label: string;
     is_instant: boolean;
@@ -120,6 +140,16 @@ export type PropertyDetail = {
         reviews?: Review[];
         member_since: number | null;
         member_since_formatted?: string | null;
+        account_type?: 'individual' | 'company' | null;
+        company_name?: string | null;
+        company_registration?: string | null;
+        profession?: string | null;
+        bio?: string | null;
+        spoken_languages?: string | null;
+        response_time?: string | null;
+        response_rate?: number | null;
+        avatar_url?: string | null;
+        is_professional?: boolean;
     };
 };
 
@@ -161,6 +191,11 @@ export type Booking = {
     cancellation_reason: string | null;
     expires_at: string | null;
     paid_at: string | null;
+    payment_method: string | null;
+    transfer_type: 'instant' | 'sepa' | null;
+    transfer_receipt_url: string | null;
+    transfer_declared_at: string | null;
+    transfer_bank_reference: string | null;
     refunded_amount: number;
     refund_if_cancelled: number;
     refund_policy: string;
@@ -211,6 +246,8 @@ export type HostProperty = {
     title: string;
     property_type_id: number;
     rental_duration: RentalDuration;
+    furnishing_type?: FurnishingType | null;
+    furnishing_label?: string | null;
     description: string;
     status: PropertyStatus;
     status_label: string;
@@ -249,6 +286,7 @@ export type HostProperty = {
 export type HostFormOptions = {
     types: Option[];
     rentalDurations: Option[];
+    furnishingTypes?: Option[];
     bookingModes: Option[];
     countries: { name: string; cities: { id: number; name: string }[] }[];
     amenities: { category: string; items: { id: number; name: string }[] }[];
@@ -281,6 +319,8 @@ export type AdminProperty = {
     title: string;
     type: string;
     rental_duration: RentalDuration;
+    furnishing_type?: FurnishingType | null;
+    furnishing_label?: string | null;
     booking_mode: string;
     cover_url: string | null;
     city: string | null;

@@ -68,6 +68,35 @@ export const RENTAL_DURATION_OPTIONS: Option[] = RENTAL_DURATIONS.map((value) =>
     label: RENTAL_DURATION_LABELS[value],
 }));
 
+export const FURNISHING_TYPES = [
+    'furnished',
+    'semi_furnished',
+    'unfurnished',
+] as const;
+export type FurnishingType = (typeof FURNISHING_TYPES)[number];
+
+export const FURNISHING_TYPE_LABELS: Record<FurnishingType, string> = {
+    furnished: 'Meublé',
+    semi_furnished: 'Semi-meublé',
+    unfurnished: 'Non meublé (vide)',
+};
+
+export const FURNISHING_TYPE_DESCRIPTIONS: Record<FurnishingType, string> = {
+    furnished:
+        'Mobilier complet, literie et électroménager fournis (bail standard 1 an).',
+    semi_furnished:
+        'Partiellement équipé (cuisine aménagée/équipée, quelques meubles).',
+    unfurnished:
+        'Logement loué entièrement vide, sans meubles (bail classique loi 89 de 3 ans).',
+};
+
+export const FURNISHING_TYPE_OPTIONS: Option[] = FURNISHING_TYPES.map(
+    (value) => ({
+        value,
+        label: FURNISHING_TYPE_LABELS[value],
+    }),
+);
+
 export const BOOKING_MODES = ['instant', 'request'] as const;
 export type BookingMode = (typeof BOOKING_MODES)[number];
 
