@@ -60,7 +60,7 @@ export type RentalDuration = (typeof RENTAL_DURATIONS)[number];
 
 export const RENTAL_DURATION_LABELS: Record<RentalDuration, string> = {
     short_term: 'Location saisonnière',
-    long_term: 'Location standard',
+    long_term: 'Location classique',
 };
 
 export const RENTAL_DURATION_OPTIONS: Option[] = RENTAL_DURATIONS.map((value) => ({

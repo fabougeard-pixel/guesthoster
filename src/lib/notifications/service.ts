@@ -677,3 +677,88 @@ export async function notifyNewMessage(messageId: number): Promise<void> {
     });
 }
 
+export async function notifyVisitRequested({
+    propertyTitle,
+    propertySlug,
+    ownerId,
+    ownerEmail,
+    ownerName,
+    candidateName,
+    candidateEmail,
+    candidatePhone,
+    visitDate,
+    timeSlot,
+    reference,
+    visitFee,
+    candidateNotes,
+}: {
+    propertyId?: number;
+    propertyTitle: string;
+    propertySlug: string;
+    ownerId: number;
+    ownerEmail: string;
+    ownerName: string;
+    candidateName: string;
+    candidateEmail: string;
+    candidatePhone?: string | null;
+    visitDate: string;
+    timeSlot: string;
+    reference: string;
+    visitFee: number;
+    candidateNotes?: string | null;
+}): Promise<void> {
+    const formattedFee =
+        visitFee > 0 ? `${(visitFee / 100).toFixed(2)} €` : 'Gratuit';
+
+    // 1. Notification au Propriétaire (rôle propriétaire explicite pour location classique)
+    await dispatchUserNotification({
+        userId: ownerId,
+        email: ownerEmail,
+        type: 'App\\Notifications\\VisitRequested',
+        inApp: {
+            title: 'Nouveau rendez-vous de visite (Location classique)',
+            body: `${candidateName} a réservé un créneau de visite pour votre logement « ${propertyTitle} » le ${visitDate} (${timeSlot}).`,
+            url: appUrl(`/hote/logements`),
+        },
+        mail: {
+            subject: `Nouveau rendez-vous de visite · ${propertyTitle}`,
+            greeting: `Bonjour ${ownerName},`,
+            lines: [
+                `Un candidat à la location classique (${candidateName}) a réservé un créneau de visite pour votre bien « ${propertyTitle} ».`,
+                `Date & heure du rendez-vous : le ${visitDate} à ${timeSlot}.`,
+                `Référence du rendez-vous : ${reference}`,
+                `Coordonnées du candidat : ${candidateEmail}${candidatePhone ? ` · ${candidatePhone}` : ''}`,
+                ...(candidateNotes
+                    ? [`Informations transmises par le candidat : « ${candidateNotes} »`]
+                    : []),
+                ...(visitFee > 0 ? [`Forfait de validation réglé : ${formattedFee}`] : []),
+                `En tant que propriétaire, vous pouvez accueillir le candidat sur place au créneau convenu et échanger avec lui directement.`,
+            ],
+            actionLabel: 'Gérer mes logements & visites',
+            actionUrl: appUrl(`/hote/logements`),
+        },
+    });
+
+    // 2. Notification de confirmation au Candidat / Locataire
+    await safeSendMail(candidateEmail, {
+        subject: `Confirmation de votre rendez-vous de visite · ${propertyTitle}`,
+        greeting: `Bonjour ${candidateName},`,
+        lines: [
+            `Votre rendez-vous de visite pour le bien « ${propertyTitle} » est bien confirmé.`,
+            `Date & créneau : le ${visitDate} à ${timeSlot}.`,
+            `Référence du rendez-vous : ${reference}`,
+            `Propriétaire du bien : ${ownerName}`,
+            `Le propriétaire vous accueillera sur place au créneau convenu pour effectuer la visite du logement et répondre à vos questions.`,
+            ...(visitFee > 0
+                ? [
+                      `Forfait de validation réglé : ${formattedFee} (déductible lors de la signature du bail).`,
+                  ]
+                : []),
+            `En cas d'empêchement, merci de prévenir le propriétaire au plus tôt.`,
+        ],
+        actionLabel: 'Voir la fiche du logement',
+        actionUrl: appUrl(`/logements/${propertySlug}`),
+    });
+}
+
+

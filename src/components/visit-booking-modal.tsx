@@ -240,7 +240,7 @@ export function VisitBookingModal({
                         </h2>
 
                         <p className="mt-2 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
-                            Votre demande de visite a bien été validée pour le logement{' '}
+                            Votre demande de visite a bien été validée et transmise au propriétaire pour le logement{' '}
                             <strong className="text-zinc-900 dark:text-zinc-100">{property.title}</strong>.
                         </p>
 
@@ -278,7 +278,7 @@ export function VisitBookingModal({
                                     <strong className="text-zinc-900 dark:text-zinc-100">
                                         {formatPrice(confirmedVisit.visitFee)}
                                     </strong>
-                                    . Ce montant garantit votre créneau exclusif et sera déduit à la signature du bail.
+                                    . Ce montant garantit votre créneau exclusif avec le propriétaire et sera déduit à la signature du bail.
                                 </div>
                             )}
                         </div>
@@ -295,7 +295,7 @@ export function VisitBookingModal({
                         <header className="flex flex-col gap-1 pr-8">
                             <div className="flex items-center gap-2">
                                 <Badge tone="secondary">
-                                    Location standard · Min. {formatLeaseDuration(property.min_lease_months)}
+                                    Location classique · Min. {formatLeaseDuration(property.min_lease_months)}
                                 </Badge>
                                 {visitFee > 0 ? (
                                     <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
@@ -427,7 +427,7 @@ export function VisitBookingModal({
                                     <Textarea
                                         id="candidate_notes"
                                         rows={2}
-                                        placeholder="Bonjour, je souhaiterais visiter ce bien en vue d'un bail d'habitation standard pour le mois prochain..."
+                                        placeholder="Bonjour, je souhaiterais visiter ce bien en vue d'un bail d'habitation pour le mois prochain..."
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
                                     />
@@ -444,7 +444,7 @@ export function VisitBookingModal({
                                             Forfait de validation du créneau de visite
                                         </h4>
                                         <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-                                            Ce montant bloque votre créneau avec l’hôte et vous garantit la disponibilité du créneau.
+                                            Ce montant bloque votre créneau avec le propriétaire et vous garantit la disponibilité du créneau.
                                         </p>
                                     </div>
                                     <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">

@@ -41,7 +41,7 @@ export function PropertyCard({
                 <div className="pointer-events-none absolute top-3 left-3 flex flex-col items-start gap-1.5">
                     {isLongTerm ? (
                         <>
-                            {/* Pillule Location standard */}
+                            {/* Pillule Location classique */}
                             <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-secondary-900 shadow-md backdrop-blur-xs dark:bg-zinc-900/95 dark:text-zinc-100">
                                 <svg
                                     viewBox="0 0 20 20"
@@ -55,7 +55,7 @@ export function PropertyCard({
                                         clipRule="evenodd"
                                     />
                                 </svg>
-                                <span>Location standard</span>
+                                <span>Location classique</span>
                             </div>
 
                             {/* Pillule Bail min. 1 an */}
@@ -164,7 +164,7 @@ export function PropertyCard({
                 {/* 3. Encadré financier et bouton d'action selon la formule */}
                 {isLongTerm ? (
                     <div className="flex flex-col gap-2.5">
-                        {/* Encadré financier Location standard (style capture) */}
+                        {/* Encadré financier Location classique (style capture) */}
                         <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 sm:p-3.5 dark:border-zinc-800 dark:bg-zinc-850/50">
                             <div className="flex items-center justify-between gap-1.5">
                                 <p className="flex shrink-0 items-baseline gap-1 whitespace-nowrap">

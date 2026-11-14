@@ -84,6 +84,8 @@ export type PropertyDetail = {
     reviews_count: number;
     city: string;
     country: string;
+    address?: string | null;
+    postal_code?: string | null;
     location: { lat: number; lng: number } | null;
     max_guests: number;
     bedrooms: number;

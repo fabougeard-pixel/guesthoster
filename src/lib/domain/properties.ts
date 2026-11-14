@@ -146,10 +146,10 @@ export function serializePropertyCard(property: PropertyCardRecord): PropertyCar
         country: property.city?.country.name ?? '',
         cover_url: cover
             ? resolveThumbnailUrl(
-                  cover.thumbnailPath,
-                  cover.path,
-                  cover.cloudinaryPublicId,
-              )
+                cover.thumbnailPath,
+                cover.path,
+                cover.cloudinaryPublicId,
+            )
             : null,
         price_per_night: property.pricePerNight,
         monthly_rent: property.monthlyRent,
@@ -648,11 +648,11 @@ export async function getPropertyDetailForViewer(
     const hostRatingAverage =
         hostRatings.length > 0
             ? Number(
-                  (
-                      hostRatings.reduce((sum, r) => sum + r, 0) /
-                      hostRatings.length
-                  ).toFixed(1),
-              )
+                (
+                    hostRatings.reduce((sum, r) => sum + r, 0) /
+                    hostRatings.length
+                ).toFixed(1),
+            )
             : 5.0;
     const hostReviewsCount = hostReviewRows.length;
 
@@ -688,10 +688,10 @@ export async function getPropertyDetailForViewer(
             const url = resolveImageUrl(img.path, img.cloudinaryPublicId);
             return url
                 ? {
-                      id: img.id,
-                      url,
-                      alt: img.alt ?? row.title,
-                  }
+                    id: img.id,
+                    url,
+                    alt: img.alt ?? row.title,
+                }
                 : null;
         })
         .filter((img): img is { id: number; url: string; alt: string } => img !== null);
@@ -717,10 +717,14 @@ export async function getPropertyDetailForViewer(
         reviews_count: row.reviewsCount,
         city: row.city?.name ?? '',
         country: row.city?.country.name ?? '',
+        address: row.address,
+        postal_code: row.postalCode,
         location:
             row.latitude !== null && row.longitude !== null
                 ? { lat: Number(row.latitude), lng: Number(row.longitude) }
-                : null,
+                : row.city?.latitude !== null && row.city?.latitude !== undefined && row.city?.longitude !== null && row.city?.longitude !== undefined
+                    ? { lat: Number(row.city.latitude), lng: Number(row.city.longitude) }
+                    : null,
         max_guests: row.maxGuests,
         bedrooms: row.bedrooms,
         beds: row.beds,
@@ -754,9 +758,9 @@ export async function getPropertyDetailForViewer(
                 : null,
             member_since_formatted: row.owner.createdAt
                 ? new Intl.DateTimeFormat('fr-FR', {
-                      month: 'long',
-                      year: 'numeric',
-                  }).format(row.owner.createdAt)
+                    month: 'long',
+                    year: 'numeric',
+                }).format(row.owner.createdAt)
                 : null,
         },
     };

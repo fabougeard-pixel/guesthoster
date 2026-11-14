@@ -1028,7 +1028,7 @@ export function PropertyWizard({
                             Formule sélectionnée :{' '}
                             <span className={isLongTerm ? 'text-secondary-600 dark:text-secondary-400' : 'text-primary-600 dark:text-primary-400'}>
                                 {isLongTerm
-                                    ? 'Location standard (Bail d’habitation)'
+                                    ? 'Location classique (Bail d’habitation)'
                                     : 'Location saisonnière (Vacances)'}
                             </span>
                         </p>
@@ -1074,7 +1074,7 @@ export function PropertyWizard({
                                 : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300',
                         )}
                     >
-                        Location standard
+                        Location classique
                     </button>
                 </div>
             </div>

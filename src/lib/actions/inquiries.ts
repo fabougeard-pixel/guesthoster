@@ -251,7 +251,7 @@ export async function closeInquiryAndSendRecapAction(
     const inquiry = await prisma.propertyInquiry.findUnique({
         where: { reference },
         include: {
-            property: { select: { title: true, slug: true } },
+            property: { select: { title: true, slug: true, rentalDuration: true } },
             guest: { select: { id: true, name: true, email: true } },
             host: { select: { id: true, name: true, email: true } },
             messages: {
@@ -267,11 +267,14 @@ export async function closeInquiryAndSendRecapAction(
 
     const isHost = inquiry.hostId === user.id;
     const isAdmin = user.role === 'admin';
+    const isLongTerm = inquiry.property.rentalDuration === 'long_term';
 
     if (!isHost && !isAdmin) {
         return {
             ok: false,
-            error: 'Seul l’hôte ou l’administrateur de conciergerie peut clôturer cette session.',
+            error: isLongTerm
+                ? 'Seul le propriétaire ou l’administrateur de conciergerie peut clôturer cette session.'
+                : 'Seul l’hôte ou l’administrateur de conciergerie peut clôturer cette session.',
         };
     }
 
@@ -279,6 +282,9 @@ export async function closeInquiryAndSendRecapAction(
 
     // Si le bien est géré par la conciergerie (Admin), envoyer un email récapitulatif complet au propriétaire
     if (inquiry.isManagedByAdmin && inquiry.host.email) {
+        const clientLabel = isLongTerm ? 'Candidat locataire' : 'Voyageur';
+        const spaceLabel = isLongTerm ? 'espace propriétaire' : 'espace hôte';
+
         const messageLines = inquiry.messages.map((m) => {
             const timeStr = formatMessageDate(m.createdAt);
             const speaker =
@@ -286,19 +292,19 @@ export async function closeInquiryAndSendRecapAction(
                     ? `Conciergerie (pour vous)`
                     : m.senderRole === 'host'
                       ? 'Vous'
-                      : `Voyageur (${inquiry.guest.name})`;
+                      : `${clientLabel} (${inquiry.guest.name})`;
             return `• [${timeStr}] ${speaker} : « ${m.body} »`;
         });
 
         const lines = [
             `Une session d'échange en direct vient de se terminer concernant votre bien en conciergerie : "${inquiry.property.title}".`,
-            `Le voyageur "${inquiry.guest.name}" (${inquiry.guest.email}) a posé des questions préalables auxquelles notre conciergerie a répondu en votre nom.`,
+            `Le ${clientLabel.toLowerCase()} "${inquiry.guest.name}" (${inquiry.guest.email}) a posé des questions préalables auxquelles notre conciergerie a répondu en votre nom.`,
             `Voici le récapitulatif complet des échanges :`,
             '',
             ...messageLines,
             '',
             `Statut de la session : Clôturée le ${formatMessageDate(new Date())}.`,
-            `Vous pouvez retrouver les détails de votre logement et de vos réservations sur votre espace hôte GuestHoster.`,
+            `Vous pouvez retrouver les détails de votre logement sur votre ${spaceLabel} GuestHoster.`,
         ];
 
         try {

@@ -63,7 +63,7 @@ export function AdminSettingsClient({
                         Paramètres de location
                     </h1>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                        Configurez le fonctionnement global et les règles des locations saisonnières et standard.
+                        Configurez le fonctionnement global et les règles des locations saisonnières et classiques.
                     </p>
                 </div>
                 <Button
@@ -88,12 +88,12 @@ export function AdminSettingsClient({
                 </div>
             )}
 
-            {/* SECTION 1 : LOCATIONS STANDARD (BAIL D'HABITATION) */}
+            {/* SECTION 1 : LOCATIONS CLASSIQUES (BAIL D'HABITATION) */}
             <Card className="flex flex-col gap-6 p-6 sm:p-8">
                 <div className="flex items-start justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
                     <div>
                         <span className="inline-flex items-center rounded-md bg-secondary-100 px-2 py-0.5 text-xs font-bold text-secondary-900 dark:bg-secondary-950/60 dark:text-secondary-300">
-                            Locations standard
+                            Locations classiques
                         </span>
                         <h2 className="mt-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                             Configuration des baux & rendez-vous de visite
@@ -171,7 +171,7 @@ export function AdminSettingsClient({
                                     </span>
                                 </div>
                                 <p className="pl-6.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                    Un montant forfaitaire uniforme s’applique automatiquement à l’ensemble des biens en location standard.
+                                    Un montant forfaitaire uniforme s’applique automatiquement à l’ensemble des biens en location classique.
                                 </p>
                             </label>
                         </div>

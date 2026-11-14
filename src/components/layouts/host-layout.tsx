@@ -4,8 +4,8 @@ import { SectionLayout } from '@/components/section-nav';
 export function HostLayout({ children }: { children: ReactNode }) {
     return (
         <SectionLayout
-            title="Espace hôte"
-            subtitle="Vos logements & réservations"
+            title="Espace propriétaire & hôte"
+            subtitle="Vos logements, baux & séjours"
             workspace="host"
             cta={{
                 label: 'Ajouter un logement',

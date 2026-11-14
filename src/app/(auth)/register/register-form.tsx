@@ -19,8 +19,9 @@ const roles = [
     },
     {
         value: 'host' as const,
-        label: 'Hôte',
-        description: 'Je souhaite proposer mon logement à la location.',
+        label: 'Hôte / Propriétaire',
+        description:
+            'Je souhaite proposer mon logement en location saisonnière ou classique.',
     },
 ];
 

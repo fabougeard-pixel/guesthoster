@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 
 export type PlatformRentalSettings = {
-    // Location standard
+    // Location classique
     longTermVisitFeeMode: 'individual' | 'global';
     longTermGlobalVisitFee: number; // en euros (ex: 20)
     longTermWidgetButtonLabel: string; // ex: "Prendre rendez-vous"

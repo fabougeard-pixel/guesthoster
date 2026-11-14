@@ -124,7 +124,7 @@ export function UserMenu({ user }: { user: User }) {
                                 className={itemClasses}
                                 onClick={() => setOpen(false)}
                             >
-                                Espace hôte
+                                Espace hôte & propriétaire
                             </Link>
                         )}
                         {user.role === 'admin' && (

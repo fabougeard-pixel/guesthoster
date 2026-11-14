@@ -449,7 +449,7 @@ export function CapacityFields({
                         </h3>
                     </div>
                     <p className="mt-1.5 text-xs text-secondary-800 dark:text-secondary-300">
-                        Pour une location standard, définissez l’agencement réel du bien en nombre de chambres et salles de bain. Les critères de vacanciers et de lits touristiques sont automatiquement masqués.
+                        Pour une location classique, définissez l’agencement réel du bien en nombre de chambres et salles de bain. Les critères de vacanciers et de lits touristiques sont automatiquement masqués.
                     </p>
                 </div>
 
@@ -702,7 +702,7 @@ export function PricingFields({
                                 ✓
                             </span>
                             <h3 className="text-sm font-semibold text-secondary-950 dark:text-secondary-100">
-                                Loyer, Charges & Conditions du bail (Location standard)
+                                Loyer, Charges & Conditions du bail (Location classique)
                             </h3>
                         </div>
                         <p className="mt-1.5 text-xs text-secondary-800 dark:text-secondary-300">

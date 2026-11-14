@@ -10,6 +10,7 @@ import {
     getPlatformRentalSettings,
     listEnabledPaymentMethods,
 } from '@/lib/domain/platform-settings';
+import { notifyVisitRequested } from '@/lib/notifications/service';
 
 const visitBookingSchema = z.object({
     propertySlug: z.string().min(1, 'Logement introuvable.'),
@@ -81,7 +82,7 @@ export async function createPropertyVisitAction(
     if (property.rentalDuration !== 'long_term') {
         return {
             ok: false,
-            error: 'Ce logement n’est pas configuré en location standard pour les visites.',
+            error: 'Ce logement n’est pas configuré en location classique pour les visites.',
         };
     }
 
@@ -171,12 +172,34 @@ export async function createPropertyVisitAction(
                     inquiryId: inquiry.id,
                     senderId: guestId,
                     senderRole: 'guest',
-                    body: `📅 Rendez-vous de visite planifié pour le ${data.visitDate} à ${data.timeSlot}.\nRéférence : ${reference}\nNom : ${data.name}\nTéléphone : ${data.phone || 'Non précisé'}\n${candidateSummary ? `Informations : ${candidateSummary}` : ''}`,
+                    body: `📅 Rendez-vous de visite planifié avec le propriétaire pour le ${data.visitDate} à ${data.timeSlot}.\nRéférence : ${reference}\nCandidat : ${data.name}\nTéléphone : ${data.phone || 'Non précisé'}\n${candidateSummary ? `Informations : ${candidateSummary}` : ''}`,
                 },
             });
         }
     } catch (e) {
         console.warn('[createPropertyVisitAction] Failed to create inquiry message:', e);
+    }
+
+    // Notifications & emails transactionnels au Propriétaire et au Candidat
+    try {
+        await notifyVisitRequested({
+            propertyId: property.id,
+            propertyTitle: property.title,
+            propertySlug: property.slug,
+            ownerId: property.owner.id,
+            ownerEmail: property.owner.email,
+            ownerName: property.owner.name,
+            candidateName: data.name,
+            candidateEmail: data.email,
+            candidatePhone: data.phone,
+            visitDate: data.visitDate,
+            timeSlot: data.timeSlot,
+            reference,
+            visitFee,
+            candidateNotes: candidateSummary,
+        });
+    } catch (e) {
+        console.warn('[createPropertyVisitAction] Failed to dispatch notifications:', e);
     }
 
     revalidatePath(`/logements/${property.slug}`);

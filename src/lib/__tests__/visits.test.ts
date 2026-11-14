@@ -3,10 +3,10 @@ import { createPropertyVisitAction } from '@/lib/actions/visits';
 import { RENTAL_DURATION_LABELS } from '@/lib/domain/enums';
 import { pricingSchema } from '@/lib/domain/property-schemas';
 
-describe('Rental duration & standard rentals', () => {
-    it('provides clear labels distinguishing standard and seasonal rentals', () => {
+describe('Rental duration & classic rentals', () => {
+    it('provides clear labels distinguishing classic and seasonal rentals', () => {
         expect(RENTAL_DURATION_LABELS.short_term).toBe('Location saisonnière');
-        expect(RENTAL_DURATION_LABELS.long_term).toBe('Location standard');
+        expect(RENTAL_DURATION_LABELS.long_term).toBe('Location classique');
     });
 
     it('validates pricing with visit fee for long term properties', () => {

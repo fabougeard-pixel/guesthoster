@@ -10,6 +10,7 @@ import { PropertyInquiryChatDrawer } from '@/components/chat/property-inquiry-ch
 import { FavoriteButton } from '@/components/favorite-button';
 import { Alert, Label } from '@/components/form';
 import { PriceBreakdown } from '@/components/price-breakdown';
+import { PropertyLocationMap } from '@/components/property-location-map';
 import { ReviewCard } from '@/components/review-card';
 import { RatingSummary, Stars } from '@/components/star-rating';
 import { VisitBookingModal } from '@/components/visit-booking-modal';
@@ -305,7 +306,7 @@ function BookingCard({
     const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
 
     // ==========================================
-    // LOCATION STANDARD (BAIL D'HABITATION)
+    // LOCATION CLASSIQUE (BAIL D'HABITATION)
     // ==========================================
     if (property.rental_duration === 'long_term') {
         const quote = quoteLongTermUpfront({
@@ -336,7 +337,7 @@ function BookingCard({
                     {/* Badge type de formule & durée minimale empilée */}
                     <div className="flex flex-col items-start gap-1">
                         <Badge tone="secondary" className="text-sm font-semibold">
-                            Location standard
+                            Location classique
                         </Badge>
                         <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                             Minimum {formatLeaseDuration(property.min_lease_months)}
@@ -408,7 +409,7 @@ function BookingCard({
                     </Button>
 
                     <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-                        Visite personnalisée sur rendez-vous avec l’hôte.
+                        Visite sur rendez-vous avec le propriétaire.
                     </p>
 
                     <div className="border-t border-zinc-200 pt-3 text-center dark:border-zinc-800">
@@ -420,7 +421,7 @@ function BookingCard({
                             <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden="true">
                                 <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Z" clipRule="evenodd" />
                             </svg>
-                            Une question ? Contacter l’hôte
+                            Une question ? Contacter le propriétaire
                         </button>
                     </div>
                 </Card>
@@ -904,7 +905,6 @@ export function PropertyShowClient({
         initialGuests || property.max_guests || 1,
     );
     const [chatOpen, setChatOpen] = useState(false);
-    const location = property.location;
     const isLongTerm = property.rental_duration === 'long_term';
     const longTermQuote = isLongTerm
         ? quoteLongTermUpfront({
@@ -948,11 +948,17 @@ export function PropertyShowClient({
                     />
                     <span aria-hidden="true">·</span>
                     <span>
-                        {property.type} · {property.city}, {property.country}
+                        {property.type} ·{' '}
+                        <a
+                            href="#localisation"
+                            className="font-medium underline decoration-zinc-400 underline-offset-2 transition hover:text-zinc-900 dark:hover:text-zinc-100"
+                        >
+                            {property.city}, {property.country}
+                        </a>
                     </span>
                     {isLongTerm && (
                         <div className="flex flex-col items-start gap-0.5">
-                            <Badge tone="secondary">Location standard</Badge>
+                            <Badge tone="secondary">Location classique</Badge>
                             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                                 Minimum {formatLeaseDuration(property.min_lease_months)}
                             </span>
@@ -983,13 +989,17 @@ export function PropertyShowClient({
                                             property.host.host_type === 'Hôte Premium'
                                                 ? 'border border-amber-300 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300'
                                                 : property.host.host_type === 'Superhôte'
-                                                  ? 'border border-purple-300 bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-300'
-                                                  : property.host.host_type === 'Hôte Vérifié'
-                                                    ? 'border border-sky-300 bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-300'
-                                                    : 'border border-zinc-200 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                                                    ? 'border border-purple-300 bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-300'
+                                                    : property.host.host_type === 'Hôte Vérifié'
+                                                        ? 'border border-sky-300 bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-300'
+                                                        : 'border border-zinc-200 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
                                         )}
                                     >
-                                        {property.host.host_type ?? 'Hôte Standard'}
+                                        {isLongTerm
+                                            ? (property.host.host_type
+                                                ? property.host.host_type.replace('Hôte', 'Propriétaire')
+                                                : 'Propriétaire')
+                                            : (property.host.host_type ?? 'Hôte Standard')}
                                     </span>
                                 </div>
                                 <p className="text-zinc-600 dark:text-zinc-400">
@@ -997,14 +1007,14 @@ export function PropertyShowClient({
                                         isLongTerm
                                             ? null
                                             : plural(
-                                                  property.max_guests,
-                                                  'voyageur',
-                                              ),
+                                                property.max_guests,
+                                                'voyageur',
+                                            ),
                                         property.bedrooms > 0
                                             ? plural(
-                                                  property.bedrooms,
-                                                  'chambre',
-                                              )
+                                                property.bedrooms,
+                                                'chambre',
+                                            )
                                             : 'Studio',
                                         property.beds > 0
                                             ? plural(property.beds, 'lit')
@@ -1015,7 +1025,7 @@ export function PropertyShowClient({
                                             'salles de bain',
                                         ),
                                         isLongTerm
-                                            ? `Bail standard min. ${formatLeaseDuration(property.min_lease_months)} renouvelable`
+                                            ? `Bail min. ${formatLeaseDuration(property.min_lease_months)} renouvelable`
                                             : null,
                                     ]
                                         .filter(Boolean)
@@ -1040,12 +1050,13 @@ export function PropertyShowClient({
                                         clipRule="evenodd"
                                     />
                                 </svg>
-                                Contacter l’hôte
+                                {isLongTerm ? 'Contacter le propriétaire' : 'Contacter l’hôte'}
                             </Button>
                         </div>
                         {property.host.member_since && (
                             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Hôte depuis {property.host.member_since}
+                                {isLongTerm ? 'Propriétaire depuis ' : 'Hôte depuis '}
+                                {property.host.member_since}
                             </p>
                         )}
                     </section>
@@ -1183,7 +1194,7 @@ export function PropertyShowClient({
                             ) : (
                                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                                     <p className="font-semibold">
-                                        ✓ Logement disponible pour un bail standard 1 an renouvelable.
+                                        ✓ Logement disponible pour un bail d’habitation 1 an renouvelable.
                                     </p>
                                     <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-400">
                                         Les visites s’effectuent sur rendez-vous via le bouton « Prendre rendez-vous pour une visite » dans le volet ci-contre.
@@ -1201,35 +1212,29 @@ export function PropertyShowClient({
                         )}
                     </section>
 
-                    {location && (
-                        <section className="flex flex-col gap-3">
-                            <h2 className="text-lg font-semibold">
+                    {/* Section Où se situe le logement avec Google Map & Icône logement */}
+                    <section id="localisation" className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-1">
+                            <h2 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
                                 Où se situe le logement
                             </h2>
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {property.city}, {property.country} ·
-                                emplacement approximatif, l’adresse exacte vous
-                                est communiquée après confirmation de la
-                                réservation.
+                            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                                {[property.city, property.country].filter(Boolean).join(', ')}
                             </p>
-                            <iframe
-                                title={`Carte des environs de ${property.city}`}
-                                loading="lazy"
-                                className="aspect-video w-full rounded-2xl border border-zinc-200 dark:border-zinc-800"
-                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${location.lng - 0.03}%2C${location.lat - 0.018}%2C${location.lng + 0.03}%2C${location.lat + 0.018}&layer=mapnik`}
-                            />
-                        </section>
-                    )}
+                        </div>
 
-                    {/* Section Hôte avec nom, statut, note 5 étoiles et avis en slide */}
-                    <section id="hote" className="flex flex-col gap-6">
+                        <PropertyLocationMap property={property} />
+                    </section>
+
+                    {/* Section Hôte / Propriétaire avec nom, statut, note 5 étoiles et avis en slide */}
+                    <section id={isLongTerm ? 'proprietaire' : 'hote'} className="flex flex-col gap-6">
                         <div className="flex flex-col gap-5 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xs sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
                             <div className="flex flex-wrap items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
                                     <div className="relative flex size-14 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-bold text-secondary-800 dark:bg-secondary-900/50 dark:text-secondary-300">
                                         {property.host.name.slice(0, 1).toUpperCase()}
                                         <span
-                                            title="Hôte vérifié"
+                                            title={isLongTerm ? 'Propriétaire vérifié' : 'Hôte vérifié'}
                                             className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full bg-primary-600 text-white shadow-xs"
                                         >
                                             <svg
@@ -1257,15 +1262,19 @@ export function PropertyShowClient({
                                                     property.host.host_type === 'Hôte Premium'
                                                         ? 'border border-amber-300 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300'
                                                         : property.host.host_type === 'Superhôte'
-                                                          ? 'border border-purple-300 bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-300'
-                                                          : property.host.host_type === 'Hôte Vérifié'
-                                                            ? 'border border-sky-300 bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-300'
-                                                            : property.host.host_type === 'Conciergerie Partenaire'
-                                                              ? 'border border-emerald-300 bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                                              : 'border border-zinc-200 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                                                            ? 'border border-purple-300 bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-300'
+                                                            : property.host.host_type === 'Hôte Vérifié'
+                                                                ? 'border border-sky-300 bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-300'
+                                                                : property.host.host_type === 'Conciergerie Partenaire'
+                                                                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                                                    : 'border border-zinc-200 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
                                                 )}
                                             >
-                                                {property.host.host_type ?? 'Hôte Standard'}
+                                                {isLongTerm
+                                                    ? (property.host.host_type
+                                                        ? property.host.host_type.replace('Hôte', 'Propriétaire')
+                                                        : 'Propriétaire')
+                                                    : (property.host.host_type ?? 'Hôte Standard')}
                                             </span>
                                         </div>
                                         <div className="mt-1 flex flex-wrap items-center gap-2.5 text-xs text-zinc-500 dark:text-zinc-400">
@@ -1314,14 +1323,16 @@ export function PropertyShowClient({
                                             clipRule="evenodd"
                                         />
                                     </svg>
-                                    Contacter l’hôte
+                                    {isLongTerm ? 'Contacter le propriétaire' : 'Contacter l’hôte'}
                                 </Button>
                             </div>
 
-                            {/* Slider des avis relatifs à cet hôte */}
+                            {/* Slider des avis relatifs à cet hôte / propriétaire */}
                             <div className="mt-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
                                 <h4 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                    Avis relatifs à cet hôte
+                                    {isLongTerm
+                                        ? 'Avis relatifs à ce propriétaire'
+                                        : 'Avis relatifs à cet hôte'}
                                 </h4>
                                 <HostReviewsSlider
                                     hostName={property.host.name}
@@ -1388,6 +1399,7 @@ export function PropertyShowClient({
                 propertySlug={property.slug}
                 propertyTitle={property.title}
                 hostName={property.host.name}
+                rentalDuration={property.rental_duration}
                 isViewerAuthenticated={isViewerAuthenticated}
             />
         </Container>

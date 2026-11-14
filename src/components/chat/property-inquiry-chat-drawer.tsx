@@ -28,6 +28,7 @@ export function PropertyInquiryChatDrawer({
     propertySlug,
     propertyTitle,
     hostName,
+    rentalDuration,
     isViewerAuthenticated,
 }: {
     open: boolean;
@@ -35,8 +36,10 @@ export function PropertyInquiryChatDrawer({
     propertySlug: string;
     propertyTitle: string;
     hostName: string;
+    rentalDuration?: string;
     isViewerAuthenticated: boolean;
 }) {
+    const isLongTerm = rentalDuration === 'long_term';
     const [inquiry, setInquiry] = useState<PropertyInquiryDetail | null>(null);
     const [messages, setMessages] = useState<InquiryMessage[]>([]);
     const [loading, setLoading] = useState(true);
@@ -173,7 +176,9 @@ export function PropertyInquiryChatDrawer({
                             </h2>
                             <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                                 <span className="size-2 rounded-full bg-emerald-500" />
-                                Chat en direct avec l’hôte
+                                {isLongTerm
+                                    ? 'Chat en direct avec le propriétaire'
+                                    : 'Chat en direct avec l’hôte'}
                             </p>
                         </div>
                     </div>
@@ -212,7 +217,9 @@ export function PropertyInquiryChatDrawer({
                                 Connectez-vous pour échanger
                             </h3>
                             <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xs">
-                                Vous pourrez poser toutes vos questions en direct à l’hôte avant ou pendant votre séjour.
+                                {isLongTerm
+                                    ? 'Vous pourrez poser toutes vos questions en direct au propriétaire avant votre visite ou votre prise de bail.'
+                                    : 'Vous pourrez poser toutes vos questions en direct à l’hôte avant ou pendant votre séjour.'}
                             </p>
                             <Link
                                 href={`/login?return_to=${encodeURIComponent(`/logements/${propertySlug}`)}`}
