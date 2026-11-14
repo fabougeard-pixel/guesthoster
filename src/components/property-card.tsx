@@ -165,21 +165,21 @@ export function PropertyCard({
                 {isLongTerm ? (
                     <div className="flex flex-col gap-2.5">
                         {/* Encadré financier Location standard (style capture) */}
-                        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-850/50">
-                            <div className="flex items-baseline justify-between gap-2">
-                                <p className="flex items-baseline gap-1">
-                                    <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 sm:p-3.5 dark:border-zinc-800 dark:bg-zinc-850/50">
+                            <div className="flex items-center justify-between gap-1.5">
+                                <p className="flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                                    <span className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
                                         {formatPrice(property.monthly_rent)}
                                     </span>
-                                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                    <span className="text-xs font-semibold text-zinc-500 whitespace-nowrap dark:text-zinc-400">
                                         / mois
                                     </span>
                                 </p>
-                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50 px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-emerald-700 whitespace-nowrap dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
                                     <svg
                                         viewBox="0 0 20 20"
                                         fill="currentColor"
-                                        className="size-3.5 shrink-0"
+                                        className="size-3 sm:size-3.5 shrink-0"
                                         aria-hidden="true"
                                     >
                                         <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
@@ -229,22 +229,22 @@ export function PropertyCard({
                 ) : (
                     <div className="flex flex-col gap-2.5">
                         {/* Encadré financier Location saisonnière */}
-                        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-850/50">
-                            <div className="flex items-baseline justify-between gap-2">
-                                <p className="flex items-baseline gap-1">
-                                    <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 sm:p-3.5 dark:border-zinc-800 dark:bg-zinc-850/50">
+                            <div className="flex items-center justify-between gap-1.5">
+                                <p className="flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                                    <span className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
                                         {formatPrice(property.price_per_night)}
                                     </span>
-                                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                    <span className="text-xs font-semibold text-zinc-500 whitespace-nowrap dark:text-zinc-400">
                                         / nuit
                                     </span>
                                 </p>
                                 {property.cleaning_fee > 0 ? (
-                                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                    <span className="shrink-0 text-xs font-medium text-zinc-500 whitespace-nowrap dark:text-zinc-400">
                                         Ménage : {formatPrice(property.cleaning_fee)}
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                                    <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-emerald-700 whitespace-nowrap dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
                                         Ménage inclus
                                     </span>
                                 )}
