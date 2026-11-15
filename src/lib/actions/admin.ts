@@ -584,7 +584,10 @@ const managedOwnerSchema = z.object({
         .trim()
         .toLowerCase()
         .email('Adresse e-mail invalide.')
-        .max(255),
+        .max(255)
+        .optional()
+        .or(z.literal('')),
+    ownerIdCode: z.string().trim().max(50).optional().or(z.literal('')),
     password: z
         .string()
         .min(8, 'Le mot de passe doit comporter au moins 8 caractères.')
@@ -678,7 +681,8 @@ export async function uploadOwnerAvatarAction(
 
 export async function createManagedOwnerAction(input: {
     name: string;
-    email: string;
+    email?: string | null;
+    ownerIdCode?: string | null;
     password?: string | null;
     hostType?: string | null;
     accountType?: 'individual' | 'company';
@@ -701,17 +705,36 @@ export async function createManagedOwnerAction(input: {
         return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
     }
 
-    const email = parsed.data.email;
+    const idCode = (
+        parsed.data.ownerIdCode?.trim().toUpperCase() ||
+        `HOTE-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
+    );
+    let email = parsed.data.email?.trim().toLowerCase();
+    if (!email) {
+        email = `${idCode.toLowerCase()}@guesthoster.local`;
+    }
+
     const hostType = parsed.data.hostType?.trim() || 'Hôte Standard';
     const isCompany = parsed.data.accountType === 'company';
     const companyName = isCompany ? parsed.data.companyName?.trim() || parsed.data.name : null;
     const companyRegistration = isCompany ? parsed.data.companyRegistration?.trim() || null : null;
     const avatarUrl = parsed.data.avatarUrl?.trim() || null;
 
-    const existing = await prisma.user.findUnique({
+    let existing = await prisma.user.findUnique({
         where: { email },
         select: { id: true, role: true, suspendedAt: true },
     });
+
+    if (existing) {
+        if (email.endsWith('@guesthoster.local')) {
+            // Collision sur email généré : régénérer avec un suffixe hexadécimal unique
+            email = `${idCode.toLowerCase()}-${crypto.randomBytes(2).toString('hex')}@guesthoster.local`;
+            existing = await prisma.user.findUnique({
+                where: { email },
+                select: { id: true, role: true, suspendedAt: true },
+            });
+        }
+    }
 
     if (existing) {
         if (existing.suspendedAt) {
@@ -798,7 +821,8 @@ export async function createManagedOwnerAction(input: {
 export async function updateManagedOwnerAction(input: {
     id: number;
     name: string;
-    email: string;
+    email?: string | null;
+    ownerIdCode?: string | null;
     password?: string | null;
     hostType?: string | null;
     accountType?: 'individual' | 'company';
@@ -830,7 +854,7 @@ export async function updateManagedOwnerAction(input: {
         return { ok: false, error: 'Propriétaire introuvable.' };
     }
 
-    const email = parsed.data.email;
+    const email = parsed.data.email?.trim().toLowerCase() || owner.email;
     if (email !== owner.email) {
         const collision = await prisma.user.findFirst({
             where: { email, id: { not: owner.id } },

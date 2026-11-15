@@ -35,6 +35,11 @@ export const DEFAULT_HOST_TYPES = [
     'Propriétaire Professionnel',
 ];
 
+function generateHostId(): string {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `HOTE-${num}`;
+}
+
 export type ManagedOwner = {
     id: number;
     name: string;
@@ -74,6 +79,7 @@ export function AdminOwnersClient({
     const [createAccountType, setCreateAccountType] = useState<'individual' | 'company'>('individual');
     const [createAvatarUrl, setCreateAvatarUrl] = useState<string | null>(null);
     const [createUploadingAvatar, setCreateUploadingAvatar] = useState(false);
+    const [createOwnerId, setCreateOwnerId] = useState(generateHostId);
 
     const [editingOwner, setEditingOwner] = useState<ManagedOwner | null>(null);
     const [editStep, setEditStep] = useState<1 | 2>(1);
@@ -180,8 +186,8 @@ export function AdminOwnersClient({
         if (!nameVal) {
             errors.name = 'Le nom et prénom sont obligatoires.';
         }
-        if (!emailVal) {
-            errors.email = 'L’adresse e-mail est obligatoire.';
+        if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+            errors.email = 'L’adresse e-mail est invalide.';
         }
         if (Object.keys(errors).length > 0) {
             setEditErrors(errors);
@@ -198,6 +204,7 @@ export function AdminOwnersClient({
         const fd = new FormData(event.currentTarget);
 
         const name = String(fd.get('name') ?? '').trim();
+        const ownerIdCode = String(fd.get('ownerIdCode') ?? '').trim() || createOwnerId;
         const email = String(fd.get('email') ?? '').trim();
         const password = String(fd.get('password') ?? '').trim();
         const hostType = String(fd.get('hostType') ?? '').trim();
@@ -212,7 +219,8 @@ export function AdminOwnersClient({
         startTransition(async () => {
             const res = await createManagedOwnerAction({
                 name,
-                email,
+                ownerIdCode,
+                email: email || undefined,
                 password: password || undefined,
                 hostType: hostType || undefined,
                 accountType: createAccountType,
@@ -231,6 +239,7 @@ export function AdminOwnersClient({
                 onSuccess: () => {
                     setIsCreateOpen(false);
                     setCreateAvatarUrl(null);
+                    setCreateOwnerId(generateHostId());
                 },
             });
         });
@@ -260,7 +269,7 @@ export function AdminOwnersClient({
             const res = await updateManagedOwnerAction({
                 id: editingOwner.id,
                 name,
-                email,
+                email: email || undefined,
                 password: password || undefined,
                 hostType: hostType || undefined,
                 accountType: editAccountType,
@@ -328,6 +337,7 @@ export function AdminOwnersClient({
                         setCreateErrors({});
                         setCreateAccountType('individual');
                         setCreateAvatarUrl(null);
+                        setCreateOwnerId(generateHostId());
                         setIsCreateOpen(true);
                     }}
                     className="self-start sm:self-auto bg-primary-600 hover:bg-primary-700"
@@ -414,7 +424,13 @@ export function AdminOwnersClient({
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{owner.name}</span>
-                                    <span className="text-xs text-zinc-500 truncate max-w-56">{owner.email}</span>
+                                    {owner.email.endsWith('@guesthoster.local') ? (
+                                        <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-primary-700 bg-primary-50 dark:bg-primary-950/40 dark:text-primary-300 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-800 w-fit mt-0.5">
+                                            ID : {owner.email.split('@')[0].toUpperCase()}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-zinc-500 truncate max-w-56">{owner.email}</span>
+                                    )}
                                     {owner.profession && (
                                         <span className="text-[11px] text-zinc-400 truncate max-w-56">
                                             {owner.profession}
@@ -672,7 +688,7 @@ export function AdminOwnersClient({
                         </div>
                     </div>
 
-                    {/* Identité */}
+                    {/* Identité & Identifiant Hôte */}
                     <div className="grid gap-4 sm:grid-cols-2">
                         <Field
                             label="Nom et prénom"
@@ -689,20 +705,46 @@ export function AdminOwnersClient({
                         </Field>
 
                         <Field
-                            label="Adresse e-mail"
-                            htmlFor="create-owner-email"
-                            error={createErrors.email}
+                            label="ID Hôte / Propriétaire (auto-généré)"
+                            htmlFor="create-owner-id"
+                            hint="Identifiant technique unique attribué au profil"
                         >
-                            <Input
-                                id="create-owner-email"
-                                name="email"
-                                type="email"
-                                required
-                                placeholder="marius@exemple.com"
-                                autoComplete="email"
-                            />
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="create-owner-id"
+                                    name="ownerIdCode"
+                                    value={createOwnerId}
+                                    onChange={(e) => setCreateOwnerId(e.target.value.toUpperCase())}
+                                    className="font-mono font-bold tracking-wider uppercase"
+                                    placeholder="HOTE-1234"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setCreateOwnerId(generateHostId())}
+                                    title="Générer un nouvel identifiant"
+                                    className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition"
+                                >
+                                    🔄
+                                </button>
+                            </div>
                         </Field>
                     </div>
+
+                    {/* Adresse e-mail (optionnelle) */}
+                    <Field
+                        label="Adresse e-mail (optionnelle)"
+                        htmlFor="create-owner-email"
+                        error={createErrors.email}
+                        hint="Optionnel. Si non renseignée, l'accès se fera via l'identifiant hôte généré ci-dessus."
+                    >
+                        <Input
+                            id="create-owner-email"
+                            name="email"
+                            type="email"
+                            placeholder="marius@exemple.com (facultatif)"
+                            autoComplete="email"
+                        />
+                    </Field>
 
                     {/* Statut / Badge d'hôte & Mot de passe */}
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1066,16 +1108,33 @@ export function AdminOwnersClient({
                                 </Field>
 
                                 <Field
-                                    label="Adresse e-mail"
+                                    label={
+                                        editingOwner.email.endsWith('@guesthoster.local')
+                                            ? `Adresse e-mail (ID actuel : ${editingOwner.email.split('@')[0].toUpperCase()})`
+                                            : 'Adresse e-mail'
+                                    }
                                     htmlFor="edit-owner-email"
                                     error={editErrors.email}
+                                    hint={
+                                        editingOwner.email.endsWith('@guesthoster.local')
+                                            ? 'Compte interne sans e-mail public. Laissez vide pour conserver l\'ID ou renseignez un e-mail réel pour le convertir.'
+                                            : undefined
+                                    }
                                 >
                                     <Input
                                         id="edit-owner-email"
                                         name="email"
                                         type="email"
-                                        defaultValue={editingOwner.email}
-                                        required
+                                        defaultValue={
+                                            editingOwner.email.endsWith('@guesthoster.local')
+                                                ? ''
+                                                : editingOwner.email
+                                        }
+                                        placeholder={
+                                            editingOwner.email.endsWith('@guesthoster.local')
+                                                ? 'Optionnel (laisser vide pour conserver l\'ID)'
+                                                : 'email@exemple.com'
+                                        }
                                         autoComplete="email"
                                     />
                                 </Field>

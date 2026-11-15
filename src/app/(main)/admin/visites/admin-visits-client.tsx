@@ -147,10 +147,9 @@ export function AdminVisitsClient({
                 head={[
                     'Logement',
                     'Propriétaire / Hôte',
-                    'Candidat & Coordonnées',
+                    'Candidat',
                     'Date & Créneau',
-                    'Frais de visite',
-                    'Statut',
+                    'Statut & Frais',
                     'Actions',
                 ]}
                 empty={visits.data.length === 0 ? 'Aucun rendez-vous de visite trouvé.' : false}
@@ -166,21 +165,21 @@ export function AdminVisitsClient({
                             className="transition hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40"
                         >
                             {/* Logement */}
-                            <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
+                            <td className="px-3 py-2.5">
+                                <div className="flex items-center gap-2.5">
                                     {visit.property_cover_url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                             src={visit.property_cover_url}
                                             alt={visit.property_title ?? 'Logement'}
-                                            className="size-11 shrink-0 rounded-lg object-cover"
+                                            className="size-10 shrink-0 rounded-lg object-cover"
                                         />
                                     ) : (
-                                        <div className="size-11 shrink-0 rounded-lg bg-zinc-100 flex items-center justify-center text-base dark:bg-zinc-800">
+                                        <div className="size-10 shrink-0 rounded-lg bg-zinc-100 flex items-center justify-center text-sm dark:bg-zinc-800">
                                             🏠
                                         </div>
                                     )}
-                                    <div className="min-w-0 max-w-xs">
+                                    <div className="min-w-0 max-w-[170px] xl:max-w-[210px]">
                                         <Link
                                             href={`/logements/${visit.property_slug}`}
                                             target="_blank"
@@ -190,10 +189,10 @@ export function AdminVisitsClient({
                                             {visit.property_title}
                                         </Link>
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                            {visit.property_city ?? 'Ville non définie'}
-                                            {visit.monthly_rent ? ` · ${formatPrice(visit.monthly_rent)} / mois` : ''}
+                                            {visit.property_city ?? 'Ville'}
+                                            {visit.monthly_rent ? ` · ${formatPrice(visit.monthly_rent)}/m` : ''}
                                         </p>
-                                        <span className="text-[11px] font-mono text-zinc-400">
+                                        <span className="text-[10px] font-mono text-zinc-400 truncate block">
                                             Réf: {visit.reference}
                                         </span>
                                     </div>
@@ -201,12 +200,12 @@ export function AdminVisitsClient({
                             </td>
 
                             {/* Propriétaire / Hôte */}
-                            <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="flex flex-col min-w-0">
-                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-44">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                                <div className="flex flex-col min-w-0 max-w-[140px] xl:max-w-[170px]">
+                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                                         {visit.host_name ?? 'Inconnu'}
                                     </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-44">
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate" title={visit.host_email}>
                                         {visit.host_email}
                                     </span>
                                     {visit.host_id && (
@@ -220,7 +219,7 @@ export function AdminVisitsClient({
                                                     visit.host_name ?? 'Hôte',
                                                 )
                                             }
-                                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 disabled:opacity-50"
+                                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 disabled:opacity-50"
                                             title={`Ouvrir l'espace hôte de ${visit.host_name}`}
                                         >
                                             {switchingHostId === visit.host_id ? (
@@ -228,23 +227,23 @@ export function AdminVisitsClient({
                                             ) : (
                                                 <span>🏠</span>
                                             )}
-                                            <span>Gérer son espace</span>
+                                            <span>Gérer</span>
                                         </button>
                                     )}
                                 </div>
                             </td>
 
                             {/* Candidat */}
-                            <td className="px-4 py-3">
-                                <div className="flex flex-col min-w-0">
+                            <td className="px-3 py-2.5">
+                                <div className="flex flex-col min-w-0 max-w-[150px] xl:max-w-[180px]">
                                     <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                                         {visit.name}
                                     </span>
-                                    <span className="text-xs text-zinc-500 truncate">
+                                    <span className="text-xs text-zinc-500 truncate" title={visit.email}>
                                         {visit.email}
                                     </span>
                                     {visit.phone && (
-                                        <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                                        <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate">
                                             📞 {visit.phone}
                                         </span>
                                     )}
@@ -252,7 +251,7 @@ export function AdminVisitsClient({
                                         <button
                                             type="button"
                                             onClick={() => setViewingDetails(visit)}
-                                            className="mt-1 text-left text-[11px] text-primary-600 hover:underline dark:text-primary-400 truncate max-w-56"
+                                            className="mt-0.5 text-left text-[11px] text-primary-600 hover:underline dark:text-primary-400 truncate"
                                             title={visit.candidate_notes}
                                         >
                                             📄 Dossier : {visit.candidate_notes}
@@ -262,7 +261,7 @@ export function AdminVisitsClient({
                             </td>
 
                             {/* Rendez-vous */}
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 <div className="flex flex-col">
                                     <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                                         {formatDate(visit.visit_date)}
@@ -273,29 +272,40 @@ export function AdminVisitsClient({
                                 </div>
                             </td>
 
-                            {/* Frais de visite */}
-                            <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="flex flex-col">
-                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {visit.visit_fee > 0 ? formatPrice(visit.visit_fee) : 'Gratuit'}
-                                    </span>
-                                    {visit.visit_fee > 0 && (
-                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                            {visit.payment_status === 'paid' ? (
-                                                <Badge tone="success">Réglé</Badge>
+                            {/* Statut & Frais */}
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                                <div className="flex flex-col gap-1 items-start">
+                                    <div>
+                                        {isUpcoming && (
+                                            <Badge tone="primary">Confirmée</Badge>
+                                        )}
+                                        {isCompleted && (
+                                            <Badge tone="success">Effectuée</Badge>
+                                        )}
+                                        {isCancelled && (
+                                            <Badge tone="neutral">Annulée</Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs">
+                                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                            {visit.visit_fee > 0 ? formatPrice(visit.visit_fee) : 'Gratuit'}
+                                        </span>
+                                        {visit.visit_fee > 0 && (
+                                            visit.payment_status === 'paid' ? (
+                                                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">· Réglé</span>
                                             ) : visit.payment_status === 'pending_transfer' ? (
-                                                <Badge tone="warning">Virement à valider</Badge>
+                                                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">· Virement en attente</span>
                                             ) : (
-                                                <Badge tone="neutral">En attente</Badge>
-                                            )}
-                                        </div>
-                                    )}
+                                                <span className="text-[11px] font-medium text-zinc-500">· En attente</span>
+                                            )
+                                        )}
+                                    </div>
                                     {visit.payment_status === 'pending_transfer' && (
                                         <button
                                             type="button"
                                             disabled={isPending}
                                             onClick={() => handleConfirmBankTransfer(visit.id)}
-                                            className="mt-1 text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+                                            className="text-left text-[11px] font-bold text-emerald-700 hover:underline dark:text-emerald-400"
                                         >
                                             ✓ Valider virement
                                         </button>
@@ -303,58 +313,53 @@ export function AdminVisitsClient({
                                 </div>
                             </td>
 
-                            {/* Statut */}
-                            <td className="px-4 py-3 whitespace-nowrap">
-                                {isUpcoming && (
-                                    <Badge tone="primary">Confirmée</Badge>
-                                )}
-                                {isCompleted && (
-                                    <Badge tone="success">Effectuée</Badge>
-                                )}
-                                {isCancelled && (
-                                    <Badge tone="neutral">Annulée</Badge>
-                                )}
-                            </td>
-
                             {/* Actions */}
-                            <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="flex items-center gap-1.5">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                                <div className="flex items-center justify-end gap-1.5">
                                     {isUpcoming && (
                                         <>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
+                                            <button
+                                                type="button"
                                                 disabled={isPending}
                                                 onClick={() => handleCompleteVisit(visit)}
                                                 title="Marquer comme effectuée"
-                                                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300"
+                                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50/60 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 transition"
                                             >
-                                                ✓ Effectuée
-                                            </Button>
+                                                <span>✓</span>
+                                                <span className="hidden sm:inline">Effectuée</span>
+                                            </button>
 
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
+                                            <button
+                                                type="button"
                                                 disabled={isPending}
                                                 onClick={() => {
                                                     setCancellingVisit(visit);
                                                     setCancelReason('');
                                                 }}
                                                 title="Annuler ce rendez-vous"
-                                                className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
+                                                className="flex size-7 items-center justify-center rounded-lg border border-red-200 bg-red-50/50 text-xs font-bold text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 transition"
                                             >
                                                 ✕
-                                            </Button>
+                                            </button>
                                         </>
                                     )}
 
                                     <a
                                         href={`mailto:${visit.email}?subject=Visite%20du%20logement%20${encodeURIComponent(visit.property_title ?? '')}`}
-                                        className="inline-flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                        className="inline-flex size-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                                         title={`Écrire à ${visit.name}`}
                                     >
                                         ✉️
                                     </a>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewingDetails(visit)}
+                                        title="Détails du candidat et du logement"
+                                        className="inline-flex size-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                    >
+                                        👁
+                                    </button>
                                 </div>
                             </td>
                         </tr>
