@@ -3,13 +3,20 @@ import { notFound } from 'next/navigation';
 import { ErrorView } from '@/components/error-view';
 import { requireAdminAccess } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
-import type { InquiryMessage, PropertyInquiryDetail } from '@/types';
+import type {
+    InquiryMessage,
+    PropertyInquiryDetail,
+    SupportCategory,
+    SupportTicketDetail,
+    SupportTicketMessage,
+} from '@/types';
 import { AdminInquiryClient } from './admin-inquiry-client';
+import { AdminSupportTicketClient } from './admin-support-ticket-client';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-    title: 'Détail de la conversation conciergerie · Administration',
+    title: 'Détail de la conversation · Administration',
 };
 
 export default async function AdminInquiryPage({
@@ -24,6 +31,53 @@ export default async function AdminInquiryPage({
 
     const { reference } = await params;
 
+    // S'il s'agit d'un ticket de support global (SUP-XXXX)
+    if (reference.startsWith('SUP-')) {
+        const ticketRow = await prisma.supportTicket.findUnique({
+            where: { reference },
+            include: {
+                messages: {
+                    orderBy: { createdAt: 'asc' },
+                },
+            },
+        });
+
+        if (!ticketRow) {
+            notFound();
+        }
+
+        const supportMessages: SupportTicketMessage[] = ticketRow.messages.map((m) => ({
+            id: m.id,
+            ticket_id: m.ticketId,
+            sender_id: m.senderId,
+            sender_role: m.senderRole as 'user' | 'admin' | 'system',
+            sender_name: m.senderName,
+            body: m.body,
+            read_at: m.readAt ? m.readAt.toISOString() : null,
+            created_at: m.createdAt ? m.createdAt.toISOString() : null,
+        }));
+
+        const ticketDetail: SupportTicketDetail = {
+            id: ticketRow.id,
+            reference: ticketRow.reference,
+            user_id: ticketRow.userId,
+            name: ticketRow.name,
+            email: ticketRow.email,
+            phone: ticketRow.phone,
+            category: ticketRow.category as SupportCategory,
+            subject: ticketRow.subject,
+            status: ticketRow.status as 'open' | 'in_progress' | 'resolved' | 'closed',
+            priority: ticketRow.priority as 'normal' | 'urgent',
+            resolved_at: ticketRow.resolvedAt ? ticketRow.resolvedAt.toISOString() : null,
+            created_at: ticketRow.createdAt ? ticketRow.createdAt.toISOString() : null,
+            updated_at: ticketRow.updatedAt ? ticketRow.updatedAt.toISOString() : null,
+            messages: supportMessages,
+        };
+
+        return <AdminSupportTicketClient ticket={ticketDetail} />;
+    }
+
+    // Sinon, conversation conciergerie / logement (INQ-XXXX)
     const row = await prisma.propertyInquiry.findUnique({
         where: { reference },
         include: {
@@ -44,7 +98,9 @@ export default async function AdminInquiryPage({
     const messages: InquiryMessage[] = row.messages.map((m) => {
         let senderName = m.sender.name;
         if (m.senderRole === 'admin') {
-            senderName = `Conciergerie (pour ${row.host.name})`;
+            senderName = row.supportRequested
+                ? 'Guest Hoster (Support Client)'
+                : `Conciergerie (pour ${row.host.name})`;
         } else if (m.senderRole === 'host') {
             senderName = row.host.name;
         } else {
@@ -76,6 +132,8 @@ export default async function AdminInquiryPage({
         host_name: row.host.name,
         host_email: row.host.email,
         is_managed_by_admin: row.isManagedByAdmin,
+        support_requested: row.supportRequested,
+        support_category: row.supportCategory,
         status: row.status as 'open' | 'closed',
         closed_at: row.closedAt ? row.closedAt.toISOString() : null,
         recap_sent_at: row.recapSentAt ? row.recapSentAt.toISOString() : null,

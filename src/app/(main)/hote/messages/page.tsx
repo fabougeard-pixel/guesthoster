@@ -158,19 +158,21 @@ export default async function HostMessagesPage({
             (m) => m.senderId !== targetUserId && m.readAt === null,
         ).length;
 
+        const isSupportHandled = inq.supportRequested;
+
         return {
             id: `inquiry-${inq.id}`,
             href: hostContext.isAdmin
                 ? `/admin/messages/${inq.reference}`
                 : `/logements/${inq.property.slug}`,
             type: 'inquiry' as const,
-            typeLabel: 'Question voyageur (Chat)',
+            typeLabel: isSupportHandled ? 'Support Client (Paiement)' : 'Question voyageur (Chat)',
             propertyTitle: inq.property.title,
             coverUrl,
             counterpartName: inq.guest.name,
             counterpartEmail: inq.guest.email,
-            statusLabel: inq.status === 'open' ? 'En cours' : 'Clôturée',
-            statusTone: (inq.status === 'open' ? 'primary' : 'neutral') as 'primary' | 'neutral',
+            statusLabel: isSupportHandled ? 'Support Guest Hoster' : inq.status === 'open' ? 'En cours' : 'Clôturée',
+            statusTone: (isSupportHandled ? 'warning' : inq.status === 'open' ? 'primary' : 'neutral') as 'warning' | 'primary' | 'neutral',
             lastMessage: latest?.body ?? null,
             lastMessageMine: latest ? latest.senderId === targetUserId : false,
             lastMessageAt: latest?.createdAt ?? inq.updatedAt,

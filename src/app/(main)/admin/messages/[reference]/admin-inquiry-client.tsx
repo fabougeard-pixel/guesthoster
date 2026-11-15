@@ -118,6 +118,11 @@ export function AdminInquiryClient({
                     <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
                         {inquiry.property_title}
                     </h1>
+                    {inquiry.support_requested && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-900 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700">
+                            🚨 Support Paiement Requis
+                        </span>
+                    )}
                     {inquiry.status === 'open' ? (
                         <Badge tone="success">Session active</Badge>
                     ) : (
@@ -163,7 +168,15 @@ export function AdminInquiryClient({
                         </span>
                     </div>
                     <p className="mt-1 text-[11px] text-primary-700 dark:text-primary-300">
-                        ℹ️ <strong>Règle Conciergerie :</strong> Lorsque vous répondez en tant qu’administrateur, votre message s’affiche au voyageur sous le nom de l’hôte (« <strong>{inquiry.host_name}</strong> »). À la fin de la session, le récapitulatif complet de tous les échanges est automatiquement envoyé à l’adresse e-mail du propriétaire ({inquiry.host_email}).
+                        {inquiry.support_requested ? (
+                            <>
+                                🛡️ <strong>Prise en charge Support Client (Paiement) :</strong> Le voyageur a activé l’assistance suite à une mention de paiement. Vos réponses lui apparaissent sous le nom officiel « <strong>Guest Hoster (Support Client)</strong> » avec le logo du site.
+                            </>
+                        ) : (
+                            <>
+                                ℹ️ <strong>Règle Conciergerie :</strong> Lorsque vous répondez en tant qu’administrateur, votre message s’affiche au voyageur sous le nom de l’hôte (« <strong>{inquiry.host_name}</strong> »). À la fin de la session, le récapitulatif complet de tous les échanges est automatiquement envoyé à l’adresse e-mail du propriétaire ({inquiry.host_email}).
+                            </>
+                        )}
                     </p>
                 </div>
             </Card>
@@ -196,7 +209,9 @@ export function AdminInquiryClient({
                                         </span>
                                         {msg.sender_role === 'admin' && (
                                             <span className="rounded-md bg-primary-100 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700 dark:bg-primary-900/60 dark:text-primary-300">
-                                                Réponse Conciergerie (vue par le client comme {inquiry.host_name})
+                                                {inquiry.support_requested
+                                                    ? 'Réponse Support Guest Hoster (vue avec le logo du site)'
+                                                    : `Réponse Conciergerie (vue par le client comme ${inquiry.host_name})`}
                                             </span>
                                         )}
                                     </div>
@@ -228,7 +243,11 @@ export function AdminInquiryClient({
                                 onChange={(e) => setBody(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 rows={3}
-                                placeholder={`Répondre au voyageur (${inquiry.guest_name}) en tant que ${inquiry.host_name}… (Entrée pour envoyer)`}
+                                placeholder={
+                                    inquiry.support_requested
+                                        ? `Répondre au voyageur (${inquiry.guest_name}) en tant que Support Guest Hoster… (Entrée pour envoyer)`
+                                        : `Répondre au voyageur (${inquiry.guest_name}) en tant que ${inquiry.host_name}… (Entrée pour envoyer)`
+                                }
                                 className="w-full resize-none rounded-xl border border-zinc-300 p-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                             />
                             <div className="flex items-center justify-between">

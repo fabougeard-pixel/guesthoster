@@ -267,4 +267,28 @@ export const REPORT_REASON_LABELS: Record<string, string> = {
     other: 'Autre motif',
 };
 
+export const SUPPORT_CATEGORIES = [
+    "Demandes d'information",
+    'Paiements',
+    'Réservations',
+    'Prise de rendez-vous',
+] as const;
+
+export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
+
+export const SUPPORT_CATEGORY_ICONS: Record<SupportCategory, string> = {
+    "Demandes d'information": 'ℹ️',
+    Paiements: '💳',
+    Réservations: '📅',
+    'Prise de rendez-vous': '🤝',
+};
+
+export const SUPPORT_CATEGORY_DESCRIPTIONS: Record<SupportCategory, string> = {
+    "Demandes d'information": 'Questions sur nos services, la plateforme ou un logement',
+    Paiements: 'Transactions, virements, cautions ou assistance paiement sécurisé',
+    Réservations: 'Suivi, modification ou assistance sur une réservation',
+    'Prise de rendez-vous': 'Planification de visite de logement ou rendez-vous physique',
+};
+
+
 

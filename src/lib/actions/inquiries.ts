@@ -9,6 +9,9 @@ import { notifyInquiryMessage } from '@/lib/notifications/service';
 import type { ActionResult } from './types';
 import type { InquiryMessage, PropertyInquiryDetail } from '@/types';
 
+export const PAYMENT_KEYWORDS_REGEX =
+    /\b(paiement|paiements|payer|paye|payez|payerons|reglement|regler|virement|virements|carte|cb|especes|espece|cash|acompte|solde|caution|remboursement|rembourser|rib|iban|bic|swift|paypal|lydia|paylib|western\s*union|moneygram|crypto|bitcoin|usdt|mandat|frais\s*bancaires|en\s*dehors|hors\s*plateforme)\b/i;
+
 function formatMessageDate(date: Date | null): string {
     if (!date) {
         return '';
@@ -93,12 +96,19 @@ export async function getOrCreateInquiryAction(
         });
     }
 
-    const isCounterpartAdmin = inquiry.isManagedByAdmin;
+    const isCounterpartAdmin = inquiry.isManagedByAdmin || inquiry.supportRequested;
 
     const messages: InquiryMessage[] = inquiry.messages.map((m) => {
         let senderName = m.sender.name;
-        // Si c'est l'administrateur qui a répondu sur un bien géré, le client voit le nom de l'hôte
-        if (m.senderRole === 'admin') {
+        if (inquiry.supportRequested) {
+            if (m.senderRole === 'admin') {
+                senderName = 'Guest Hoster (Support Client)';
+            } else if (m.senderRole === 'host') {
+                senderName = inquiry.host.name;
+            } else {
+                senderName = inquiry.guest.name;
+            }
+        } else if (m.senderRole === 'admin') {
             senderName = user.role === 'admin'
                 ? `${inquiry.host.name} (Conciergerie Admin)`
                 : inquiry.host.name;
@@ -136,6 +146,8 @@ export async function getOrCreateInquiryAction(
                 host_name: inquiry.host.name,
                 host_email: inquiry.host.email,
                 is_managed_by_admin: inquiry.isManagedByAdmin,
+                support_requested: inquiry.supportRequested,
+                support_category: inquiry.supportCategory,
                 status: inquiry.status as 'open' | 'closed',
                 closed_at: inquiry.closedAt ? inquiry.closedAt.toISOString() : null,
                 recap_sent_at: inquiry.recapSentAt ? inquiry.recapSentAt.toISOString() : null,
@@ -218,7 +230,13 @@ export async function sendInquiryMessageAction(input: {
     }
 
     let senderName = user.name;
-    if (senderRole === 'admin') {
+    if (inquiry.supportRequested) {
+        if (senderRole === 'admin') {
+            senderName = 'Guest Hoster (Support Client)';
+        } else if (senderRole === 'host') {
+            senderName = inquiry.host.name;
+        }
+    } else if (senderRole === 'admin') {
         senderName = user.role === 'admin'
             ? `${inquiry.host.name} (Conciergerie Admin)`
             : inquiry.host.name;
@@ -242,6 +260,134 @@ export async function sendInquiryMessageAction(input: {
                 body: message.body,
                 read_at: null,
                 created_at: message.createdAt ? message.createdAt.toISOString() : null,
+            },
+        },
+    };
+}
+
+export async function escalateInquiryToSupportAction(input: {
+    reference: string;
+}): Promise<ActionResult<{ inquiry: PropertyInquiryDetail; message: InquiryMessage }>> {
+    const user = await getFreshSessionUser();
+    if (!user) {
+        return { ok: false, error: 'Session expirée. Veuillez vous reconnecter.' };
+    }
+
+    const inquiry = await prisma.propertyInquiry.findUnique({
+        where: { reference: input.reference },
+        include: {
+            property: { select: { id: true, title: true, slug: true } },
+            guest: { select: { id: true, name: true, email: true } },
+            host: { select: { id: true, name: true, email: true } },
+            messages: {
+                orderBy: { createdAt: 'asc' },
+                include: { sender: { select: { id: true, name: true, role: true } } },
+            },
+        },
+    });
+
+    if (!inquiry) {
+        return { ok: false, error: 'Conversation introuvable.' };
+    }
+
+    if (inquiry.guestId !== user.id && inquiry.hostId !== user.id && user.role !== 'admin') {
+        return { ok: false, error: 'Accès non autorisé.' };
+    }
+
+    const updated = await prisma.propertyInquiry.update({
+        where: { id: inquiry.id },
+        data: {
+            supportRequested: true,
+            supportCategory: 'Paiements',
+            isManagedByAdmin: true,
+            updatedAt: new Date(),
+        },
+        include: {
+            property: { select: { id: true, title: true, slug: true } },
+            guest: { select: { id: true, name: true, email: true } },
+            host: { select: { id: true, name: true, email: true } },
+            messages: {
+                orderBy: { createdAt: 'asc' },
+                include: { sender: { select: { id: true, name: true, role: true } } },
+            },
+        },
+    });
+
+    // Message automatique de demande d'attente pour prise en charge
+    const message = await prisma.propertyInquiryMessage.create({
+        data: {
+            inquiryId: inquiry.id,
+            senderId: user.id,
+            senderRole: 'admin',
+            body: "Demande d'assistance transmise au support client Guest Hoster. Un conseiller prend en charge votre conversation, veuillez patienter un instant...",
+        },
+    });
+
+    revalidatePath(`/logements/${inquiry.property.slug}`);
+    revalidatePath('/messages');
+    revalidatePath('/admin/messages');
+
+    const mappedMessages: InquiryMessage[] = [
+        ...updated.messages.map((m) => ({
+            id: m.id,
+            inquiry_id: m.inquiryId,
+            sender_id: m.senderId,
+            sender_role: m.senderRole as 'guest' | 'host' | 'admin',
+            sender_name:
+                m.senderRole === 'admin'
+                    ? 'Guest Hoster (Support Client)'
+                    : m.senderRole === 'host'
+                      ? updated.host.name
+                      : updated.guest.name,
+            body: m.body,
+            read_at: m.readAt ? m.readAt.toISOString() : null,
+            created_at: m.createdAt ? m.createdAt.toISOString() : null,
+        })),
+        {
+            id: message.id,
+            inquiry_id: message.inquiryId,
+            sender_id: message.senderId,
+            sender_role: 'admin',
+            sender_name: 'Guest Hoster (Support Client)',
+            body: message.body,
+            read_at: null,
+            created_at: message.createdAt ? message.createdAt.toISOString() : new Date().toISOString(),
+        },
+    ];
+
+    return {
+        ok: true,
+        data: {
+            inquiry: {
+                id: updated.id,
+                reference: updated.reference,
+                property_id: updated.propertyId,
+                property_title: updated.property.title,
+                property_slug: updated.property.slug,
+                guest_id: updated.guestId,
+                guest_name: updated.guest.name,
+                guest_email: updated.guest.email,
+                host_id: updated.hostId,
+                host_name: updated.host.name,
+                host_email: updated.host.email,
+                is_managed_by_admin: true,
+                support_requested: true,
+                support_category: 'Paiements',
+                status: updated.status as 'open' | 'closed',
+                closed_at: updated.closedAt ? updated.closedAt.toISOString() : null,
+                recap_sent_at: updated.recapSentAt ? updated.recapSentAt.toISOString() : null,
+                created_at: updated.createdAt ? updated.createdAt.toISOString() : null,
+                messages: mappedMessages,
+            },
+            message: {
+                id: message.id,
+                inquiry_id: message.inquiryId,
+                sender_id: message.senderId,
+                sender_role: 'admin',
+                sender_name: 'Guest Hoster (Support Client)',
+                body: message.body,
+                read_at: null,
+                created_at: message.createdAt ? message.createdAt.toISOString() : new Date().toISOString(),
             },
         },
     };

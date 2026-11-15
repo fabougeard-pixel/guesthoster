@@ -40,6 +40,8 @@ model User {
     guestInquiries    PropertyInquiry[] @relation("GuestInquiries")
     hostInquiries     PropertyInquiry[] @relation("HostInquiries")
     inquiryMessages   PropertyInquiryMessage[]
+    supportTickets    SupportTicket[]
+    supportMessages   SupportTicketMessage[]
     propertyVisits    PropertyVisit[]
     reports           PropertyReport[]
 
@@ -358,6 +360,8 @@ model PropertyInquiry {
     guestId          Int                      @map("guest_id")
     hostId           Int                      @map("host_id")
     isManagedByAdmin Boolean                  @default(false) @map("is_managed_by_admin")
+    supportRequested Boolean                  @default(false) @map("support_requested")
+    supportCategory  String?                  @map("support_category") @db.VarChar(60)
     status           String                   @default("open") @db.VarChar(20)
     closedAt         DateTime?                @map("closed_at")
     recapSentAt      DateTime?                @map("recap_sent_at")
@@ -449,6 +453,48 @@ model PropertyReport {
     @@index([status, createdAt])
     @@map("property_reports")
 }
+
+model SupportTicket {
+    id         Int                    @id @default(autoincrement())
+    reference  String                 @unique @db.VarChar(16)
+    userId     Int?                   @map("user_id")
+    name       String                 @db.VarChar(120)
+    email      String                 @db.VarChar(150)
+    phone      String?                @db.VarChar(50)
+    category   String                 @db.VarChar(60) // "Demandes d'information" | "Paiements" | "Réservations" | "Prise de rendez-vous"
+    subject    String?                @db.VarChar(255)
+    status     String                 @default("open") @db.VarChar(20) // "open" | "in_progress" | "resolved" | "closed"
+    priority   String                 @default("normal") @db.VarChar(20)
+    resolvedAt DateTime?              @map("resolved_at")
+    createdAt  DateTime?              @default(now()) @map("created_at")
+    updatedAt  DateTime?              @updatedAt @map("updated_at")
+
+    user       User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+    messages   SupportTicketMessage[]
+
+    @@index([status, category])
+    @@index([email])
+    @@index([userId])
+    @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+    id         Int           @id @default(autoincrement())
+    ticketId   Int           @map("ticket_id")
+    senderId   Int?          @map("sender_id")
+    senderRole String        @default("user") @map("sender_role") @db.VarChar(20) // "user" | "admin" | "system"
+    senderName String        @map("sender_name") @db.VarChar(120)
+    body       String        @db.Text
+    readAt     DateTime?     @map("read_at")
+    createdAt  DateTime?     @default(now()) @map("created_at")
+
+    ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+    sender     User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+    @@index([ticketId, id])
+    @@map("support_ticket_messages")
+}
+
 
 
 

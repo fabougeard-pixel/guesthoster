@@ -3,6 +3,7 @@ import { Instrument_Sans } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { GoogleAnalytics } from '@/components/google-analytics';
 import { AppStateProvider } from '@/components/providers';
+import { SiteSupportChatWidget } from '@/components/chat/site-support-chat-widget';
 import { getCurrentUser } from '@/lib/auth/session';
 import {
     DEFAULT_PLATFORM_SEO_SETTINGS,
@@ -183,6 +184,7 @@ export default async function RootLayout({
                     initialUnreadMessages={unreadMessages}
                 >
                     {children}
+                    <SiteSupportChatWidget />
                 </AppStateProvider>
                 <GoogleAnalytics gaId={seo.googleAnalyticsId} />
             </body>

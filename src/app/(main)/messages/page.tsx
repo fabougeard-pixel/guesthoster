@@ -147,15 +147,16 @@ export default async function MessagesPage() {
             ? inq.host.name
             : inq.guest.name;
 
+        const isSupportHandled = inq.supportRequested;
         return {
             href: user.role === 'admin' && inq.isManagedByAdmin
                 ? `/admin/messages/${inq.reference}`
                 : `/logements/${inq.property.slug}`,
             property_title: inq.property.title,
             cover_url: coverUrl,
-            counterpart,
+            counterpart: isSupportHandled && isGuest ? 'Guest Hoster (Support)' : counterpart,
             role: (isGuest ? 'guest' : 'host') as 'guest' | 'host',
-            status_label: inq.status === 'open' ? 'Chat en direct' : 'Clôturé',
+            status_label: isSupportHandled ? 'Support Client' : inq.status === 'open' ? 'Chat en direct' : 'Clôturé',
             last_message: latest?.body ?? null,
             last_message_mine: latest ? latest.senderId === user.id : false,
             last_message_at: latest?.createdAt

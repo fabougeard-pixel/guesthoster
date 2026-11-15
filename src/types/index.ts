@@ -474,11 +474,47 @@ export type PropertyInquiryDetail = {
     host_name: string;
     host_email?: string;
     is_managed_by_admin: boolean;
+    support_requested?: boolean;
+    support_category?: string | null;
     status: 'open' | 'closed';
     closed_at: string | null;
     recap_sent_at: string | null;
     created_at: string | null;
     messages: InquiryMessage[];
+};
+
+export type SupportCategory =
+    | "Demandes d'information"
+    | 'Paiements'
+    | 'Réservations'
+    | 'Prise de rendez-vous';
+
+export type SupportTicketMessage = {
+    id: number;
+    ticket_id: number;
+    sender_id?: number | null;
+    sender_role: 'user' | 'admin' | 'system';
+    sender_name: string;
+    body: string;
+    read_at: string | null;
+    created_at: string | null;
+};
+
+export type SupportTicketDetail = {
+    id: number;
+    reference: string;
+    user_id?: number | null;
+    name: string;
+    email: string;
+    phone?: string | null;
+    category: SupportCategory;
+    subject?: string | null;
+    status: 'open' | 'in_progress' | 'resolved' | 'closed';
+    priority: 'normal' | 'urgent';
+    resolved_at: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    messages: SupportTicketMessage[];
 };
 
 export type PropertyVisit = {

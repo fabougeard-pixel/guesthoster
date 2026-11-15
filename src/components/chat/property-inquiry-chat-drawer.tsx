@@ -7,7 +7,9 @@ import { Button } from '@/components/button';
 import { Badge } from '@/components/card';
 import {
     closeInquiryAndSendRecapAction,
+    escalateInquiryToSupportAction,
     getOrCreateInquiryAction,
+    PAYMENT_KEYWORDS_REGEX,
     sendInquiryMessageAction,
 } from '@/lib/actions/inquiries';
 import type { InquiryMessage, PropertyInquiryDetail } from '@/types';
@@ -46,6 +48,7 @@ export function PropertyInquiryChatDrawer({
     const [error, setError] = useState<string | null>(null);
     const [body, setBody] = useState('');
     const [sending, setSending] = useState(false);
+    const [isEscalating, setIsEscalating] = useState(false);
     const [isClosing, startClosing] = useTransition();
     const endRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +155,30 @@ export function PropertyInquiryChatDrawer({
         });
     }
 
+    async function handleEscalateToSupport() {
+        if (!inquiry || isEscalating) {
+            return;
+        }
+        setIsEscalating(true);
+        try {
+            const res = await escalateInquiryToSupportAction({ reference: inquiry.reference });
+            const data = res.ok ? res.data : undefined;
+            if (data) {
+                setInquiry(data.inquiry);
+                setMessages((prev) => [...prev, data.message]);
+            } else {
+                alert(!res.ok && res.error ? res.error : 'Erreur lors du transfert au support client.');
+            }
+        } finally {
+            setIsEscalating(false);
+        }
+    }
+
+    const isEscalated = Boolean(inquiry?.support_requested);
+    const hasPaymentMention =
+        messages.some((m) => PAYMENT_KEYWORDS_REGEX.test(m.body)) ||
+        PAYMENT_KEYWORDS_REGEX.test(body);
+
     if (!open) {
         return null;
     }
@@ -167,18 +194,35 @@ export function PropertyInquiryChatDrawer({
                 {/* En-tête du Chat */}
                 <header className="flex items-center justify-between border-b border-zinc-200 p-4 dark:border-zinc-800">
                     <div className="flex items-center gap-3">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700 dark:bg-primary-950 dark:text-primary-300">
-                            {hostName.slice(0, 1).toUpperCase()}
-                        </div>
+                        {isEscalated ? (
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white p-1 ring-2 ring-primary-500 shadow-xs dark:bg-zinc-800">
+                                <img
+                                    src="/images/logos/logo-icon.svg"
+                                    alt="Guest Hoster"
+                                    className="size-7 object-contain"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                                {hostName.slice(0, 1).toUpperCase()}
+                            </div>
+                        )}
                         <div>
-                            <h2 id="chat-title" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                {hostName}
+                            <h2 id="chat-title" className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                <span>{isEscalated ? 'Guest Hoster' : hostName}</span>
+                                {isEscalated && (
+                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-primary-100 px-1.5 py-0.2 text-[10px] font-bold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
+                                        🛡️ Support Client
+                                    </span>
+                                )}
                             </h2>
                             <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                                 <span className="size-2 rounded-full bg-emerald-500" />
-                                {isLongTerm
-                                    ? 'Chat en direct avec le propriétaire'
-                                    : 'Chat en direct avec l’hôte'}
+                                {isEscalated
+                                    ? 'Support Client Officiel Guest Hoster'
+                                    : isLongTerm
+                                      ? 'Chat en direct avec le propriétaire'
+                                      : 'Chat en direct avec l’hôte'}
                             </p>
                         </div>
                     </div>
@@ -239,10 +283,50 @@ export function PropertyInquiryChatDrawer({
                         </div>
                     ) : (
                         <>
+                            {/* Alerte détection de paiement -> incitation support */}
+                            {hasPaymentMention && !isEscalated && (
+                                <div className="rounded-2xl border border-amber-300 bg-amber-50/95 p-3.5 text-xs text-amber-900 shadow-xs dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="text-xl shrink-0">🛡️</span>
+                                        <div className="flex-1 space-y-1.5">
+                                            <p className="font-bold text-amber-950 dark:text-amber-100">
+                                                Sécurité des paiements & transactions
+                                            </p>
+                                            <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                                                Toute mention ou transaction relative aux paiements, cautions ou virements doit obligatoirement être validée via la plateforme sécurisée. Veuillez contacter le support client officiel.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                disabled={isEscalating}
+                                                onClick={handleEscalateToSupport}
+                                                className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-primary-700 active:scale-95 disabled:opacity-60"
+                                            >
+                                                <span>🎧</span>
+                                                <span>{isEscalating ? 'Prise en charge…' : 'Continuer vers le support'}</span>
+                                                <span>→</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Bannière de confirmation prise en charge par le support */}
+                            {isEscalated && (
+                                <div className="flex items-center gap-2.5 rounded-xl border border-primary-200 bg-primary-50/70 p-2.5 text-xs text-primary-950 dark:border-primary-800/60 dark:bg-primary-950/40 dark:text-primary-200">
+                                    <span className="text-lg shrink-0">🎧</span>
+                                    <div className="min-w-0 flex-1 text-[11px]">
+                                        <span className="font-bold">Conversation prise en charge par le Support Guest Hoster</span>
+                                        <p className="text-primary-800 dark:text-primary-300">
+                                            Un conseiller traite votre demande de manière sécurisée.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {messages.length === 0 ? (
                                 <div className="rounded-xl border border-dashed border-zinc-200 p-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
                                     <p className="font-medium text-zinc-700 dark:text-zinc-300">
-                                        Commencez la discussion avec {hostName}
+                                        Commencez la discussion avec {isEscalated ? 'le Support Guest Hoster' : hostName}
                                     </p>
                                     <p className="mt-1 text-zinc-400">
                                         Demandez des détails sur les équipements, l’arrivée ou la disponibilité.
@@ -251,19 +335,29 @@ export function PropertyInquiryChatDrawer({
                             ) : (
                                 messages.map((msg) => {
                                     const isMine = msg.sender_role === 'guest';
+                                    const isSupportMsg = isEscalated && (msg.sender_role === 'admin' || msg.sender_name.includes('Guest Hoster'));
                                     return (
                                         <div
                                             key={msg.id}
                                             className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                                         >
-                                            <span className="mb-1 text-[11px] font-medium text-zinc-400">
-                                                {msg.sender_name}
-                                            </span>
+                                            <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                                {isSupportMsg && (
+                                                    <img
+                                                        src="/images/logos/logo-icon.svg"
+                                                        alt="Guest Hoster"
+                                                        className="size-3.5 object-contain"
+                                                    />
+                                                )}
+                                                <span>{isSupportMsg ? 'Guest Hoster (Support Client)' : msg.sender_name}</span>
+                                            </div>
                                             <div
                                                 className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-2xs ${
                                                     isMine
                                                         ? 'bg-primary-600 text-white rounded-br-xs'
-                                                        : 'bg-zinc-100 text-zinc-900 rounded-bl-xs dark:bg-zinc-800 dark:text-zinc-100'
+                                                        : isSupportMsg
+                                                          ? 'bg-primary-50 text-primary-950 border border-primary-200 rounded-bl-xs dark:bg-primary-950/40 dark:text-primary-100 dark:border-primary-800'
+                                                          : 'bg-zinc-100 text-zinc-900 rounded-bl-xs dark:bg-zinc-800 dark:text-zinc-100'
                                                 }`}
                                             >
                                                 {msg.body}
@@ -302,7 +396,11 @@ export function PropertyInquiryChatDrawer({
                                 value={body}
                                 onChange={(e) => setBody(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder={`Écrire à ${hostName}… (Entrée pour envoyer)`}
+                                placeholder={
+                                    isEscalated
+                                        ? 'Écrire au support Guest Hoster… (Entrée pour envoyer)'
+                                        : `Écrire à ${hostName}… (Entrée pour envoyer)`
+                                }
                                 rows={2}
                                 className="w-full resize-none rounded-xl border border-zinc-300 p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                             />
