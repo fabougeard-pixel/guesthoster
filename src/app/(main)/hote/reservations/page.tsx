@@ -5,7 +5,7 @@ import { BookingResponse } from '@/components/booking-response';
 import { BookingSummary } from '@/components/booking-summary';
 import { Card } from '@/components/card';
 import { Pagination } from '@/components/pagination';
-import { requireVerifiedUser } from '@/lib/auth/session';
+import { getEffectiveHostContext } from '@/lib/auth/managed-host';
 import { serializeBooking } from '@/lib/domain/bookings';
 import { buildPaginated } from '@/lib/domain/properties';
 import { parseDate, todayIso } from '@/lib/format';
@@ -31,7 +31,10 @@ export default async function HostBookingsPage({
 }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-    const user = await requireVerifiedUser();
+    const hostContext = await getEffectiveHostContext();
+    const activeHost = hostContext.activeHost;
+    const targetUserId = activeHost ? activeHost.id : hostContext.user.id;
+
     const sp = await searchParams;
     const rawFilter = Array.isArray(sp.filtre) ? sp.filtre[0] : sp.filtre;
     const filter: HostBookingFilter =
@@ -48,7 +51,7 @@ export default async function HostBookingsPage({
     const todayDate = parseDate(todayIso());
 
     const baseWhere: Prisma.BookingWhereInput = {
-        property: { userId: user.id },
+        property: { userId: targetUserId },
     };
 
     const requestsWhere: Prisma.BookingWhereInput = {
@@ -128,7 +131,7 @@ export default async function HostBookingsPage({
     ];
 
     const bookings = buildPaginated(
-        rows.map((row) => serializeBooking(row, user)),
+        rows.map((row) => serializeBooking(row, hostContext.user)),
         total,
         page,
         perPage,
@@ -136,9 +139,23 @@ export default async function HostBookingsPage({
         filter !== 'demandes' ? { filtre: filter } : undefined,
     );
 
+    const pageHeading =
+        hostContext.isAdmin && activeHost
+            ? `Réservations — ${activeHost.name}`
+            : 'Réservations reçues';
+
     return (
         <>
-            <h1 className="text-2xl font-semibold">Réservations reçues</h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-2xl font-semibold">{pageHeading}</h1>
+                    {hostContext.isAdmin && activeHost && (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            Dossiers de réservations associées aux logements de {activeHost.name}
+                        </p>
+                    )}
+                </div>
+            </div>
 
             <nav
                 aria-label="Filtrer les réservations"

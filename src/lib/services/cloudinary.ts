@@ -185,3 +185,62 @@ export async function destroyCloudinaryAsset(
     }
 }
 
+export async function uploadImageBufferToCloudinary(
+    buffer: Buffer,
+    folder: string,
+    publicId?: string,
+): Promise<{ url: string; secure_url: string; public_id: string } | null> {
+    if (!isCloudinaryConfigured()) {
+        return null;
+    }
+
+    try {
+        const { cloudName, apiKey, apiSecret } = requireCloudinaryCredentials();
+        const timestamp = Math.floor(Date.now() / 1000);
+        const params: Record<string, string | number> = {
+            folder,
+            timestamp,
+        };
+        if (publicId) {
+            params.public_id = publicId;
+        }
+        const signature = signCloudinaryParams(params, apiSecret);
+
+        const formData = new FormData();
+        const blob = new Blob([new Uint8Array(buffer)]);
+        formData.append('file', blob);
+        formData.append('api_key', apiKey);
+        formData.append('timestamp', String(timestamp));
+        formData.append('folder', folder);
+        if (publicId) {
+            formData.append('public_id', publicId);
+        }
+        formData.append('signature', signature);
+
+        const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+            {
+                method: 'POST',
+                body: formData,
+            },
+        );
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error('Erreur Cloudinary uploadImageBufferToCloudinary :', errText);
+            return null;
+        }
+
+        const data = await response.json();
+        return {
+            url: data.url,
+            secure_url: data.secure_url,
+            public_id: data.public_id,
+        };
+    } catch (err) {
+        console.error('Exception Cloudinary uploadImageBufferToCloudinary :', err);
+        return null;
+    }
+}
+
+

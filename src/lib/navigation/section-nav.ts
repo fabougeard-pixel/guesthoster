@@ -19,6 +19,7 @@ export type SectionLink = {
     matchPrefixes?: string[];
     excludePaths?: string[];
     icon?: SectionNavIconName;
+    badge?: number | string;
 };
 
 export type SectionNavGroup = {

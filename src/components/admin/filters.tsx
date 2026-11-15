@@ -103,19 +103,21 @@ export function DataTable({
     head,
     children,
     empty,
+    className,
 }: {
-    head: string[];
+    head: (string | ReactNode)[];
     children: ReactNode;
     empty?: string | false;
+    className?: string;
 }) {
     return (
-        <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className={cn('overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900', className)}>
             <table className="w-full text-left text-sm">
                 <thead className="border-b border-zinc-200 bg-zinc-50 text-xs tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
                     <tr>
                         {head.map((label, index) => (
                             <th
-                                key={`${label}-${index}`}
+                                key={typeof label === 'string' ? `${label}-${index}` : index}
                                 scope="col"
                                 className="px-4 py-3 font-medium whitespace-nowrap"
                             >

@@ -11,6 +11,11 @@ import {
     sendVerificationEmail,
 } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
+import { env } from '@/lib/env';
+import {
+    isCloudinaryConfigured,
+    uploadImageBufferToCloudinary,
+} from '@/lib/services/cloudinary';
 import { type ActionResult, zodToFieldErrors } from './types';
 
 const profileSchema = z.object({
@@ -20,7 +25,7 @@ const profileSchema = z.object({
         .min(2, 'Le nom doit contenir au moins 2 caractères.')
         .max(255),
     email: z.string().trim().email('Adresse e-mail invalide.').max(255),
-    avatar_url: z.string().trim().max(1000).optional().nullable(),
+    avatar_url: z.string().trim().optional().nullable(),
     account_type: z
         .enum(['individual', 'company'])
         .optional()
@@ -54,25 +59,37 @@ export async function uploadAvatarAction(
         return { ok: false, error: 'La taille maximale autorisée est de 5 Mo.' };
     }
 
-    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-    const fileName = `avatar-${user.id}-${Date.now()}.${ext}`;
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    try {
-        await fs.mkdir(uploadDir, { recursive: true });
-        const filePath = path.join(uploadDir, fileName);
-        const arrayBuffer = await file.arrayBuffer();
-        await fs.writeFile(filePath, Buffer.from(arrayBuffer));
-    } catch (err) {
-        console.error('Erreur téléversement avatar utilisateur :', err);
-        return { ok: false, error: 'Erreur lors de l’enregistrement de l’avatar.' };
+    let finalUrl: string | null = null;
+
+    if (isCloudinaryConfigured()) {
+        const folder = env.cloudinaryFolder ? `${env.cloudinaryFolder}/avatars` : 'avatars';
+        const publicId = `user-${user.id}-${Date.now()}`;
+        const cloudinaryRes = await uploadImageBufferToCloudinary(buffer, folder, publicId);
+        if (cloudinaryRes?.secure_url) {
+            finalUrl = cloudinaryRes.secure_url;
+        }
     }
 
-    const url = `/uploads/avatars/${fileName}`;
+    if (!finalUrl) {
+        finalUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
+    }
+
+    try {
+        const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+        const fileName = `avatar-${user.id}-${Date.now()}.${ext}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+        await fs.mkdir(uploadDir, { recursive: true });
+        await fs.writeFile(path.join(uploadDir, fileName), buffer);
+    } catch {
+        // En lecture seule sur Vercel
+    }
 
     await prisma.user.update({
         where: { id: user.id },
-        data: { avatarUrl: url },
+        data: { avatarUrl: finalUrl },
     });
 
     revalidatePath('/settings/profile');
@@ -80,7 +97,7 @@ export async function uploadAvatarAction(
 
     return {
         ok: true,
-        data: { url },
+        data: { url: finalUrl },
         toast: {
             type: 'success',
             message: 'Photo de profil mise à jour avec succès.',

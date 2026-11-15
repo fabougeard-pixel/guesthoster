@@ -217,7 +217,7 @@ export function SectionLayout({
                                 : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
                         )}
                     >
-                        Espace hôte & propriétaire
+                        Hôte & Proprio
                     </Link>
                 </div>
             )}
@@ -260,6 +260,11 @@ export function SectionLayout({
                                         />
                                     )}
                                     <span className="truncate">{link.label}</span>
+                                    {link.badge !== undefined && Number(link.badge) > 0 && (
+                                        <span className="ml-auto inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
+                                            {link.badge}
+                                        </span>
+                                    )}
                                 </Link>
                             );
                         })}
@@ -270,7 +275,7 @@ export function SectionLayout({
             {(workspace === 'admin' || workspace === 'host') && (
                 <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
                     <Link
-                        href="/recherche"
+                        href="/logements"
                         onClick={() => setMobileOpen(false)}
                         className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                     >

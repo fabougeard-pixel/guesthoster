@@ -19,7 +19,12 @@ import {
 } from '@/lib/notifications/service';
 import { buildUniquePropertyTypeSlug } from '@/lib/domain/taxonomy';
 import { deletePropertyImageFiles } from '@/lib/domain/properties';
+import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
+import {
+    isCloudinaryConfigured,
+    uploadImageBufferToCloudinary,
+} from '@/lib/services/cloudinary';
 import { slugify } from '@/lib/utils';
 import { type ActionResult, zodToFieldErrors } from './types';
 
@@ -595,7 +600,7 @@ const managedOwnerSchema = z.object({
     spokenLanguages: z.string().trim().max(255).optional().or(z.literal('')),
     responseTime: z.string().trim().max(50).optional().or(z.literal('')),
     responseRate: z.coerce.number().min(0).max(100).optional().nullable(),
-    avatarUrl: z.string().trim().max(1000).optional().or(z.literal('')),
+    avatarUrl: z.string().trim().optional().or(z.literal('')),
 });
 
 export async function uploadOwnerAvatarAction(
@@ -619,23 +624,56 @@ export async function uploadOwnerAvatarAction(
         return { ok: false, error: 'La taille maximale autorisée est de 5 Mo.' };
     }
 
-    const targetId = formData.get('ownerId') ? String(formData.get('ownerId')) : 'admin';
-    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-    const fileName = `avatar-owner-${targetId}-${Date.now()}.${ext}`;
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+    const targetIdRaw = formData.get('ownerId');
+    const targetId = targetIdRaw ? Number(targetIdRaw) : null;
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    try {
-        await fs.mkdir(uploadDir, { recursive: true });
-        const filePath = path.join(uploadDir, fileName);
-        const arrayBuffer = await file.arrayBuffer();
-        await fs.writeFile(filePath, Buffer.from(arrayBuffer));
-    } catch (err) {
-        console.error('Erreur téléversement avatar propriétaire :', err);
-        return { ok: false, error: 'Erreur lors de l’enregistrement de l’avatar.' };
+    let finalUrl: string | null = null;
+
+    // 1. Tenter l'upload direct vers Cloudinary
+    if (isCloudinaryConfigured()) {
+        const folder = env.cloudinaryFolder ? `${env.cloudinaryFolder}/avatars` : 'avatars';
+        const publicId = targetId && !isNaN(targetId) ? `owner-${targetId}-${Date.now()}` : `avatar-${Date.now()}`;
+        const cloudinaryRes = await uploadImageBufferToCloudinary(buffer, folder, publicId);
+        if (cloudinaryRes?.secure_url) {
+            finalUrl = cloudinaryRes.secure_url;
+        }
     }
 
-    const url = `/uploads/avatars/${fileName}`;
-    return { ok: true, data: { url } };
+    // 2. Si non configuré ou échec de Cloudinary, fallback Data URL (base64) garanti d'afficher partout sans 404
+    if (!finalUrl) {
+        finalUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
+    }
+
+    // Sauvegarde locale de confort si le système de fichiers est accessible
+    try {
+        const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+        const fileName = `avatar-owner-${targetId ?? 'new'}-${Date.now()}.${ext}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+        await fs.mkdir(uploadDir, { recursive: true });
+        await fs.writeFile(path.join(uploadDir, fileName), buffer);
+    } catch {
+        // En lecture seule sur Vercel, ignoré silencieusement
+    }
+
+    // Si on modifie un propriétaire existant, mettre à jour immédiatement son profil en base
+    if (targetId && !isNaN(targetId)) {
+        await prisma.user.update({
+            where: { id: targetId },
+            data: { avatarUrl: finalUrl },
+        });
+        revalidatePath('/admin/proprietaires');
+    }
+
+    return {
+        ok: true,
+        data: { url: finalUrl },
+        toast: {
+            type: 'success',
+            message: 'Photo de profil mise à jour avec succès.',
+        },
+    };
 }
 
 export async function createManagedOwnerAction(input: {

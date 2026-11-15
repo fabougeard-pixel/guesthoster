@@ -149,7 +149,7 @@ export function AdminPropertiesClient({
             />
 
             <DataTable
-                head={['Annonce', 'Hôte', 'Mode', 'Tarif', 'Statut', 'Actions']}
+                head={['Annonce', 'Hôte', 'Tarif & Mode', 'Statut', 'Actions']}
                 empty={
                     properties.data.length === 0
                         ? 'Aucune annonce correspondante.'
@@ -168,7 +168,7 @@ export function AdminPropertiesClient({
                     );
 
                     return (
-                        <tr key={property.id}>
+                        <tr key={property.id} className="transition hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40">
                             <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
                                     {property.cover_url ? (
@@ -181,11 +181,11 @@ export function AdminPropertiesClient({
                                     ) : (
                                         <div className="h-11 w-14 shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
                                     )}
-                                    <div className="min-w-0">
-                                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                                    <div className="min-w-0 max-w-xs xl:max-w-sm">
+                                        <p className="truncate font-semibold text-zinc-900 dark:text-zinc-100" title={property.title}>
                                             {property.title}
                                         </p>
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                                             {property.type} ·{' '}
                                             {property.rental_duration ===
                                             'long_term'
@@ -196,7 +196,7 @@ export function AdminPropertiesClient({
                                             · {plural(property.photos, 'photo')}
                                         </p>
                                         {property.submitted_at && (
-                                            <p className="mt-0.5 text-xs text-zinc-400">
+                                            <p className="mt-0.5 text-[11px] text-zinc-400 truncate">
                                                 Soumise le{' '}
                                                 {formatDateTime(
                                                     property.submitted_at,
@@ -206,42 +206,52 @@ export function AdminPropertiesClient({
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                                        {property.host.name}
-                                    </span>
-                                    {property.host.suspended && (
-                                        <Badge tone="danger">Suspendu</Badge>
-                                    )}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-44">
+                                            {property.host.name}
+                                        </span>
+                                        {property.host.suspended && (
+                                            <Badge tone="danger">Suspendu</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-44">
+                                        {property.host.email}
+                                    </p>
                                 </div>
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                    {property.host.email}
-                                </p>
                             </td>
-                            <td className="px-4 py-3 text-xs whitespace-nowrap text-zinc-600 dark:text-zinc-300">
-                                {property.booking_mode}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="flex flex-col">
+                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums text-sm">
+                                        {property.rental_duration === 'long_term'
+                                            ? `${formatPrice(property.monthly_rent)} / mois`
+                                            : `${formatPrice(property.price_per_night)} / nuit`}
+                                    </span>
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        {property.booking_mode === 'Réservation instantanée'
+                                            ? '⚡ Instantanée'
+                                            : property.booking_mode === 'Sur demande'
+                                              ? '📩 Sur demande'
+                                              : property.booking_mode}
+                                    </span>
+                                </div>
                             </td>
-                            <td className="px-4 py-3 text-xs font-medium whitespace-nowrap tabular-nums">
-                                {property.rental_duration === 'long_term'
-                                    ? `${formatPrice(property.monthly_rent)} / mois`
-                                    : `${formatPrice(property.price_per_night)} / nuit`}
-                            </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 whitespace-nowrap">
                                 <PropertyStatusBadge
                                     status={property.status}
                                     label={property.status_label}
                                 />
                                 {property.rejection_reason && (
                                     <p
-                                        className="mt-1 max-w-52 truncate text-xs text-red-600 dark:text-red-400"
+                                        className="mt-1 max-w-48 truncate text-xs text-red-600 dark:text-red-400"
                                         title={property.rejection_reason}
                                     >
                                         {property.rejection_reason}
                                     </p>
                                 )}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-1.5">
                                     {/* Modifier : Stylo */}
                                     <Link

@@ -2,6 +2,7 @@
 
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { hashPassword } from '@/lib/auth/password';
 import { getFreshSessionUser, isHostOrAdmin } from '@/lib/auth/session';
@@ -253,9 +254,18 @@ export async function createPropertyAction(input: {
         };
     }
 
+    let targetOwnerId = user.id;
+    if (user.role === 'admin') {
+        const cookieStore = await cookies();
+        const cookieHostId = Number(cookieStore.get('gh_managed_host_id')?.value);
+        if (!isNaN(cookieHostId) && cookieHostId > 0) {
+            targetOwnerId = cookieHostId;
+        }
+    }
+
     const created = await prisma.property.create({
         data: {
-            userId: user.id,
+            userId: targetOwnerId,
             rentalDuration: parsed.data.rental_duration,
             furnishingType: 'furnished',
             title: parsed.data.title,
@@ -404,6 +414,18 @@ export async function saveWizardPropertyAction(input: {
                         select: { id: true },
                     });
                     resolvedOwnerId = createdOwner.id;
+                }
+            } else if (user.role === 'admin') {
+                const cookieStore = await cookies();
+                const cookieHostId = Number(cookieStore.get('gh_managed_host_id')?.value);
+                if (!isNaN(cookieHostId) && cookieHostId > 0) {
+                    const managedUser = await tx.user.findUnique({
+                        where: { id: cookieHostId, suspendedAt: null },
+                        select: { id: true },
+                    });
+                    if (managedUser) {
+                        resolvedOwnerId = managedUser.id;
+                    }
                 }
             }
 

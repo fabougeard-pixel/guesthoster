@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/button';
 import { Card } from '@/components/card';
-import { requireVerifiedUser } from '@/lib/auth/session';
+import { getEffectiveHostContext } from '@/lib/auth/managed-host';
 import {
     PROPERTY_STATUS_LABELS,
     type PropertyStatus,
@@ -20,11 +20,13 @@ export const metadata: Metadata = {
 };
 
 export default async function HostDashboardPage() {
-    const user = await requireVerifiedUser();
+    const hostContext = await getEffectiveHostContext();
+    const activeHost = hostContext.activeHost;
+    const targetUserId = activeHost ? activeHost.id : hostContext.user.id;
     const todayDate = parseDate(todayIso());
 
     const rows = await prisma.property.findMany({
-        where: user.role === 'admin' ? {} : { userId: user.id },
+        where: { userId: targetUserId },
         include: {
             city: { select: { name: true } },
             images: {
@@ -86,10 +88,22 @@ export default async function HostDashboardPage() {
         { label: 'Séjours à venir', value: stats.upcoming_bookings },
     ];
 
+    const pageHeading =
+        hostContext.isAdmin && activeHost
+            ? `Logements gérés pour ${activeHost.name}`
+            : 'Mes logements';
+
     return (
         <>
             <div className="flex flex-wrap items-center justify-between gap-4">
-                <h1 className="text-2xl font-semibold">Mes logements</h1>
+                <div>
+                    <h1 className="text-2xl font-semibold">{pageHeading}</h1>
+                    {hostContext.isAdmin && activeHost && (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            Attribués au profil {activeHost.host_type} ({activeHost.email})
+                        </p>
+                    )}
+                </div>
                 <Link href="/hote/logements/nouveau" className={buttonClasses()}>
                     Ajouter un logement
                 </Link>
@@ -111,17 +125,20 @@ export default async function HostDashboardPage() {
             {properties.length === 0 ? (
                 <Card className="mt-8 px-6 py-16 text-center">
                     <p className="font-medium">
-                        Vous n’avez pas encore de logement.
+                        {hostContext.isAdmin && activeHost
+                            ? `${activeHost.name} n’a pas encore de logement enregistré.`
+                            : 'Vous n’avez pas encore de logement.'}
                     </p>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                        Décrivez votre logement en quelques étapes, nous le
-                        validons puis il apparaît dans les recherches.
+                        {hostContext.isAdmin && activeHost
+                            ? `Cliquez ci-dessous pour ajouter un bien directement attribué à ${activeHost.name}.`
+                            : 'Décrivez votre logement en quelques étapes, nous le validons puis il apparaît dans les recherches.'}
                     </p>
                     <Link
                         href="/hote/logements/nouveau"
                         className={buttonClasses({ className: 'mt-6' })}
                     >
-                        Créer mon premier logement
+                        Créer un premier logement
                     </Link>
                 </Card>
             ) : (

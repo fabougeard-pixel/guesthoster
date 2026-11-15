@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { FormEvent } from 'react';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import {
     DataTable,
     FilterBar,
@@ -67,7 +67,7 @@ export function AdminOwnersClient({
     totalPropertiesCount,
     filters,
 }: Props) {
-    const { applyResult, router } = useActionFeedback();
+    const { applyResult, pushToast, router } = useActionFeedback();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createErrors, setCreateErrors] = useState<FieldErrors>({});
     const [createAccountType, setCreateAccountType] = useState<'individual' | 'company'>('individual');
@@ -75,6 +75,8 @@ export function AdminOwnersClient({
     const [createUploadingAvatar, setCreateUploadingAvatar] = useState(false);
 
     const [editingOwner, setEditingOwner] = useState<ManagedOwner | null>(null);
+    const [editStep, setEditStep] = useState<1 | 2>(1);
+    const editFormRef = useRef<HTMLFormElement>(null);
     const [editErrors, setEditErrors] = useState<FieldErrors>({});
     const [editAccountType, setEditAccountType] = useState<'individual' | 'company'>('individual');
     const [editAvatarUrl, setEditAvatarUrl] = useState<string | null>(null);
@@ -95,6 +97,15 @@ export function AdminOwnersClient({
         const setLoading = isEdit ? setEditUploadingAvatar : setCreateUploadingAvatar;
         const setUrl = isEdit ? setEditAvatarUrl : setCreateAvatarUrl;
 
+        // Aperçu local immédiat via FileReader pour afficher la photo instantanément
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (typeof e.target?.result === 'string') {
+                setUrl(e.target.result);
+            }
+        };
+        reader.readAsDataURL(file);
+
         setLoading(true);
         try {
             const fd = new FormData();
@@ -105,8 +116,16 @@ export function AdminOwnersClient({
             const res = await uploadOwnerAvatarAction(fd);
             if (res.ok && res.data?.url) {
                 setUrl(res.data.url);
+                pushToast({
+                    type: 'success',
+                    message: 'Photo de profil mise à jour avec succès.',
+                });
+            } else if (!res.ok) {
+                pushToast({
+                    type: 'error',
+                    message: res.error || 'Erreur lors du téléversement de la photo.',
+                });
             }
-            applyResult(res);
         } finally {
             setLoading(false);
         }
@@ -114,9 +133,37 @@ export function AdminOwnersClient({
 
     function openEditModal(owner: ManagedOwner) {
         setEditingOwner(owner);
+        setEditStep(1);
         setEditErrors({});
         setEditAccountType(owner.account_type);
         setEditAvatarUrl(owner.avatar_url);
+    }
+
+    function handleNextStep() {
+        if (!editFormRef.current) {
+            setEditStep(2);
+            return;
+        }
+
+        const nameInput = editFormRef.current.querySelector<HTMLInputElement>('input[name="name"]');
+        const emailInput = editFormRef.current.querySelector<HTMLInputElement>('input[name="email"]');
+        const nameVal = nameInput?.value.trim() ?? '';
+        const emailVal = emailInput?.value.trim() ?? '';
+
+        const errors: FieldErrors = {};
+        if (!nameVal) {
+            errors.name = 'Le nom et prénom sont obligatoires.';
+        }
+        if (!emailVal) {
+            errors.email = 'L’adresse e-mail est obligatoire.';
+        }
+        if (Object.keys(errors).length > 0) {
+            setEditErrors(errors);
+            return;
+        }
+
+        setEditErrors({});
+        setEditStep(2);
     }
 
     async function handleCreateOwner(event: FormEvent<HTMLFormElement>) {
@@ -201,10 +248,23 @@ export function AdminOwnersClient({
                 avatarUrl: editAvatarUrl || undefined,
             });
 
+            if (
+                !res.ok &&
+                res.fieldErrors &&
+                (res.fieldErrors.name ||
+                    res.fieldErrors.email ||
+                    res.fieldErrors.password ||
+                    res.fieldErrors.companyName ||
+                    res.fieldErrors.companyRegistration)
+            ) {
+                setEditStep(1);
+            }
+
             applyResult(res, {
                 setFieldErrors: setEditErrors,
                 onSuccess: () => {
                     setEditingOwner(null);
+                    setEditStep(1);
                 },
             });
         });
@@ -296,12 +356,9 @@ export function AdminOwnersClient({
             {/* Tableau des propriétaires */}
             <DataTable
                 head={[
-                    'Propriétaire / Hôte',
-                    'Statut / Badge',
-                    'Statut juridique',
-                    'Adresse email',
-                    'Biens attribués',
-                    'Date d’enregistrement',
+                    'Propriétaire',
+                    'Badge & Statut',
+                    'Logements',
                     'Statut',
                     'Actions',
                 ]}
@@ -312,25 +369,28 @@ export function AdminOwnersClient({
                         key={owner.id}
                         className="transition hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40"
                     >
-                        {/* Nom & Avatar */}
-                        <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-zinc-100">
+                        {/* Propriétaire & Contact */}
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                             <div className="flex items-center gap-3">
                                 <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-sm font-bold text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/40 dark:text-secondary-300 dark:ring-zinc-700 overflow-hidden">
-                                    {owner.avatar_url ? (
+                                    <span className="select-none">{owner.name.slice(0, 1).toUpperCase()}</span>
+                                    {owner.avatar_url && (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                             src={owner.avatar_url}
                                             alt={owner.name}
-                                            className="size-full object-cover"
+                                            className="absolute inset-0 size-full object-cover"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
                                         />
-                                    ) : (
-                                        <span>{owner.name.slice(0, 1).toUpperCase()}</span>
                                     )}
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <span className="font-semibold truncate">{owner.name}</span>
+                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{owner.name}</span>
+                                    <span className="text-xs text-zinc-500 truncate max-w-56">{owner.email}</span>
                                     {owner.profession && (
-                                        <span className="text-[11px] text-zinc-500 truncate">
+                                        <span className="text-[11px] text-zinc-400 truncate max-w-56">
                                             {owner.profession}
                                         </span>
                                     )}
@@ -338,56 +398,45 @@ export function AdminOwnersClient({
                             </div>
                         </td>
 
-                        {/* Statut / Badge d'hôte */}
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span
-                                className={cn(
-                                    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                                    owner.host_type === 'Superhôte'
-                                        ? 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700'
-                                        : owner.host_type === 'Hôte Premium'
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700'
-                                          : owner.host_type === 'Hôte Vérifié'
-                                            ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700'
-                                            : owner.host_type === 'Conciergerie Partenaire' || owner.host_type === 'Propriétaire Professionnel'
-                                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700'
-                                              : 'bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
-                                )}
-                            >
-                                {owner.host_type === 'Superhôte' && <span>⭐</span>}
-                                {owner.host_type === 'Hôte Premium' && <span>👑</span>}
-                                {owner.host_type === 'Hôte Vérifié' && <span>🎖️</span>}
-                                <span>{owner.host_type}</span>
-                            </span>
-                        </td>
-
-                        {/* Statut juridique : Particulier ou Pro */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-xs">
-                            {owner.account_type === 'company' ? (
-                                <div className="flex flex-col">
-                                    <span className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400">
-                                        <span>🏢</span>
-                                        <span>Pro / Entreprise</span>
-                                    </span>
-                                    <span className="text-[11px] text-zinc-500 truncate max-w-40">
-                                        {owner.company_name || 'Raison sociale non renseignée'}
-                                    </span>
-                                </div>
-                            ) : (
-                                <span className="inline-flex items-center gap-1 font-semibold text-zinc-600 dark:text-zinc-400">
-                                    <span>👤</span>
-                                    <span>Particulier</span>
+                        {/* Statut / Badge d'hôte & Statut juridique */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-1 items-start">
+                                <span
+                                    className={cn(
+                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+                                        owner.host_type === 'Superhôte'
+                                            ? 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700'
+                                            : owner.host_type === 'Hôte Premium'
+                                                ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700'
+                                                : owner.host_type === 'Hôte Vérifié'
+                                                    ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700'
+                                                    : owner.host_type === 'Conciergerie Partenaire' || owner.host_type === 'Propriétaire Professionnel'
+                                                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700'
+                                                        : 'bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+                                    )}
+                                >
+                                    {owner.host_type === 'Superhôte' && <span>⭐</span>}
+                                    {owner.host_type === 'Hôte Premium' && <span>👑</span>}
+                                    {owner.host_type === 'Hôte Vérifié' && <span>🎖️</span>}
+                                    <span>{owner.host_type}</span>
                                 </span>
-                            )}
-                        </td>
 
-                        {/* Email */}
-                        <td className="px-4 py-3.5 text-zinc-600 dark:text-zinc-300">
-                            {owner.email}
+                                {owner.account_type === 'company' ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
+                                        <span>🏢</span>
+                                        <span className="truncate max-w-36">{owner.company_name || 'Pro / Entreprise'}</span>
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                        <span>👤</span>
+                                        <span>Particulier</span>
+                                    </span>
+                                )}
+                            </div>
                         </td>
 
                         {/* Logements */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3 whitespace-nowrap">
                             <Link
                                 href={`/admin/logements?search=${encodeURIComponent(owner.email)}`}
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
@@ -408,23 +457,23 @@ export function AdminOwnersClient({
                             </Link>
                         </td>
 
-                        {/* Date */}
-                        <td className="px-4 py-3.5 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                            {owner.created_at ? formatDate(owner.created_at.slice(0, 10)) : '—'}
-                        </td>
-
-                        {/* Statut */}
-                        <td className="px-4 py-3.5">
-                            {owner.suspended_at ? (
-                                <Badge tone="danger">Suspendu</Badge>
-                            ) : (
-                                <Badge tone="success">Actif</Badge>
-                            )}
+                        {/* Statut & Date d'enregistrement */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-1 items-start">
+                                {owner.suspended_at ? (
+                                    <Badge tone="danger">Suspendu</Badge>
+                                ) : (
+                                    <Badge tone="success">Actif</Badge>
+                                )}
+                                <span className="text-[11px] text-zinc-400 whitespace-nowrap">
+                                    {owner.created_at ? formatDate(owner.created_at.slice(0, 10)) : '—'}
+                                </span>
+                            </div>
                         </td>
 
                         {/* Actions */}
-                        <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1.5">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                                 {/* Modifier le profil de l'hôte */}
                                 <button
                                     type="button"
@@ -526,15 +575,17 @@ export function AdminOwnersClient({
                     {/* Photo de profil */}
                     <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                         <div className="relative flex size-16 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-black text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-700 overflow-hidden">
-                            {createAvatarUrl ? (
+                            <span className="select-none text-secondary-600 dark:text-secondary-400">👤</span>
+                            {createAvatarUrl && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                     src={createAvatarUrl}
                                     alt="Aperçu"
-                                    className="size-full object-cover"
+                                    className="absolute inset-0 size-full object-cover"
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                    }}
                                 />
-                            ) : (
-                                <span>📷</span>
                             )}
                         </div>
                         <div className="flex flex-col gap-1.5 flex-1">
@@ -828,309 +879,437 @@ export function AdminOwnersClient({
             >
                 {editingOwner && (
                     <form
+                        ref={editFormRef}
                         onSubmit={(event) => void handleUpdateOwner(event)}
                         className="flex flex-col gap-5 text-left max-h-[80vh] overflow-y-auto px-1"
                     >
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                            Modifiez les paramètres, le statut juridique (Particulier ou Pro), le badge Superhôte, la photo et les informations de présentation.
-                        </p>
+                        {/* Indicateur de progression en 2 étapes */}
+                        <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+                            <div className="flex items-center justify-between text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditStep(1)}
+                                    className={cn(
+                                        'flex items-center gap-2 font-semibold transition',
+                                        editStep === 1
+                                            ? 'text-primary-700 dark:text-primary-400'
+                                            : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200',
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            'flex size-6 items-center justify-center rounded-full text-[11px] font-bold shadow-xs',
+                                            editStep === 1
+                                                ? 'bg-primary-600 text-white'
+                                                : 'bg-emerald-600 text-white',
+                                        )}
+                                    >
+                                        {editStep === 2 ? '✓' : '1'}
+                                    </span>
+                                    <span>Étape 1 : Identité & Statut juridique</span>
+                                </button>
 
-                        {/* Photo de profil */}
-                        <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-                            <div className="relative flex size-16 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-black text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-700 overflow-hidden">
-                                {editAvatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                        src={editAvatarUrl}
-                                        alt={editingOwner.name}
-                                        className="size-full object-cover"
+                                <div className="mx-3 h-0.5 flex-1 bg-zinc-200 dark:bg-zinc-700">
+                                    <div
+                                        className={cn(
+                                            'h-full bg-primary-600 transition-all duration-300',
+                                            editStep === 2 ? 'w-full' : 'w-0',
+                                        )}
                                     />
-                                ) : (
-                                    <span>{editingOwner.name.slice(0, 1).toUpperCase()}</span>
-                                )}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleNextStep()}
+                                    className={cn(
+                                        'flex items-center gap-2 font-semibold transition',
+                                        editStep === 2
+                                            ? 'text-primary-700 dark:text-primary-400'
+                                            : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200',
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            'flex size-6 items-center justify-center rounded-full text-[11px] font-bold shadow-xs',
+                                            editStep === 2
+                                                ? 'bg-primary-600 text-white'
+                                                : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
+                                        )}
+                                    >
+                                        2
+                                    </span>
+                                    <span>Étape 2 : Activité & Présentation</span>
+                                </button>
                             </div>
-                            <div className="flex flex-col gap-1.5 flex-1">
-                                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                                    Photo de profil de l’hôte / propriétaire
-                                </span>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                                        <span>{editUploadingAvatar ? 'Téléversement...' : 'Changer la photo'}</span>
-                                        <input
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp,image/gif"
-                                            className="hidden"
-                                            disabled={editUploadingAvatar}
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) void handleAvatarUpload(file, true);
+                        </div>
+
+                        {/* ÉTAPE 1 : Identité & Statut juridique */}
+                        <div className={cn('flex flex-col gap-5', editStep !== 1 && 'hidden')}>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Modifiez la photo de profil, l’identité, le badge d’hôte et le statut juridique (Particulier ou Professionnel).
+                            </p>
+
+                            {/* Photo de profil */}
+                            <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                                <div className="relative flex size-16 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-black text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-700 overflow-hidden">
+                                    <span className="select-none">{editingOwner.name.slice(0, 1).toUpperCase()}</span>
+                                    {editAvatarUrl && (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={editAvatarUrl}
+                                            alt={editingOwner.name}
+                                            className="absolute inset-0 size-full object-cover"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
                                             }}
                                         />
+                                    )}
+                                </div>
+                                <div className="flex flex-col gap-1.5 flex-1">
+                                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                        Photo de profil de l’hôte / propriétaire
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                            <span>{editUploadingAvatar ? 'Téléversement...' : 'Changer la photo'}</span>
+                                            <input
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                                className="hidden"
+                                                disabled={editUploadingAvatar}
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) void handleAvatarUpload(file, true);
+                                                }}
+                                            />
+                                        </label>
+                                        {editAvatarUrl && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditAvatarUrl(null)}
+                                                className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                                            >
+                                                Supprimer
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Identité */}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Nom et prénom"
+                                    htmlFor="edit-owner-name"
+                                    error={editErrors.name}
+                                >
+                                    <Input
+                                        id="edit-owner-name"
+                                        name="name"
+                                        defaultValue={editingOwner.name}
+                                        required
+                                        autoComplete="name"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="Adresse e-mail"
+                                    htmlFor="edit-owner-email"
+                                    error={editErrors.email}
+                                >
+                                    <Input
+                                        id="edit-owner-email"
+                                        name="email"
+                                        type="email"
+                                        defaultValue={editingOwner.email}
+                                        required
+                                        autoComplete="email"
+                                    />
+                                </Field>
+                            </div>
+
+                            {/* Statut / Badge d'hôte & Mot de passe */}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Statut / Badge d’hôte"
+                                    htmlFor="edit-owner-host-type"
+                                    hint="Définit le badge affiché sur les annonces"
+                                >
+                                    <Select
+                                        id="edit-owner-host-type"
+                                        name="hostType"
+                                        defaultValue={editingOwner.host_type}
+                                    >
+                                        {DEFAULT_HOST_TYPES.map((type) => (
+                                            <option key={type} value={type}>
+                                                {type}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </Field>
+
+                                <Field
+                                    label="Nouveau mot de passe (optionnel)"
+                                    htmlFor="edit-owner-password"
+                                    error={editErrors.password}
+                                    hint="Laissez vide pour conserver l'actuel"
+                                >
+                                    <Input
+                                        id="edit-owner-password"
+                                        name="password"
+                                        type="password"
+                                        placeholder="Minimum 8 caractères"
+                                        autoComplete="new-password"
+                                    />
+                                </Field>
+                            </div>
+
+                            {/* Type de compte : Particulier ou Pro */}
+                            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    Statut juridique *
+                                </span>
+                                <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+                                    <label
+                                        className={cn(
+                                            'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                            editAccountType === 'individual'
+                                                ? 'border-primary-600 ring-2 ring-primary-500/20'
+                                                : 'border-zinc-200 dark:border-zinc-800',
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">👤</span>
+                                            <div>
+                                                <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                                    Particulier
+                                                </p>
+                                                <p className="text-[11px] text-zinc-500">
+                                                    Location à titre privé
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            name="editAccountTypeRadio"
+                                            value="individual"
+                                            checked={editAccountType === 'individual'}
+                                            onChange={() => setEditAccountType('individual')}
+                                            className="accent-primary-600"
+                                        />
                                     </label>
-                                    {editAvatarUrl && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditAvatarUrl(null)}
-                                            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+
+                                    <label
+                                        className={cn(
+                                            'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                            editAccountType === 'company'
+                                                ? 'border-blue-600 ring-2 ring-blue-500/20'
+                                                : 'border-zinc-200 dark:border-zinc-800',
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">🏢</span>
+                                            <div>
+                                                <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                                    Professionnel / Pro
+                                                </p>
+                                                <p className="text-[11px] text-zinc-500">
+                                                    Entreprise, conciergerie ou agence
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            name="editAccountTypeRadio"
+                                            value="company"
+                                            checked={editAccountType === 'company'}
+                                            onChange={() => setEditAccountType('company')}
+                                            className="accent-blue-600"
+                                        />
+                                    </label>
+                                </div>
+
+                                {editAccountType === 'company' && (
+                                    <div className="mt-3 grid gap-3 sm:grid-cols-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                                        <Field
+                                            label="Raison sociale / Nom entreprise"
+                                            htmlFor="edit-owner-company-name"
+                                            error={editErrors.companyName}
                                         >
-                                            Supprimer
-                                        </button>
-                                    )}
-                                </div>
+                                            <Input
+                                                id="edit-owner-company-name"
+                                                name="companyName"
+                                                defaultValue={editingOwner.company_name ?? ''}
+                                                placeholder="Ex : Appartements hôteliers Niro"
+                                            />
+                                        </Field>
+
+                                        <Field
+                                            label="N° SIRET / RCS"
+                                            htmlFor="edit-owner-company-reg"
+                                            error={editErrors.companyRegistration}
+                                        >
+                                            <Input
+                                                id="edit-owner-company-reg"
+                                                name="companyRegistration"
+                                                defaultValue={editingOwner.company_registration ?? ''}
+                                                placeholder="Ex : 849 123 456 00012"
+                                            />
+                                        </Field>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Boutons footer Étape 1 */}
+                            <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setEditingOwner(null)}
+                                >
+                                    Annuler
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => handleNextStep()}
+                                    className="bg-primary-600 hover:bg-primary-700"
+                                >
+                                    <span>Suivant</span>
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="ml-1.5 size-4"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                </Button>
                             </div>
                         </div>
 
-                        {/* Identité */}
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                label="Nom et prénom"
-                                htmlFor="edit-owner-name"
-                                error={editErrors.name}
-                            >
-                                <Input
-                                    id="edit-owner-name"
-                                    name="name"
-                                    defaultValue={editingOwner.name}
-                                    required
-                                    autoComplete="name"
-                                />
-                            </Field>
+                        {/* ÉTAPE 2 : Activité, Réactivité & Présentation */}
+                        <div className={cn('flex flex-col gap-5', editStep !== 2 && 'hidden')}>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Renseignez les informations publiques affichées sur les annonces pour les voyageurs (titre/profession, langues parlées, réactivité et biographie).
+                            </p>
 
-                            <Field
-                                label="Adresse e-mail"
-                                htmlFor="edit-owner-email"
-                                error={editErrors.email}
-                            >
-                                <Input
-                                    id="edit-owner-email"
-                                    name="email"
-                                    type="email"
-                                    defaultValue={editingOwner.email}
-                                    required
-                                    autoComplete="email"
-                                />
-                            </Field>
-                        </div>
-
-                        {/* Statut / Badge d'hôte & Mot de passe */}
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                label="Statut / Badge d’hôte"
-                                htmlFor="edit-owner-host-type"
-                                hint="Définit le badge affiché sur les annonces"
-                            >
-                                <Select
-                                    id="edit-owner-host-type"
-                                    name="hostType"
-                                    defaultValue={editingOwner.host_type}
+                            {/* Activité & Métriques de réactivité */}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Profession / Titre public"
+                                    htmlFor="edit-owner-profession"
+                                    hint="Ex : Appartements hôteliers Niro, Conciergerie Azur..."
                                 >
-                                    {DEFAULT_HOST_TYPES.map((type) => (
-                                        <option key={type} value={type}>
-                                            {type}
-                                        </option>
-                                    ))}
-                                </Select>
-                            </Field>
-
-                            <Field
-                                label="Nouveau mot de passe (optionnel)"
-                                htmlFor="edit-owner-password"
-                                error={editErrors.password}
-                                hint="Laissez vide pour conserver l'actuel"
-                            >
-                                <Input
-                                    id="edit-owner-password"
-                                    name="password"
-                                    type="password"
-                                    placeholder="Minimum 8 caractères"
-                                    autoComplete="new-password"
-                                />
-                            </Field>
-                        </div>
-
-                        {/* Type de compte : Particulier ou Pro */}
-                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-                            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                                Statut juridique *
-                            </span>
-                            <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
-                                <label
-                                    className={cn(
-                                        'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
-                                        editAccountType === 'individual'
-                                            ? 'border-primary-600 ring-2 ring-primary-500/20'
-                                            : 'border-zinc-200 dark:border-zinc-800',
-                                    )}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-lg">👤</span>
-                                        <div>
-                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                                                Particulier
-                                            </p>
-                                            <p className="text-[11px] text-zinc-500">
-                                                Location à titre privé
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <input
-                                        type="radio"
-                                        name="editAccountTypeRadio"
-                                        value="individual"
-                                        checked={editAccountType === 'individual'}
-                                        onChange={() => setEditAccountType('individual')}
-                                        className="accent-primary-600"
+                                    <Input
+                                        id="edit-owner-profession"
+                                        name="profession"
+                                        defaultValue={editingOwner.profession ?? ''}
+                                        placeholder="Ex : Appartements hôteliers Niro"
                                     />
-                                </label>
+                                </Field>
 
-                                <label
-                                    className={cn(
-                                        'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
-                                        editAccountType === 'company'
-                                            ? 'border-blue-600 ring-2 ring-blue-500/20'
-                                            : 'border-zinc-200 dark:border-zinc-800',
-                                    )}
+                                <Field
+                                    label="Langues parlées"
+                                    htmlFor="edit-owner-languages"
+                                    hint="Ex : Français, Anglais, Suédois..."
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-lg">🏢</span>
-                                        <div>
-                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                                                Professionnel / Pro
-                                            </p>
-                                            <p className="text-[11px] text-zinc-500">
-                                                Entreprise, conciergerie ou agence
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <input
-                                        type="radio"
-                                        name="editAccountTypeRadio"
-                                        value="company"
-                                        checked={editAccountType === 'company'}
-                                        onChange={() => setEditAccountType('company')}
-                                        className="accent-blue-600"
+                                    <Input
+                                        id="edit-owner-languages"
+                                        name="spokenLanguages"
+                                        defaultValue={editingOwner.spoken_languages ?? 'Français, Anglais'}
                                     />
-                                </label>
+                                </Field>
                             </div>
 
-                            {editAccountType === 'company' && (
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                                    <Field
-                                        label="Raison sociale / Nom entreprise"
-                                        htmlFor="edit-owner-company-name"
-                                    >
-                                        <Input
-                                            id="edit-owner-company-name"
-                                            name="companyName"
-                                            defaultValue={editingOwner.company_name ?? ''}
-                                            placeholder="Ex : Appartements hôteliers Niro"
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="N° SIRET / RCS"
-                                        htmlFor="edit-owner-company-reg"
-                                    >
-                                        <Input
-                                            id="edit-owner-company-reg"
-                                            name="companyRegistration"
-                                            defaultValue={editingOwner.company_registration ?? ''}
-                                            placeholder="Ex : 849 123 456 00012"
-                                        />
-                                    </Field>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Activité & Métriques de réactivité */}
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                label="Profession / Titre public"
-                                htmlFor="edit-owner-profession"
-                                hint="Ex : Appartements hôteliers Niro, Conciergerie Azur..."
-                            >
-                                <Input
-                                    id="edit-owner-profession"
-                                    name="profession"
-                                    defaultValue={editingOwner.profession ?? ''}
-                                    placeholder="Ex : Appartements hôteliers Niro"
-                                />
-                            </Field>
-
-                            <Field
-                                label="Langues parlées"
-                                htmlFor="edit-owner-languages"
-                                hint="Ex : Français, Anglais, Suédois..."
-                            >
-                                <Input
-                                    id="edit-owner-languages"
-                                    name="spokenLanguages"
-                                    defaultValue={editingOwner.spoken_languages ?? 'Français, Anglais'}
-                                />
-                            </Field>
-                        </div>
-
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                label="Délai de réponse habituel"
-                                htmlFor="edit-owner-resp-time"
-                            >
-                                <Select
-                                    id="edit-owner-resp-time"
-                                    name="responseTime"
-                                    defaultValue={editingOwner.response_time ?? "dans l'heure"}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Délai de réponse habituel"
+                                    htmlFor="edit-owner-resp-time"
                                 >
-                                    <option value="dans l'heure">Dans l’heure</option>
-                                    <option value="en quelques heures">En quelques heures</option>
-                                    <option value="dans la journée">Dans la journée</option>
-                                </Select>
-                            </Field>
+                                    <Select
+                                        id="edit-owner-resp-time"
+                                        name="responseTime"
+                                        defaultValue={editingOwner.response_time ?? "dans l'heure"}
+                                    >
+                                        <option value="dans l'heure">Dans l’heure</option>
+                                        <option value="en quelques heures">En quelques heures</option>
+                                        <option value="dans la journée">Dans la journée</option>
+                                    </Select>
+                                </Field>
 
+                                <Field
+                                    label="Taux de réponse (%)"
+                                    htmlFor="edit-owner-resp-rate"
+                                >
+                                    <Input
+                                        id="edit-owner-resp-rate"
+                                        name="responseRate"
+                                        type="number"
+                                        min={50}
+                                        max={100}
+                                        defaultValue={editingOwner.response_rate ?? 100}
+                                    />
+                                </Field>
+                            </div>
+
+                            {/* Présentation / Bio */}
                             <Field
-                                label="Taux de réponse (%)"
-                                htmlFor="edit-owner-resp-rate"
+                                label="Présentation / Bio de l’hôte"
+                                htmlFor="edit-owner-bio"
+                                hint="Texte affiché dans l’encadré « Faites connaissance avec votre hôte »"
                             >
-                                <Input
-                                    id="edit-owner-resp-rate"
-                                    name="responseRate"
-                                    type="number"
-                                    min={50}
-                                    max={100}
-                                    defaultValue={editingOwner.response_rate ?? 100}
+                                <Textarea
+                                    id="edit-owner-bio"
+                                    name="bio"
+                                    rows={4}
+                                    defaultValue={editingOwner.bio ?? ''}
+                                    placeholder="Présentation des services, engagements de confort et disponibilité pour les voyageurs..."
                                 />
                             </Field>
-                        </div>
 
-                        {/* Présentation / Bio */}
-                        <Field
-                            label="Présentation / Bio de l’hôte"
-                            htmlFor="edit-owner-bio"
-                            hint="Texte affiché dans l’encadré « Faites connaissance avec votre hôte »"
-                        >
-                            <Textarea
-                                id="edit-owner-bio"
-                                name="bio"
-                                rows={4}
-                                defaultValue={editingOwner.bio ?? ''}
-                                placeholder="Présentation des services, engagements de confort et disponibilité pour les voyageurs..."
-                            />
-                        </Field>
+                            {/* Boutons footer Étape 2 */}
+                            <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setEditStep(1)}
+                                >
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="mr-1.5 size-4"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                    <span>Précédent</span>
+                                </Button>
 
-                        <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => setEditingOwner(null)}
-                            >
-                                Annuler
-                            </Button>
-                            <Button
-                                type="submit"
-                                loading={isPending}
-                                className="bg-primary-600 hover:bg-primary-700"
-                            >
-                                Enregistrer les modifications
-                            </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setEditingOwner(null)}
+                                    >
+                                        Annuler
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        loading={isPending}
+                                        className="bg-primary-600 hover:bg-primary-700"
+                                    >
+                                        Enregistrer les modifications
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 )}
