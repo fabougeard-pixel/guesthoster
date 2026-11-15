@@ -296,6 +296,7 @@ function BookingCard({
     rentalSettings,
     enabledMethods,
     stripeConfigured = true,
+    bank,
 }: {
     serviceFeeRate: number;
     property: PropertyDetail;
@@ -309,6 +310,13 @@ function BookingCard({
     rentalSettings?: PlatformRentalSettings;
     enabledMethods?: PaymentMethodKey[];
     stripeConfigured?: boolean;
+    bank?: {
+        holder: string;
+        bankName: string;
+        iban: string;
+        bic: string;
+        instructions: string;
+    };
 }) {
     const [calendarStep, setCalendarStep] = useState<
         'checkIn' | 'checkOut' | null
@@ -456,6 +464,7 @@ function BookingCard({
                     effectiveVisitFee={effectiveVisitFee}
                     enabledMethods={enabledMethods}
                     stripeConfigured={stripeConfigured}
+                    bank={bank}
                 />
             </>
         );
@@ -959,6 +968,7 @@ export function PropertyShowClient({
     rentalSettings,
     enabledMethods,
     stripeConfigured = true,
+    bank,
     reviews,
     initialStay,
     initialGuests,
@@ -970,6 +980,13 @@ export function PropertyShowClient({
     rentalSettings?: PlatformRentalSettings;
     enabledMethods?: PaymentMethodKey[];
     stripeConfigured?: boolean;
+    bank?: {
+        holder: string;
+        bankName: string;
+        iban: string;
+        bic: string;
+        instructions: string;
+    };
     reviews: Review[];
     initialStay: StaySelection;
     initialGuests: number;
@@ -1734,6 +1751,7 @@ export function PropertyShowClient({
                         rentalSettings={rentalSettings}
                         enabledMethods={enabledMethods}
                         stripeConfigured={stripeConfigured}
+                        bank={bank}
                         onClear={() =>
                             setStay({ checkIn: null, checkOut: null })
                         }

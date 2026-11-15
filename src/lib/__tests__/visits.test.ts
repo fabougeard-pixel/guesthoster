@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+    confirmVisitPaymentAction,
     createPropertyVisitAction,
+    initiateVisitPaymentAction,
     updatePropertyVisitStatusAction,
 } from '@/lib/actions/visits';
 import { RENTAL_DURATION_LABELS } from '@/lib/domain/enums';
@@ -79,6 +81,21 @@ describe('Rental duration & classic rentals', () => {
             expect(result.error).toContain('Authentification');
         }
     });
+
+    it('handles confirmVisitPaymentAction for unknown references gracefully', async () => {
+        const result = await confirmVisitPaymentAction({
+            reference: 'VISIT-NONEXISTENT',
+            paymentMethod: 'card',
+        });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('handles initiateVisitPaymentAction gracefully when reference does not exist or stripe is unconfigured', async () => {
+        const result = await initiateVisitPaymentAction('VISIT-NONEXISTENT');
+        expect(result.ok).toBe(false);
+    });
 });
+
 
 

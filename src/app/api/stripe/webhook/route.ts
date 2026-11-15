@@ -57,6 +57,27 @@ export async function POST(request: Request) {
         if (paid) {
             await confirmBookingPayment(paid);
         }
+
+        const visitReference =
+            session.metadata?.visit_reference ??
+            (typeof session.client_reference_id === 'string' &&
+            session.client_reference_id.startsWith('VISIT-')
+                ? session.client_reference_id
+                : null);
+
+        if (visitReference && session.payment_status === 'paid') {
+            try {
+                await prisma.propertyVisit.update({
+                    where: { reference: visitReference },
+                    data: {
+                        paymentStatus: 'paid',
+                        confirmedAt: new Date(),
+                    },
+                });
+            } catch (err) {
+                console.warn('[Stripe Webhook] Error updating visit payment:', err);
+            }
+        }
     }
 
     try {

@@ -89,6 +89,13 @@ export default async function PropertyShowPage({
             rentalSettings={rentalSettings}
             enabledMethods={listEnabledPaymentMethods(paymentSettings)}
             stripeConfigured={isStripeConfigured()}
+            bank={{
+                holder: paymentSettings.bankAccountHolder,
+                bankName: paymentSettings.bankName,
+                iban: paymentSettings.bankIban,
+                bic: paymentSettings.bankBic,
+                instructions: paymentSettings.bankInstructions,
+            }}
             reviews={detail.reviews}
             initialStay={initialStay}
             initialGuests={initialGuests}

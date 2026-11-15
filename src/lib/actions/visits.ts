@@ -5,6 +5,8 @@ import { z } from 'zod';
 import type { ActionResult } from '@/lib/actions/types';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth/session';
+import { env } from '@/lib/env';
+import { getStripeClient, isStripeConfigured } from '@/lib/services/stripe';
 import {
     getPlatformPaymentSettings,
     getPlatformRentalSettings,
@@ -42,6 +44,8 @@ export type VisitBookingResult = {
     email: string;
     phone: string | null;
     status: string;
+    paymentMethod?: string | null;
+    paymentStatus?: string | null;
 };
 
 export async function createPropertyVisitAction(
@@ -139,7 +143,7 @@ export async function createPropertyVisitAction(
                     ? 'free'
                     : data.paymentMethod === 'bank_transfer'
                       ? 'pending_transfer'
-                      : 'paid',
+                      : 'pending',
             status: 'confirmed',
             confirmedAt: new Date(),
         },
@@ -218,6 +222,8 @@ export async function createPropertyVisitAction(
             email: visit.email,
             phone: visit.phone,
             status: visit.status,
+            paymentMethod: visit.paymentMethod,
+            paymentStatus: visit.paymentStatus,
         },
         toast: {
             type: 'success',
@@ -370,5 +376,130 @@ export async function confirmVisitBankTransferAction(
             message: 'Le règlement des frais de visite par virement a été validé.',
         },
     };
+}
+
+export async function confirmVisitPaymentAction(input: {
+    reference: string;
+    paymentMethod: 'card' | 'paypal' | 'bank_transfer';
+    transactionId?: string;
+}): Promise<ActionResult<{ success: boolean }>> {
+    try {
+        const visit = await prisma.propertyVisit.findUnique({
+            where: { reference: input.reference },
+        });
+
+        if (!visit) {
+            return { ok: false, error: 'Demande de location introuvable.' };
+        }
+
+        await prisma.propertyVisit.update({
+            where: { reference: input.reference },
+            data: {
+                paymentMethod: input.paymentMethod,
+                paymentStatus:
+                    input.paymentMethod === 'bank_transfer'
+                        ? 'pending_transfer'
+                        : 'paid',
+                confirmedAt: new Date(),
+            },
+        });
+
+        revalidatePath('/hote/visites');
+        revalidatePath('/admin/visites');
+
+        return {
+            ok: true,
+            data: { success: true },
+            toast: {
+                type: 'success',
+                message:
+                    input.paymentMethod === 'bank_transfer'
+                        ? 'Ordre de virement bien enregistré.'
+                        : 'Paiement de la caution reçu et confirmé !',
+            },
+        };
+    } catch (e) {
+        return {
+            ok: false,
+            error:
+                e instanceof Error
+                    ? e.message
+                    : 'Erreur inattendue lors de la confirmation du paiement.',
+        };
+    }
+}
+
+export async function initiateVisitPaymentAction(
+    reference: string,
+): Promise<ActionResult<{ checkoutUrl: string }>> {
+    if (!isStripeConfigured()) {
+        return {
+            ok: false,
+            error: 'Le paiement Stripe n’est pas configuré sur ce serveur.',
+        };
+    }
+
+    const visit = await prisma.propertyVisit.findUnique({
+        where: { reference },
+        include: {
+            property: { select: { title: true, slug: true } },
+        },
+    });
+
+    if (!visit) {
+        return { ok: false, error: 'Demande introuvable.' };
+    }
+
+    try {
+        const stripe = getStripeClient();
+        const session = await stripe.checkout.sessions.create({
+            mode: 'payment',
+            locale: 'fr',
+            customer_email: visit.email,
+            client_reference_id: visit.reference,
+            metadata: {
+                visit_reference: visit.reference,
+                property_id: String(visit.propertyId),
+            },
+            payment_intent_data: {
+                metadata: {
+                    visit_reference: visit.reference,
+                    property_id: String(visit.propertyId),
+                },
+            },
+            line_items: [
+                {
+                    quantity: 1,
+                    price_data: {
+                        currency: env.stripeCurrency,
+                        unit_amount: visit.visitFee,
+                        product_data: {
+                            name: `Caution de location · ${visit.property.title}`,
+                            description: `Garantie / caution pour le logement ${visit.property.title} (réf. ${visit.reference})`,
+                        },
+                    },
+                },
+            ],
+            success_url: `${env.appUrl}/logements/${visit.property.slug}?paid_visit=${visit.reference}`,
+            cancel_url: `${env.appUrl}/logements/${visit.property.slug}?cancel_visit=${visit.reference}`,
+        });
+
+        if (!session.url) {
+            return {
+                ok: false,
+                error: 'Impossible de générer le lien de paiement Stripe.',
+            };
+        }
+
+        return { ok: true, data: { checkoutUrl: session.url } };
+    } catch (e) {
+        return {
+            ok: false,
+            error:
+                e instanceof Error
+                    ? e.message
+                    : 'Erreur Stripe lors de l’initialisation.',
+        };
+    }
 }
 
