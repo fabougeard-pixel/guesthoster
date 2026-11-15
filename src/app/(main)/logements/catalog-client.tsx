@@ -70,8 +70,14 @@ function FilterPanel({
                 </legend>
                 {[
                     { value: null, label: 'Toutes les formules' },
-                    { value: 'short_term' as const, label: 'Courte durée' },
-                    { value: 'long_term' as const, label: 'Longue durée' },
+                    {
+                        value: 'short_term' as const,
+                        label: 'Locations courte durée',
+                    },
+                    {
+                        value: 'long_term' as const,
+                        label: 'Locations classiques',
+                    },
                 ].map((option) => (
                     <label
                         key={option.label}

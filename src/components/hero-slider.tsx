@@ -47,10 +47,18 @@ export const HERO_SLIDES: HeroSlide[] = [
 ];
 
 const QUICK_LINKS = [
-    { label: 'Appartements', href: '/logements?types[]=appartement' },
-    { label: 'Chalets', href: '/logements?types[]=chalet' },
-    { label: 'Longue durée', href: '/logements?rental_duration=long_term' },
-    { label: 'Toutes les annonces', href: '/logements' },
+    {
+        label: 'Locations courte durée',
+        href: '/logements?rental_duration=short_term',
+    },
+    {
+        label: 'Locations classiques',
+        href: '/logements?rental_duration=long_term',
+    },
+    {
+        label: 'Toutes les annonces',
+        href: '/logements',
+    },
 ];
 
 export function HeroSlider({
