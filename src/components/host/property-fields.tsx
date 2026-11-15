@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/card';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/form';
@@ -13,7 +13,6 @@ import {
     FURNISHING_TYPE_DESCRIPTIONS,
     FURNISHING_TYPE_LABELS,
     type FurnishingType,
-    RENTAL_DURATION_OPTIONS,
     type RentalDuration,
 } from '@/lib/domain/enums';
 import { quoteLongTermUpfront } from '@/lib/domain/pricing';
@@ -88,16 +87,19 @@ export function PropertyDetailsFields({
         property?.rental_duration === 'long_term' ? 'long_term' : 'short_term';
     const [rentalDuration, setRentalDuration] =
         useState<RentalDuration>(initialDuration);
+    const [prevPropDuration, setPrevPropDuration] = useState(
+        property?.rental_duration,
+    );
 
-    useEffect(() => {
-        if (property?.rental_duration) {
-            setRentalDuration(
-                property.rental_duration === 'long_term'
-                    ? 'long_term'
-                    : 'short_term',
-            );
-        }
-    }, [property?.rental_duration]);
+    if (property?.rental_duration !== prevPropDuration) {
+        setPrevPropDuration(property?.rental_duration);
+        const next =
+            property?.rental_duration === 'long_term'
+                ? 'long_term'
+                : 'short_term';
+        setRentalDuration(next);
+        onRentalDurationChange?.(next);
+    }
     const [selectedType, setSelectedType] = useState<string>(() => {
         if (property?.property_type_choice === CUSTOM_PROPERTY_TYPE_OPTION) {
             return CUSTOM_PROPERTY_TYPE_OPTION;
@@ -300,6 +302,7 @@ export function LocationFields({
         postal_code?: string | null;
     }) => void;
 }) {
+    void onCityAdded;
     const existingCities = countries
         ? Array.from(
               new Set(

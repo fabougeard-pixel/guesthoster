@@ -616,7 +616,10 @@ export function BookingShowClient({
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xl font-bold tracking-tight lowercase">stripe</span>
                                                     <span className="text-xs font-medium text-indigo-100">
-                                                        ({formatPrice(booking.total_price)})
+                                                        {booking.upfront_amount &&
+                                                            booking.upfront_amount < booking.total_price
+                                                            ? `(Acompte ${formatPrice(booking.upfront_amount)})`
+                                                            : `(${formatPrice(booking.total_price)})`}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
@@ -951,11 +954,34 @@ export function BookingShowClient({
                                     {copiedField === 'Référence' ? 'Copié !' : 'Copier'}
                                 </button>
                             </div>
-                            <div className="flex justify-between pt-1">
-                                <span className="text-xs text-zinc-500">Montant total</span>
-                                <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
-                                    {formatPrice(booking.total_price)}
-                                </span>
+                            <div className="flex flex-col gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-800">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-zinc-500">
+                                        {booking.upfront_amount &&
+                                            booking.upfront_amount < booking.total_price
+                                            ? `Acompte à virer (${booking.deposit_percentage ?? 60} %)`
+                                            : 'Montant à virer'}
+                                    </span>
+                                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                                        {formatPrice(
+                                            booking.upfront_amount ?? booking.total_price,
+                                        )}
+                                    </span>
+                                </div>
+                                {booking.remaining_balance &&
+                                    booking.remaining_balance > 0 && (
+                                        <div className="flex justify-between items-center text-xs text-zinc-500 dark:text-zinc-400">
+                                            <span>Solde restant dû à l’arrivée</span>
+                                            <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                                                {formatPrice(booking.remaining_balance)}
+                                            </span>
+                                        </div>
+                                    )}
+                                {booking.deposit_description && (
+                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                                        {booking.deposit_description}
+                                    </p>
+                                )}
                             </div>
                         </div>
 

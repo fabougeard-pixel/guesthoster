@@ -203,6 +203,7 @@ export function AdminSupportTicketClient({
                                             <span className="font-semibold text-primary-700 dark:text-primary-400">
                                                 Vous (Guest Hoster Support)
                                             </span>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img
                                                 src="/images/logos/logo-icon.svg"
                                                 alt="Guest Hoster"

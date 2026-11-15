@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
+import { calculateSeasonalPaymentSchedule } from '@/lib/domain/pricing';
 import { env } from '@/lib/env';
-import { formatLongDateFr } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 
 export type PaidCheckout = {
     sessionId: string;
@@ -63,12 +64,25 @@ export async function createCheckoutSession({
     const isLongTerm = booking.rentalDuration === 'long_term';
     const months = booking.advanceRentMonths ?? 1;
 
+    const schedule = !isLongTerm
+        ? calculateSeasonalPaymentSchedule(booking.nights, booking.totalPrice)
+        : null;
+
+    const chargedAmount = schedule
+        ? schedule.upfront_amount
+        : booking.totalPrice;
+
     const productName = isLongTerm
         ? `Location longue durée · ${booking.propertyTitle}`
-        : `Séjour · ${booking.propertyTitle}`;
+        : schedule && schedule.percentage < 100
+          ? `Acompte de réservation (${schedule.percentage} %) · ${booking.propertyTitle}`
+          : `Séjour · ${booking.propertyTitle}`;
+
     const productDescription = isLongTerm
         ? `Entrée le ${booking.checkIn} · ${months} mois de loyer${booking.chargesIncluded ? ' (charges comprises)' : ' + charges'} + caution · référence ${booking.reference}`
-        : `Du ${formatLongDateFr(booking.checkIn)} au ${formatLongDateFr(booking.checkOut)} · ${booking.nights} nuit(s) · réservation ${booking.reference}`;
+        : schedule && schedule.percentage < 100
+          ? `Acompte de ${formatPrice(schedule.upfront_amount)} réglé en ligne · Solde de ${formatPrice(schedule.remaining_balance)} à régler à votre arrivée · ${booking.nights} nuit(s) · réf. ${booking.reference}`
+          : `Du ${booking.checkIn} au ${booking.checkOut} · ${booking.nights} nuit(s) · réservation ${booking.reference}`;
 
     const session = await stripe.checkout.sessions.create(
         {
@@ -85,7 +99,7 @@ export async function createCheckoutSession({
                     quantity: 1,
                     price_data: {
                         currency: env.stripeCurrency,
-                        unit_amount: booking.totalPrice,
+                        unit_amount: chargedAmount,
                         product_data: {
                             name: productName,
                             description: productDescription,

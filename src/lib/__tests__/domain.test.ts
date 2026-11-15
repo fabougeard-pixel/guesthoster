@@ -14,7 +14,11 @@ import {
     SEO_SETTINGS_KEY,
     formatLeaseDuration,
 } from '@/lib/domain/platform-settings';
-import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
+import {
+    calculateSeasonalPaymentSchedule,
+    quoteLongTermUpfront,
+    quotePrice,
+} from '@/lib/domain/pricing';
 import {
     calculateRefundAmount,
     describeRefundPolicy,
@@ -46,6 +50,13 @@ describe('Pricing calculator', () => {
             lodging_total: 37_500,
             service_fee: 4_150,
             total_price: 45_650,
+            deposit_ratio: 0.6,
+            deposit_percentage: 60,
+            upfront_amount: 27_390,
+            remaining_balance: 18_260,
+            deposit_rule_label: '2 à 6 nuits : acompte de 60 %',
+            deposit_description:
+                'Location de 2 à 6 nuits : versement d’un acompte de 60 % du montant total à la réservation. Le solde sera réglé à l’arrivée.',
         });
     });
 
@@ -60,6 +71,43 @@ describe('Pricing calculator', () => {
         expect(quote.nights).toBe(0);
         expect(quote.lodging_total).toBe(0);
         expect(quote.total_price).toBe(0);
+    });
+
+    it('calculates seasonal payment ratios: 100% for 1 night, 60% for 2-6 nights, 50% for 7+ nights', () => {
+        // 1 nuit = 100%
+        const oneNight = calculateSeasonalPaymentSchedule(1, 10_000);
+        expect(oneNight.percentage).toBe(100);
+        expect(oneNight.ratio).toBe(1.0);
+        expect(oneNight.upfront_amount).toBe(10_000);
+        expect(oneNight.remaining_balance).toBe(0);
+
+        // 2 nuits = 60% acompte, 40% solde
+        const twoNights = calculateSeasonalPaymentSchedule(2, 20_000);
+        expect(twoNights.percentage).toBe(60);
+        expect(twoNights.ratio).toBe(0.6);
+        expect(twoNights.upfront_amount).toBe(12_000);
+        expect(twoNights.remaining_balance).toBe(8_000);
+
+        // 6 nuits = 60% acompte, 40% solde
+        const sixNights = calculateSeasonalPaymentSchedule(6, 60_000);
+        expect(sixNights.percentage).toBe(60);
+        expect(sixNights.ratio).toBe(0.6);
+        expect(sixNights.upfront_amount).toBe(36_000);
+        expect(sixNights.remaining_balance).toBe(24_000);
+
+        // 7 nuits = 50% acompte, 50% solde
+        const sevenNights = calculateSeasonalPaymentSchedule(7, 70_000);
+        expect(sevenNights.percentage).toBe(50);
+        expect(sevenNights.ratio).toBe(0.5);
+        expect(sevenNights.upfront_amount).toBe(35_000);
+        expect(sevenNights.remaining_balance).toBe(35_000);
+
+        // 14 nuits = 50% acompte, 50% solde
+        const fourteenNights = calculateSeasonalPaymentSchedule(14, 100_000);
+        expect(fourteenNights.percentage).toBe(50);
+        expect(fourteenNights.ratio).toBe(0.5);
+        expect(fourteenNights.upfront_amount).toBe(50_000);
+        expect(fourteenNights.remaining_balance).toBe(50_000);
     });
 
     it('computes long-term upfront payment with charges included vs excluded and configurable advance months', () => {
@@ -81,6 +129,13 @@ describe('Pricing calculator', () => {
             security_deposit: 85_000,
             service_fee: 0,
             total_price: 170_000,
+            upfront_amount: 170_000,
+            remaining_balance: 0,
+            deposit_percentage: 100,
+            deposit_ratio: 1.0,
+            deposit_rule_label: 'Paiement à l’entrée (100 %)',
+            deposit_description:
+                'Total à régler à l’entrée (loyer d’avance + caution)',
         });
 
         const excludedMultiMonths = quoteLongTermUpfront({
@@ -101,6 +156,13 @@ describe('Pricing calculator', () => {
             security_deposit: 120_000,
             service_fee: 0,
             total_price: 316_000,
+            upfront_amount: 316_000,
+            remaining_balance: 0,
+            deposit_percentage: 100,
+            deposit_ratio: 1.0,
+            deposit_rule_label: 'Paiement à l’entrée (100 %)',
+            deposit_description:
+                'Total à régler à l’entrée (loyer d’avance + caution)',
         });
     });
 });

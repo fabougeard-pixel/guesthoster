@@ -1,4 +1,5 @@
 import type { RentalDuration } from '@/lib/domain/enums';
+import { calculateSeasonalPaymentSchedule } from '@/lib/domain/pricing';
 import { formatPrice, plural } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +15,10 @@ export type PriceLines = {
     charges_included?: boolean;
     advance_rent_months?: number;
     total_price: number;
+    upfront_amount?: number;
+    remaining_balance?: number;
+    deposit_percentage?: number;
+    deposit_description?: string;
 };
 
 export function PriceBreakdown({
@@ -104,6 +109,63 @@ export function PriceBreakdown({
                 <dt>{totalLabel}</dt>
                 <dd>{formatPrice(price.total_price)}</dd>
             </div>
+            {nights > 0 && (
+                <div className="mt-2 rounded-2xl border border-primary-200/80 bg-primary-50/60 p-3 text-xs dark:border-primary-900/60 dark:bg-primary-950/30">
+                    {(() => {
+                        const schedule =
+                            price.deposit_percentage !== undefined &&
+                            price.upfront_amount !== undefined &&
+                            price.remaining_balance !== undefined
+                                ? {
+                                      percentage: price.deposit_percentage,
+                                      upfront_amount: price.upfront_amount,
+                                      remaining_balance: price.remaining_balance,
+                                      description:
+                                          price.deposit_description ??
+                                          (price.deposit_percentage === 100
+                                              ? 'Location pour 1 nuit : 100 % à la réservation.'
+                                              : `Acompte de ${price.deposit_percentage} % à la réservation, solde à l’arrivée.`),
+                                  }
+                                : calculateSeasonalPaymentSchedule(
+                                      nights,
+                                      price.total_price,
+                                  );
+
+                        return (
+                            <>
+                                <div className="flex items-center justify-between font-semibold text-primary-950 dark:text-primary-100">
+                                    <span>
+                                        {schedule.percentage === 100
+                                            ? 'Paiement à la réservation (100 %)'
+                                            : `Acompte à payer aujourd’hui (${schedule.percentage} %)`}
+                                    </span>
+                                    <span className="text-sm font-bold text-primary-700 dark:text-primary-300">
+                                        {formatPrice(schedule.upfront_amount)}
+                                    </span>
+                                </div>
+
+                                {schedule.remaining_balance > 0 && (
+                                    <div className="mt-1 flex items-center justify-between text-zinc-600 dark:text-zinc-400">
+                                        <span>
+                                            Solde à régler à l’arrivée (
+                                            {100 - schedule.percentage} %)
+                                        </span>
+                                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                            {formatPrice(
+                                                schedule.remaining_balance,
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <p className="mt-2 border-t border-primary-200/60 pt-1.5 text-[11px] text-zinc-500 dark:border-primary-900/40 dark:text-zinc-400">
+                                    {schedule.description}
+                                </p>
+                            </>
+                        );
+                    })()}
+                </div>
+            )}
         </dl>
     );
 }

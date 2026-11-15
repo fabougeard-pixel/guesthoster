@@ -29,15 +29,31 @@ function formatMessageTime(iso: string | null) {
 export function SiteSupportChatWidget() {
     const { user } = useAppState();
     const [isOpen, setIsOpen] = useState(false);
-    const [activeRef, setActiveRef] = useState<string | null>(null);
+    const [activeRef, setActiveRef] = useState<string | null>(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            return window.sessionStorage.getItem(STORAGE_KEY);
+        } catch {
+            return null;
+        }
+    });
     const [ticket, setTicket] = useState<SupportTicketDetail | null>(null);
     const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
-    const [loadingTicket, setLoadingTicket] = useState(false);
+    const loadingTicket = Boolean(
+        activeRef && isOpen && (!ticket || ticket.reference !== activeRef),
+    );
 
     // Form states for new ticket
     const [selectedCategory, setSelectedCategory] = useState<SupportCategory>("Demandes d'information");
     const [name, setName] = useState(user?.name ?? '');
     const [email, setEmail] = useState(user?.email ?? '');
+    const [prevUserId, setPrevUserId] = useState(user?.id);
+
+    if (user && user.id !== prevUserId) {
+        setPrevUserId(user.id);
+        setName(user.name);
+        setEmail(user.email);
+    }
     const [phone, setPhone] = useState('');
     const [initialMessage, setInitialMessage] = useState('');
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -48,36 +64,13 @@ export function SiteSupportChatWidget() {
     const [isSending, setIsSending] = useState(false);
     const endRef = useRef<HTMLDivElement>(null);
 
-    // Synchroniser avec l'utilisateur connecté
-    useEffect(() => {
-        if (user) {
-            if (!name) setName(user.name);
-            if (!email) setEmail(user.email);
-        }
-    }, [user, name, email]);
-
-    // Restaurer le ticket actif depuis le stockage local
-    useEffect(() => {
-        try {
-            const saved = window.sessionStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                setActiveRef(saved);
-            }
-        } catch {
-            // Ignore storage access error
-        }
-    }, []);
-
     // Charger les messages du ticket actif
     useEffect(() => {
         if (!activeRef || !isOpen) return;
 
         let isMounted = true;
-        setLoadingTicket(true);
-
         void getSupportTicketAction(activeRef).then((res) => {
             if (!isMounted) return;
-            setLoadingTicket(false);
             if (res.ok && res.data) {
                 setTicket(res.data.ticket);
                 setMessages(res.data.ticket.messages);
@@ -195,6 +188,7 @@ export function SiteSupportChatWidget() {
                     >
                         <div className="relative flex size-7 shrink-0 items-center justify-center rounded-full bg-white/20">
                             {/* Logo Icon */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src="/images/logos/logo-icon.svg"
                                 alt="Support"
@@ -226,6 +220,7 @@ export function SiteSupportChatWidget() {
                     <header className="flex items-center justify-between border-b border-zinc-100 bg-gradient-to-r from-primary-600 via-primary-700 to-purple-800 px-4 py-3.5 text-white">
                         <div className="flex items-center gap-3">
                             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white p-1 ring-2 ring-white/30 shadow-xs">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src="/images/logos/logo-icon.svg"
                                     alt="Guest Hoster"
@@ -349,6 +344,18 @@ export function SiteSupportChatWidget() {
                                                 />
                                             </div>
                                         </div>
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-0.5">
+                                                Numéro de téléphone (optionnel)
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                value={phone}
+                                                onChange={(e) => setPhone(e.target.value)}
+                                                placeholder="+33 6 12 34 56 78"
+                                                className="w-full rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                                            />
+                                        </div>
                                     </div>
                                 )}
 
@@ -416,6 +423,7 @@ export function SiteSupportChatWidget() {
                                             >
                                                 <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-zinc-400">
                                                     {!isUser && (
+                                                        /* eslint-disable-next-line @next/next/no-img-element */
                                                         <img
                                                             src="/images/logos/logo-icon.svg"
                                                             alt="Guest Hoster"

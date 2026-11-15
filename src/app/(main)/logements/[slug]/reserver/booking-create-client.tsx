@@ -355,15 +355,18 @@ export function BookingCreateClient({
                             <p>
                                 {isLongTerm
                                     ? `Le logement est bloqué dès maintenant. Vous disposerez de ${paymentDelay} pour régler en ligne (${quote.advance_rent_months ?? 1} mois de loyer + caution).`
-                                    : `Vos dates sont bloquées dès maintenant. Vous disposerez de ${paymentDelay} pour régler le séjour, sans quoi la réservation expirera.`}
+                                    : `Vos dates sont bloquées dès maintenant. Vous disposerez de ${paymentDelay} pour régler l'acompte requis (${quote.deposit_percentage ?? (nights === 1 ? 100 : nights <= 6 ? 60 : 50)} %) en ligne pour confirmer votre réservation. Le solde sera réglé à votre arrivée.`}
                             </p>
                         ) : (
                             <p>
                                 {isLongTerm
                                     ? `Le propriétaire a ${responseDelay} heures pour valider votre demande. Rien n’est débité avant son accord ; vous aurez ensuite ${paymentDelay} pour payer en ligne.`
-                                    : `L’hôte a ${responseDelay} heures pour répondre. Rien n’est débité avant son accord ; vous aurez ensuite ${paymentDelay} pour payer.`}
+                                    : `L’hôte a ${responseDelay} heures pour répondre. Rien n’est débité avant son accord ; vous aurez ensuite ${paymentDelay} pour régler l'acompte de réservation.`}
                             </p>
                         )}
+                        <p className="font-medium text-zinc-700 dark:text-zinc-300">
+                            Toute réservation sera confirmée après réception du paiement correspondant.
+                        </p>
                         <p>{refundPolicy}</p>
                     </div>
 

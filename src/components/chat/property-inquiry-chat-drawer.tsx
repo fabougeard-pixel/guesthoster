@@ -196,6 +196,7 @@ export function PropertyInquiryChatDrawer({
                     <div className="flex items-center gap-3">
                         {isEscalated ? (
                             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white p-1 ring-2 ring-primary-500 shadow-xs dark:bg-zinc-800">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src="/images/logos/logo-icon.svg"
                                     alt="Guest Hoster"
@@ -343,6 +344,7 @@ export function PropertyInquiryChatDrawer({
                                         >
                                             <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
                                                 {isSupportMsg && (
+                                                    /* eslint-disable-next-line @next/next/no-img-element */
                                                     <img
                                                         src="/images/logos/logo-icon.svg"
                                                         alt="Guest Hoster"

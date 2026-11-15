@@ -8,7 +8,11 @@ import {
     canBookingTransitionTo,
     type RentalDuration,
 } from '@/lib/domain/enums';
-import { quoteLongTermUpfront, quotePrice } from '@/lib/domain/pricing';
+import {
+    calculateSeasonalPaymentSchedule,
+    quoteLongTermUpfront,
+    quotePrice,
+} from '@/lib/domain/pricing';
 import {
     DomainError,
     isPropertyAvailableBetween,
@@ -102,10 +106,10 @@ export function serializeBooking(
     const cover = record.property.images[0];
     const coverUrl = cover
         ? resolveThumbnailUrl(
-              cover.thumbnailPath,
-              cover.path,
-              cover.cloudinaryPublicId,
-          )
+            cover.thumbnailPath,
+            cover.path,
+            cover.cloudinaryPublicId,
+        )
         : null;
 
     const rawAddress = [
@@ -179,6 +183,26 @@ export function serializeBooking(
         charges_included: record.chargesIncluded,
         advance_rent_months: record.advanceRentMonths,
         total_price: record.totalPrice,
+        upfront_amount:
+            rentalDuration === 'short_term'
+                ? calculateSeasonalPaymentSchedule(record.nights, record.totalPrice)
+                    .upfront_amount
+                : record.totalPrice,
+        remaining_balance:
+            rentalDuration === 'short_term'
+                ? calculateSeasonalPaymentSchedule(record.nights, record.totalPrice)
+                    .remaining_balance
+                : 0,
+        deposit_percentage:
+            rentalDuration === 'short_term'
+                ? calculateSeasonalPaymentSchedule(record.nights, record.totalPrice)
+                    .percentage
+                : 100,
+        deposit_description:
+            rentalDuration === 'short_term'
+                ? calculateSeasonalPaymentSchedule(record.nights, record.totalPrice)
+                    .description
+                : undefined,
         special_requests: record.specialRequests,
         cancellation_reason: record.cancellationReason,
         expires_at: record.expiresAt ? record.expiresAt.toISOString() : null,
@@ -322,22 +346,22 @@ export async function createBookingForProperty(input: {
 
         const longTermQuote = isLongTerm
             ? quoteLongTermUpfront({
-                  monthlyRent: property.monthlyRent,
-                  securityDeposit: property.securityDeposit,
-                  monthlyCharges: property.monthlyCharges,
-                  chargesIncluded: property.chargesIncluded,
-                  advanceRentMonths: property.advanceRentMonths,
-              })
+                monthlyRent: property.monthlyRent,
+                securityDeposit: property.securityDeposit,
+                monthlyCharges: property.monthlyCharges,
+                chargesIncluded: property.chargesIncluded,
+                advanceRentMonths: property.advanceRentMonths,
+            })
             : null;
 
         const shortTermQuote = !isLongTerm
             ? quotePrice({
-                  pricePerNight: property.pricePerNight,
-                  cleaningFee: property.cleaningFee,
-                  checkIn: input.checkInIso,
-                  checkOut: input.checkOutIso,
-                  serviceFeeRate: env.booking.serviceFeeRate,
-              })
+                pricePerNight: property.pricePerNight,
+                cleaningFee: property.cleaningFee,
+                checkIn: input.checkInIso,
+                checkOut: input.checkOutIso,
+                serviceFeeRate: env.booking.serviceFeeRate,
+            })
             : null;
 
         const mode = property.bookingMode as BookingMode;

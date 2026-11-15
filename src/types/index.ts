@@ -187,6 +187,10 @@ export type Booking = {
     charges_included: boolean;
     advance_rent_months: number;
     total_price: number;
+    upfront_amount?: number;
+    remaining_balance?: number;
+    deposit_percentage?: number;
+    deposit_description?: string;
     special_requests: string | null;
     cancellation_reason: string | null;
     expires_at: string | null;
