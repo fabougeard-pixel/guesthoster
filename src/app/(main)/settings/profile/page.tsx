@@ -15,6 +15,7 @@ export default async function ProfileSettingsPage() {
         <ProfileClient
             name={user.name}
             email={user.email}
+            avatarUrl={user.avatarUrl ?? null}
             role={user.role}
             accountType={
                 (user.accountType as 'individual' | 'company') ?? 'individual'

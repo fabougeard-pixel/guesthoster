@@ -13,6 +13,7 @@ import {
     becomeHostAction,
     deleteAccountAction,
     updateProfileAction,
+    uploadAvatarAction,
 } from '@/lib/actions/settings';
 import type { FieldErrors } from '@/lib/actions/types';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 export function ProfileClient({
     name,
     email,
+    avatarUrl = null,
     role = 'client',
     accountType = 'individual',
     companyName = '',
@@ -33,6 +35,7 @@ export function ProfileClient({
 }: {
     name: string;
     email: string;
+    avatarUrl?: string | null;
     role?: string;
     accountType?: 'individual' | 'company';
     companyName?: string;
@@ -45,6 +48,8 @@ export function ProfileClient({
     canBecomeHost: boolean;
 }) {
     const { applyResult } = useActionFeedback();
+    const [avatar, setAvatar] = useState<string | null>(avatarUrl);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileErrors, setProfileErrors] = useState<FieldErrors>({});
     const [currentAccountType, setCurrentAccountType] = useState<
@@ -58,6 +63,21 @@ export function ProfileClient({
 
     const isHostOrAdmin = role === 'host' || role === 'admin';
 
+    async function handleAvatarUpload(file: File) {
+        setUploadingAvatar(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await uploadAvatarAction(formData);
+            if (res.ok && res.data?.url) {
+                setAvatar(res.data.url);
+            }
+            applyResult(res);
+        } finally {
+            setUploadingAvatar(false);
+        }
+    }
+
     async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setSavingProfile(true);
@@ -68,6 +88,7 @@ export function ProfileClient({
             const res = await updateProfileAction({
                 name: String(fd.get('name') ?? ''),
                 email: String(fd.get('email') ?? ''),
+                avatar_url: avatar,
                 account_type: isHostOrAdmin ? currentAccountType : 'individual',
                 company_name: String(fd.get('company_name') ?? ''),
                 company_registration: String(
@@ -125,6 +146,56 @@ export function ProfileClient({
                     onSubmit={(event) => void handleProfileSubmit(event)}
                     className="flex flex-col gap-5"
                 >
+                    {/* Photo de profil */}
+                    <div className="flex flex-col sm:flex-row items-center gap-5 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                        <div className="relative flex size-20 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-2xl font-black text-secondary-800 shadow-inner ring-4 ring-white dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-800 overflow-hidden">
+                            {avatar ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={avatar}
+                                    alt={name}
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                <span>{name.slice(0, 1).toUpperCase()}</span>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-2 flex-1 text-center sm:text-left">
+                            <div>
+                                <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                    Photo de profil
+                                </h4>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    Visible sur vos annonces, vos échanges et votre profil public (JPEG, PNG ou WebP, max 5 Mo).
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 shadow-2xs transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700">
+                                    <span>{uploadingAvatar ? 'Téléversement...' : 'Changer de photo'}</span>
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        className="hidden"
+                                        disabled={uploadingAvatar}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) void handleAvatarUpload(file);
+                                        }}
+                                    />
+                                </label>
+                                {avatar && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setAvatar(null)}
+                                        className="rounded-xl px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                    >
+                                        Supprimer
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                     <Field
                         label="Nom complet"
                         htmlFor="name"

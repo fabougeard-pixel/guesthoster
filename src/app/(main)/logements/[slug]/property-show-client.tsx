@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import type { StaySelection } from '@/components/availability-calendar';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
@@ -8,12 +9,15 @@ import { Button, buttonClasses } from '@/components/button';
 import { Badge, Card, Container } from '@/components/card';
 import { PropertyInquiryChatDrawer } from '@/components/chat/property-inquiry-chat-drawer';
 import { FavoriteButton } from '@/components/favorite-button';
-import { Alert, Label } from '@/components/form';
+import { Alert, Field, Input, Label, Select, Textarea } from '@/components/form';
+import { Modal } from '@/components/modal';
 import { PriceBreakdown } from '@/components/price-breakdown';
 import { PropertyLocationMap } from '@/components/property-location-map';
+import { useAppState } from '@/components/providers';
 import { ReviewCard } from '@/components/review-card';
 import { RatingSummary, Stars } from '@/components/star-rating';
 import { VisitBookingModal } from '@/components/visit-booking-modal';
+import { reportPropertyAction } from '@/lib/actions/report';
 import {
     formatLeaseDuration,
     type PaymentMethodKey,
@@ -906,11 +910,42 @@ export function PropertyShowClient({
     initialGuests: number;
     isViewerAuthenticated?: boolean;
 }) {
+    const { pushToast } = useAppState();
     const [stay, setStay] = useState<StaySelection>(initialStay);
     const [guests, setGuests] = useState(
         initialGuests || property.max_guests || 1,
     );
     const [chatOpen, setChatOpen] = useState(false);
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [reporting, setReporting] = useState(false);
+    const [reportReason, setReportReason] = useState<
+        'fake' | 'inaccurate' | 'scam' | 'inappropriate' | 'security' | 'other'
+    >('inaccurate');
+
+    async function handleReportSubmit(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        setReporting(true);
+        const fd = new FormData(e.currentTarget);
+        const details = String(fd.get('details') ?? '').trim();
+        const contactEmail = String(fd.get('contactEmail') ?? '').trim();
+
+        try {
+            const res = await reportPropertyAction({
+                propertySlug: property.slug,
+                reason: reportReason,
+                details,
+                contactEmail: contactEmail || undefined,
+            });
+            if (res.ok && res.toast) {
+                pushToast(res.toast);
+                setReportModalOpen(false);
+            } else if (!res.ok && res.error) {
+                pushToast({ type: 'error', message: res.error });
+            }
+        } finally {
+            setReporting(false);
+        }
+    }
     const isLongTerm = property.rental_duration === 'long_term';
     const longTermQuote = isLongTerm
         ? quoteLongTermUpfront({
@@ -1540,8 +1575,115 @@ export function PropertyShowClient({
                         }
                         onOpenChat={() => setChatOpen(true)}
                     />
+
+                    {/* Signaler cette annonce sous le widget */}
+                    <div className="mt-4 flex items-center justify-center">
+                        <button
+                            type="button"
+                            onClick={() => setReportModalOpen(true)}
+                            className="group inline-flex items-center gap-2 text-xs font-medium text-zinc-500 transition hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
+                        >
+                            <svg
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="size-4 text-zinc-400 transition group-hover:text-red-500"
+                                aria-hidden="true"
+                            >
+                                <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.331a15.42 15.42 0 0 1 4.793-.418c.953.076 1.905.244 2.836.502l.942.261a8.42 8.42 0 0 0 2.272.316c.866 0 1.72-.11 2.544-.326A.75.75 0 0 0 19 12.5V4.286a.75.75 0 0 0-.944-.728 15.54 15.54 0 0 1-4.22.42 8.358 8.358 0 0 0-2.273-.315 16.92 16.92 0 0 0-2.836-.502 16.92 16.92 0 0 0-4.793.418L3.5 3.86V2.75Z" />
+                            </svg>
+                            <span className="underline underline-offset-4">Signaler cette annonce</span>
+                        </button>
+                    </div>
                 </aside>
             </div>
+
+            {/* Modale Signaler cette annonce */}
+            <Modal
+                open={reportModalOpen}
+                onClose={() => setReportModalOpen(false)}
+                title="Signaler cette annonce"
+                className="max-w-lg"
+            >
+                <form
+                    onSubmit={(e) => void handleReportSubmit(e)}
+                    className="flex flex-col gap-4 text-left"
+                >
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        Aidez-nous à préserver la sécurité de la communauté GuestHoster. Votre signalement sera examiné par notre équipe de modération en toute confidentialité.
+                    </p>
+
+                    <Field label="Motif du signalement" htmlFor="report-reason">
+                        <Select
+                            id="report-reason"
+                            name="reason"
+                            value={reportReason}
+                            onChange={(e) =>
+                                setReportReason(
+                                    e.target.value as
+                                        | 'fake'
+                                        | 'inaccurate'
+                                        | 'scam'
+                                        | 'inappropriate'
+                                        | 'security'
+                                        | 'other',
+                                )
+                            }
+                        >
+                            <option value="inaccurate">Informations, photos ou adresse inexactes</option>
+                            <option value="fake">Logement frauduleux ou annonce fictive</option>
+                            <option value="scam">L’hôte demande un paiement en dehors de GuestHoster</option>
+                            <option value="inappropriate">Contenu inapproprié, diffamatoire ou offensant</option>
+                            <option value="security">Problème grave de sécurité ou d’insalubrité</option>
+                            <option value="other">Autre problème</option>
+                        </Select>
+                    </Field>
+
+                    <Field
+                        label="Détails complémentaires (facultatif)"
+                        htmlFor="report-details"
+                        hint="Précisez tout élément utile pour nos équipes de vérification."
+                    >
+                        <Textarea
+                            id="report-details"
+                            name="details"
+                            rows={3}
+                            placeholder="Expliquez brièvement ce qui motive votre signalement..."
+                        />
+                    </Field>
+
+                    {!isViewerAuthenticated && (
+                        <Field
+                            label="Votre adresse e-mail (facultatif)"
+                            htmlFor="report-email"
+                            hint="Pour vous tenir informé du suivi de votre signalement."
+                        >
+                            <Input
+                                id="report-email"
+                                name="contactEmail"
+                                type="email"
+                                placeholder="vous@exemple.com"
+                            />
+                        </Field>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setReportModalOpen(false)}
+                        >
+                            Annuler
+                        </Button>
+                        <Button
+                            type="submit"
+                            loading={reporting}
+                            className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+                        >
+                            Envoyer le signalement
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
 
             <PropertyInquiryChatDrawer
                 open={chatOpen}

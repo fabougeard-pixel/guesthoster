@@ -1,6 +1,8 @@
 'use server';
 
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { hashPassword } from '@/lib/auth/password';
@@ -566,11 +568,11 @@ export async function deletePropertyTypeAction(
     };
 }
 
-const createManagedOwnerSchema = z.object({
+const managedOwnerSchema = z.object({
     name: z
         .string()
         .trim()
-        .min(2, 'Le nom doit contenir au moins 2 caractères.')
+        .min(2, 'Le nom doit comporter au moins 2 caractères.')
         .max(120),
     email: z
         .string()
@@ -585,26 +587,89 @@ const createManagedOwnerSchema = z.object({
         .optional()
         .or(z.literal('')),
     hostType: z.string().trim().max(80).optional().or(z.literal('')),
+    accountType: z.enum(['individual', 'company']).default('individual'),
+    companyName: z.string().trim().max(120).optional().or(z.literal('')),
+    companyRegistration: z.string().trim().max(60).optional().or(z.literal('')),
+    profession: z.string().trim().max(120).optional().or(z.literal('')),
+    bio: z.string().trim().max(2000).optional().or(z.literal('')),
+    spokenLanguages: z.string().trim().max(255).optional().or(z.literal('')),
+    responseTime: z.string().trim().max(50).optional().or(z.literal('')),
+    responseRate: z.coerce.number().min(0).max(100).optional().nullable(),
+    avatarUrl: z.string().trim().max(1000).optional().or(z.literal('')),
 });
+
+export async function uploadOwnerAvatarAction(
+    formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+    const admin = await requireAdminActor();
+    if (!admin) {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+        return { ok: false, error: 'Fichier invalide.' };
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        return { ok: false, error: 'Format non supporté (JPEG, PNG, WebP requis).' };
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        return { ok: false, error: 'La taille maximale autorisée est de 5 Mo.' };
+    }
+
+    const targetId = formData.get('ownerId') ? String(formData.get('ownerId')) : 'admin';
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const fileName = `avatar-owner-${targetId}-${Date.now()}.${ext}`;
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+
+    try {
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+        const arrayBuffer = await file.arrayBuffer();
+        await fs.writeFile(filePath, Buffer.from(arrayBuffer));
+    } catch (err) {
+        console.error('Erreur téléversement avatar propriétaire :', err);
+        return { ok: false, error: 'Erreur lors de l’enregistrement de l’avatar.' };
+    }
+
+    const url = `/uploads/avatars/${fileName}`;
+    return { ok: true, data: { url } };
+}
 
 export async function createManagedOwnerAction(input: {
     name: string;
     email: string;
     password?: string | null;
     hostType?: string | null;
+    accountType?: 'individual' | 'company';
+    companyName?: string | null;
+    companyRegistration?: string | null;
+    profession?: string | null;
+    bio?: string | null;
+    spokenLanguages?: string | null;
+    responseTime?: string | null;
+    responseRate?: number | null;
+    avatarUrl?: string | null;
 }): Promise<ActionResult<{ ownerId: number }>> {
     const admin = await requireAdminActor();
     if (!admin) {
         return { ok: false, error: 'Accès administrateur requis.' };
     }
 
-    const parsed = createManagedOwnerSchema.safeParse(input);
+    const parsed = managedOwnerSchema.safeParse(input);
     if (!parsed.success) {
         return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
     }
 
     const email = parsed.data.email;
     const hostType = parsed.data.hostType?.trim() || 'Hôte Standard';
+    const isCompany = parsed.data.accountType === 'company';
+    const companyName = isCompany ? parsed.data.companyName?.trim() || parsed.data.name : null;
+    const companyRegistration = isCompany ? parsed.data.companyRegistration?.trim() || null : null;
+    const avatarUrl = parsed.data.avatarUrl?.trim() || null;
+
     const existing = await prisma.user.findUnique({
         where: { email },
         select: { id: true, role: true, suspendedAt: true },
@@ -620,7 +685,19 @@ export async function createManagedOwnerAction(input: {
         if (existing.role !== 'host') {
             await prisma.user.update({
                 where: { id: existing.id },
-                data: { role: 'host', hostType },
+                data: {
+                    role: 'host',
+                    hostType,
+                    accountType: parsed.data.accountType,
+                    companyName,
+                    companyRegistration,
+                    profession: parsed.data.profession?.trim() || null,
+                    bio: parsed.data.bio?.trim() || null,
+                    spokenLanguages: parsed.data.spokenLanguages?.trim() || 'Français',
+                    responseTime: parsed.data.responseTime?.trim() || "dans l'heure",
+                    responseRate: parsed.data.responseRate ?? 100,
+                    ...(avatarUrl ? { avatarUrl } : {}),
+                },
             });
             revalidatePath('/admin/proprietaires');
             revalidatePath('/admin/logements/nouveau');
@@ -652,6 +729,15 @@ export async function createManagedOwnerAction(input: {
             password: passwordHash,
             role: 'host',
             hostType,
+            accountType: parsed.data.accountType,
+            companyName,
+            companyRegistration,
+            profession: parsed.data.profession?.trim() || null,
+            bio: parsed.data.bio?.trim() || null,
+            spokenLanguages: parsed.data.spokenLanguages?.trim() || 'Français',
+            responseTime: parsed.data.responseTime?.trim() || "dans l'heure",
+            responseRate: parsed.data.responseRate ?? 100,
+            avatarUrl,
             emailVerifiedAt: new Date(),
         },
         select: { id: true },
@@ -667,6 +753,102 @@ export async function createManagedOwnerAction(input: {
         toast: {
             type: 'success',
             message: 'Nouveau propriétaire enregistré avec succès.',
+        },
+    };
+}
+
+export async function updateManagedOwnerAction(input: {
+    id: number;
+    name: string;
+    email: string;
+    password?: string | null;
+    hostType?: string | null;
+    accountType?: 'individual' | 'company';
+    companyName?: string | null;
+    companyRegistration?: string | null;
+    profession?: string | null;
+    bio?: string | null;
+    spokenLanguages?: string | null;
+    responseTime?: string | null;
+    responseRate?: number | null;
+    avatarUrl?: string | null;
+}): Promise<ActionResult> {
+    const admin = await requireAdminActor();
+    if (!admin) {
+        return { ok: false, error: 'Accès administrateur requis.' };
+    }
+
+    const parsed = managedOwnerSchema.safeParse(input);
+    if (!parsed.success) {
+        return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
+    }
+
+    const owner = await prisma.user.findUnique({
+        where: { id: input.id },
+        select: { id: true, email: true },
+    });
+
+    if (!owner) {
+        return { ok: false, error: 'Propriétaire introuvable.' };
+    }
+
+    const email = parsed.data.email;
+    if (email !== owner.email) {
+        const collision = await prisma.user.findFirst({
+            where: { email, id: { not: owner.id } },
+            select: { id: true },
+        });
+        if (collision) {
+            return {
+                ok: false,
+                fieldErrors: {
+                    email: 'Cette adresse e-mail est déjà utilisée par un autre compte.',
+                },
+            };
+        }
+    }
+
+    const isCompany = parsed.data.accountType === 'company';
+    const companyName = isCompany ? parsed.data.companyName?.trim() || parsed.data.name : null;
+    const companyRegistration = isCompany ? parsed.data.companyRegistration?.trim() || null : null;
+    const avatarUrl = parsed.data.avatarUrl !== undefined ? parsed.data.avatarUrl?.trim() || null : undefined;
+
+    const dataToUpdate: Record<string, unknown> = {
+        name: parsed.data.name,
+        email,
+        hostType: parsed.data.hostType?.trim() || 'Hôte Standard',
+        accountType: parsed.data.accountType,
+        companyName,
+        companyRegistration,
+        profession: parsed.data.profession?.trim() || null,
+        bio: parsed.data.bio?.trim() || null,
+        spokenLanguages: parsed.data.spokenLanguages?.trim() || 'Français',
+        responseTime: parsed.data.responseTime?.trim() || "dans l'heure",
+        responseRate: parsed.data.responseRate ?? 100,
+    };
+
+    if (avatarUrl !== undefined) {
+        dataToUpdate.avatarUrl = avatarUrl;
+    }
+
+    if (parsed.data.password && parsed.data.password.trim().length >= 8) {
+        dataToUpdate.password = await hashPassword(parsed.data.password.trim());
+    }
+
+    await prisma.user.update({
+        where: { id: owner.id },
+        data: dataToUpdate,
+    });
+
+    revalidatePath('/admin/proprietaires');
+    revalidatePath('/admin/utilisateurs');
+    revalidatePath('/', 'layout');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'success',
+            message: `Le profil de « ${parsed.data.name} » a été mis à jour avec succès.`,
         },
     };
 }

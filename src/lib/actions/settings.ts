@@ -1,5 +1,7 @@
 'use server';
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
@@ -18,6 +20,7 @@ const profileSchema = z.object({
         .min(2, 'Le nom doit contenir au moins 2 caractères.')
         .max(255),
     email: z.string().trim().email('Adresse e-mail invalide.').max(255),
+    avatar_url: z.string().trim().max(1000).optional().nullable(),
     account_type: z
         .enum(['individual', 'company'])
         .optional()
@@ -29,6 +32,61 @@ const profileSchema = z.object({
     spoken_languages: z.string().trim().max(255).optional().nullable(),
     response_time: z.string().trim().max(50).optional().nullable(),
 });
+
+export async function uploadAvatarAction(
+    formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+    const user = await getFreshSessionUser();
+    if (!user) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+        return { ok: false, error: 'Fichier invalide.' };
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        return { ok: false, error: 'Format non supporté (JPEG, PNG, WebP requis).' };
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        return { ok: false, error: 'La taille maximale autorisée est de 5 Mo.' };
+    }
+
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const fileName = `avatar-${user.id}-${Date.now()}.${ext}`;
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+
+    try {
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+        const arrayBuffer = await file.arrayBuffer();
+        await fs.writeFile(filePath, Buffer.from(arrayBuffer));
+    } catch (err) {
+        console.error('Erreur téléversement avatar utilisateur :', err);
+        return { ok: false, error: 'Erreur lors de l’enregistrement de l’avatar.' };
+    }
+
+    const url = `/uploads/avatars/${fileName}`;
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { avatarUrl: url },
+    });
+
+    revalidatePath('/settings/profile');
+    revalidatePath('/', 'layout');
+
+    return {
+        ok: true,
+        data: { url },
+        toast: {
+            type: 'success',
+            message: 'Photo de profil mise à jour avec succès.',
+        },
+    };
+}
 
 const passwordUpdateSchema = z
     .object({
@@ -48,6 +106,7 @@ const passwordUpdateSchema = z
 export async function updateProfileAction(input: {
     name: string;
     email: string;
+    avatar_url?: string | null;
     account_type?: 'individual' | 'company';
     company_name?: string;
     company_registration?: string;
@@ -90,6 +149,9 @@ export async function updateProfileAction(input: {
         data: {
             name: parsed.data.name,
             email,
+            ...(parsed.data.avatar_url !== undefined
+                ? { avatarUrl: parsed.data.avatar_url?.trim() || null }
+                : {}),
             accountType: parsed.data.account_type ?? 'individual',
             companyName: isCompany
                 ? parsed.data.company_name?.trim() || parsed.data.name

@@ -10,13 +10,15 @@ import {
 } from '@/components/admin/filters';
 import { Button } from '@/components/button';
 import { Badge, Card } from '@/components/card';
-import { Field, Input } from '@/components/form';
+import { Field, Input, Select, Textarea } from '@/components/form';
 import { Modal } from '@/components/modal';
 import { Pagination } from '@/components/pagination';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import {
     createManagedOwnerAction,
     deleteManagedOwnerAction,
+    updateManagedOwnerAction,
+    uploadOwnerAvatarAction,
 } from '@/lib/actions/admin';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
@@ -24,11 +26,12 @@ import { cn } from '@/lib/utils';
 import type { Paginated } from '@/types';
 
 export const DEFAULT_HOST_TYPES = [
-    'Hôte Standard',
-    'Hôte Vérifié',
     'Superhôte',
     'Hôte Premium',
+    'Hôte Vérifié',
+    'Hôte Standard',
     'Conciergerie Partenaire',
+    'Propriétaire Professionnel',
 ];
 
 export type ManagedOwner = {
@@ -37,6 +40,15 @@ export type ManagedOwner = {
     email: string;
     role: string;
     host_type: string;
+    account_type: 'individual' | 'company';
+    company_name: string | null;
+    company_registration: string | null;
+    profession: string | null;
+    bio: string | null;
+    spoken_languages: string | null;
+    response_time: string | null;
+    response_rate: number | null;
+    avatar_url: string | null;
     created_at: string;
     properties_count: number;
     suspended_at: string | null;
@@ -58,6 +70,16 @@ export function AdminOwnersClient({
     const { applyResult, router } = useActionFeedback();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createErrors, setCreateErrors] = useState<FieldErrors>({});
+    const [createAccountType, setCreateAccountType] = useState<'individual' | 'company'>('individual');
+    const [createAvatarUrl, setCreateAvatarUrl] = useState<string | null>(null);
+    const [createUploadingAvatar, setCreateUploadingAvatar] = useState(false);
+
+    const [editingOwner, setEditingOwner] = useState<ManagedOwner | null>(null);
+    const [editErrors, setEditErrors] = useState<FieldErrors>({});
+    const [editAccountType, setEditAccountType] = useState<'individual' | 'company'>('individual');
+    const [editAvatarUrl, setEditAvatarUrl] = useState<string | null>(null);
+    const [editUploadingAvatar, setEditUploadingAvatar] = useState(false);
+
     const [isPending, startTransition] = useTransition();
 
     function applyFilter(next: Partial<Props['filters']>) {
@@ -69,6 +91,34 @@ export function AdminOwnersClient({
         );
     }
 
+    async function handleAvatarUpload(file: File, isEdit: boolean) {
+        const setLoading = isEdit ? setEditUploadingAvatar : setCreateUploadingAvatar;
+        const setUrl = isEdit ? setEditAvatarUrl : setCreateAvatarUrl;
+
+        setLoading(true);
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            if (isEdit && editingOwner) {
+                fd.append('ownerId', String(editingOwner.id));
+            }
+            const res = await uploadOwnerAvatarAction(fd);
+            if (res.ok && res.data?.url) {
+                setUrl(res.data.url);
+            }
+            applyResult(res);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function openEditModal(owner: ManagedOwner) {
+        setEditingOwner(owner);
+        setEditErrors({});
+        setEditAccountType(owner.account_type);
+        setEditAvatarUrl(owner.avatar_url);
+    }
+
     async function handleCreateOwner(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setCreateErrors({});
@@ -78,6 +128,13 @@ export function AdminOwnersClient({
         const email = String(fd.get('email') ?? '').trim();
         const password = String(fd.get('password') ?? '').trim();
         const hostType = String(fd.get('hostType') ?? '').trim();
+        const companyName = String(fd.get('companyName') ?? '').trim();
+        const companyRegistration = String(fd.get('companyRegistration') ?? '').trim();
+        const profession = String(fd.get('profession') ?? '').trim();
+        const bio = String(fd.get('bio') ?? '').trim();
+        const spokenLanguages = String(fd.get('spokenLanguages') ?? '').trim();
+        const responseTime = String(fd.get('responseTime') ?? '').trim();
+        const responseRateRaw = Number(fd.get('responseRate') ?? 100);
 
         startTransition(async () => {
             const res = await createManagedOwnerAction({
@@ -85,12 +142,69 @@ export function AdminOwnersClient({
                 email,
                 password: password || undefined,
                 hostType: hostType || undefined,
+                accountType: createAccountType,
+                companyName: createAccountType === 'company' ? companyName : undefined,
+                companyRegistration: createAccountType === 'company' ? companyRegistration : undefined,
+                profession: profession || undefined,
+                bio: bio || undefined,
+                spokenLanguages: spokenLanguages || undefined,
+                responseTime: responseTime || undefined,
+                responseRate: isNaN(responseRateRaw) ? 100 : responseRateRaw,
+                avatarUrl: createAvatarUrl || undefined,
             });
 
             applyResult(res, {
                 setFieldErrors: setCreateErrors,
                 onSuccess: () => {
                     setIsCreateOpen(false);
+                    setCreateAvatarUrl(null);
+                },
+            });
+        });
+    }
+
+    async function handleUpdateOwner(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (!editingOwner) {
+            return;
+        }
+        setEditErrors({});
+        const fd = new FormData(event.currentTarget);
+
+        const name = String(fd.get('name') ?? '').trim();
+        const email = String(fd.get('email') ?? '').trim();
+        const password = String(fd.get('password') ?? '').trim();
+        const hostType = String(fd.get('hostType') ?? '').trim();
+        const companyName = String(fd.get('companyName') ?? '').trim();
+        const companyRegistration = String(fd.get('companyRegistration') ?? '').trim();
+        const profession = String(fd.get('profession') ?? '').trim();
+        const bio = String(fd.get('bio') ?? '').trim();
+        const spokenLanguages = String(fd.get('spokenLanguages') ?? '').trim();
+        const responseTime = String(fd.get('responseTime') ?? '').trim();
+        const responseRateRaw = Number(fd.get('responseRate') ?? 100);
+
+        startTransition(async () => {
+            const res = await updateManagedOwnerAction({
+                id: editingOwner.id,
+                name,
+                email,
+                password: password || undefined,
+                hostType: hostType || undefined,
+                accountType: editAccountType,
+                companyName: editAccountType === 'company' ? companyName : undefined,
+                companyRegistration: editAccountType === 'company' ? companyRegistration : undefined,
+                profession: profession || undefined,
+                bio: bio || undefined,
+                spokenLanguages: spokenLanguages || undefined,
+                responseTime: responseTime || undefined,
+                responseRate: isNaN(responseRateRaw) ? 100 : responseRateRaw,
+                avatarUrl: editAvatarUrl || undefined,
+            });
+
+            applyResult(res, {
+                setFieldErrors: setEditErrors,
+                onSuccess: () => {
+                    setEditingOwner(null);
                 },
             });
         });
@@ -120,11 +234,16 @@ export function AdminOwnersClient({
                         Propriétaires en gestion
                     </h1>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                        Enregistrez les propriétaires et confiez-leur des biens en conciergerie ou gestion locative.
+                        Enregistrez et personnalisez le profil complet des hôtes et propriétaires (Superhôte, Pro/Particulier, photo, engagements).
                     </p>
                 </div>
                 <Button
-                    onClick={() => setIsCreateOpen(true)}
+                    onClick={() => {
+                        setCreateErrors({});
+                        setCreateAccountType('individual');
+                        setCreateAvatarUrl(null);
+                        setIsCreateOpen(true);
+                    }}
                     className="self-start sm:self-auto bg-primary-600 hover:bg-primary-700"
                 >
                     <svg
@@ -162,7 +281,7 @@ export function AdminOwnersClient({
                         Rôle système
                     </p>
                     <p className="mt-2 text-sm font-semibold text-primary-700 dark:text-primary-300">
-                        Hôte / Mandant conciergerie
+                        Hôte & Propriétaire vérifié
                     </p>
                 </Card>
             </div>
@@ -170,15 +289,16 @@ export function AdminOwnersClient({
             {/* Barre de recherche */}
             <FilterBar
                 search={filters.search}
-                placeholder="Rechercher par nom ou email…"
+                placeholder="Rechercher par nom, entreprise ou email…"
                 onSearch={(search) => applyFilter({ search })}
             />
 
             {/* Tableau des propriétaires */}
             <DataTable
                 head={[
-                    'Propriétaire',
-                    'Type d’hôte',
+                    'Propriétaire / Hôte',
+                    'Statut / Badge',
+                    'Statut juridique',
                     'Adresse email',
                     'Biens attribués',
                     'Date d’enregistrement',
@@ -192,34 +312,73 @@ export function AdminOwnersClient({
                         key={owner.id}
                         className="transition hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40"
                     >
-                        {/* Nom */}
+                        {/* Nom & Avatar */}
                         <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-zinc-100">
                             <div className="flex items-center gap-3">
-                                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-sm font-bold text-secondary-800 dark:bg-secondary-900/40 dark:text-secondary-300">
-                                    {owner.name.slice(0, 1).toUpperCase()}
+                                <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-sm font-bold text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/40 dark:text-secondary-300 dark:ring-zinc-700 overflow-hidden">
+                                    {owner.avatar_url ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={owner.avatar_url}
+                                            alt={owner.name}
+                                            className="size-full object-cover"
+                                        />
+                                    ) : (
+                                        <span>{owner.name.slice(0, 1).toUpperCase()}</span>
+                                    )}
                                 </div>
-                                <span className="font-semibold">{owner.name}</span>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold truncate">{owner.name}</span>
+                                    {owner.profession && (
+                                        <span className="text-[11px] text-zinc-500 truncate">
+                                            {owner.profession}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </td>
 
-                        {/* Type d'hôte */}
+                        {/* Statut / Badge d'hôte */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                             <span
                                 className={cn(
-                                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                                    owner.host_type === 'Hôte Premium'
-                                        ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700'
-                                        : owner.host_type === 'Superhôte'
-                                          ? 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700'
+                                    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                                    owner.host_type === 'Superhôte'
+                                        ? 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700'
+                                        : owner.host_type === 'Hôte Premium'
+                                          ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700'
                                           : owner.host_type === 'Hôte Vérifié'
                                             ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700'
-                                            : owner.host_type === 'Conciergerie Partenaire'
+                                            : owner.host_type === 'Conciergerie Partenaire' || owner.host_type === 'Propriétaire Professionnel'
                                               ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700'
                                               : 'bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
                                 )}
                             >
-                                {owner.host_type}
+                                {owner.host_type === 'Superhôte' && <span>⭐</span>}
+                                {owner.host_type === 'Hôte Premium' && <span>👑</span>}
+                                {owner.host_type === 'Hôte Vérifié' && <span>🎖️</span>}
+                                <span>{owner.host_type}</span>
                             </span>
+                        </td>
+
+                        {/* Statut juridique : Particulier ou Pro */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs">
+                            {owner.account_type === 'company' ? (
+                                <div className="flex flex-col">
+                                    <span className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400">
+                                        <span>🏢</span>
+                                        <span>Pro / Entreprise</span>
+                                    </span>
+                                    <span className="text-[11px] text-zinc-500 truncate max-w-40">
+                                        {owner.company_name || 'Raison sociale non renseignée'}
+                                    </span>
+                                </div>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 font-semibold text-zinc-600 dark:text-zinc-400">
+                                    <span>👤</span>
+                                    <span>Particulier</span>
+                                </span>
+                            )}
                         </td>
 
                         {/* Email */}
@@ -266,6 +425,25 @@ export function AdminOwnersClient({
                         {/* Actions */}
                         <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1.5">
+                                {/* Modifier le profil de l'hôte */}
+                                <button
+                                    type="button"
+                                    onClick={() => openEditModal(owner)}
+                                    title="Modifier le profil complet de cet hôte/propriétaire"
+                                    aria-label="Modifier ce propriétaire"
+                                    className="flex size-8 items-center justify-center rounded-lg border border-amber-200 bg-amber-50/70 text-amber-700 transition hover:bg-amber-100 hover:text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                                >
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+                                        <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
+                                    </svg>
+                                </button>
+
                                 {/* Ajouter un bien pour ce propriétaire */}
                                 <Link
                                     href={`/admin/logements/nouveau?owner_id=${owner.id}`}
@@ -286,7 +464,7 @@ export function AdminOwnersClient({
                                 {/* Profil utilisateur */}
                                 <Link
                                     href={`/admin/utilisateurs?search=${encodeURIComponent(owner.email)}`}
-                                    title="Consulter le profil utilisateur"
+                                    title="Consulter le compte utilisateur"
                                     aria-label="Voir le profil"
                                     className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                                 >
@@ -300,7 +478,7 @@ export function AdminOwnersClient({
                                     </svg>
                                 </Link>
 
-                                {/* Supprimer le propriétaire : Corbeille */}
+                                {/* Supprimer le propriétaire */}
                                 <button
                                     type="button"
                                     disabled={isPending}
@@ -330,84 +508,299 @@ export function AdminOwnersClient({
 
             <Pagination paginator={owners} noun="propriétaire" nounPlural="propriétaires" />
 
-            {/* Modale d'enregistrement de propriétaire */}
+            {/* Modale d'enregistrement d'un nouveau propriétaire */}
             <Modal
                 open={isCreateOpen}
                 onClose={() => setIsCreateOpen(false)}
-                title="Enregistrer un nouveau propriétaire"
+                title="Enregistrer un nouveau propriétaire / hôte"
+                className="max-w-2xl"
             >
                 <form
                     onSubmit={(event) => void handleCreateOwner(event)}
-                    className="flex flex-col gap-4 text-left"
+                    className="flex flex-col gap-5 text-left max-h-[80vh] overflow-y-auto px-1"
                 >
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        Ce compte aura le rôle Hôte / Propriétaire. Une fois enregistré, il sera immédiatement disponible pour lui attribuer des biens en conciergerie.
+                        Configurez le compte hôte/propriétaire complet : badge (Superhôte, Premium...), statut particulier ou pro, photo et engagements.
                     </p>
 
+                    {/* Photo de profil */}
+                    <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                        <div className="relative flex size-16 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-black text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-700 overflow-hidden">
+                            {createAvatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={createAvatarUrl}
+                                    alt="Aperçu"
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                <span>📷</span>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                Photo de profil de l’hôte / propriétaire
+                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                    <span>{createUploadingAvatar ? 'Téléversement...' : 'Téléverser photo'}</span>
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        className="hidden"
+                                        disabled={createUploadingAvatar}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) void handleAvatarUpload(file, false);
+                                        }}
+                                    />
+                                </label>
+                                {createAvatarUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCreateAvatarUrl(null)}
+                                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                                    >
+                                        Supprimer
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Identité */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Nom et prénom"
+                            htmlFor="create-owner-name"
+                            error={createErrors.name}
+                        >
+                            <Input
+                                id="create-owner-name"
+                                name="name"
+                                required
+                                placeholder="Ex : Marius Moreau"
+                                autoComplete="name"
+                            />
+                        </Field>
+
+                        <Field
+                            label="Adresse e-mail"
+                            htmlFor="create-owner-email"
+                            error={createErrors.email}
+                        >
+                            <Input
+                                id="create-owner-email"
+                                name="email"
+                                type="email"
+                                required
+                                placeholder="marius@exemple.com"
+                                autoComplete="email"
+                            />
+                        </Field>
+                    </div>
+
+                    {/* Statut / Badge d'hôte & Mot de passe */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Statut / Badge d’hôte"
+                            htmlFor="create-owner-host-type"
+                            hint="Définit le badge affiché sur les annonces"
+                        >
+                            <Select
+                                id="create-owner-host-type"
+                                name="hostType"
+                                defaultValue="Superhôte"
+                            >
+                                {DEFAULT_HOST_TYPES.map((type) => (
+                                    <option key={type} value={type}>
+                                        {type}
+                                    </option>
+                                ))}
+                            </Select>
+                        </Field>
+
+                        <Field
+                            label="Mot de passe provisoire (optionnel)"
+                            htmlFor="create-owner-password"
+                            error={createErrors.password}
+                            hint="Laissez vide pour générer automatiquement"
+                        >
+                            <Input
+                                id="create-owner-password"
+                                name="password"
+                                type="password"
+                                placeholder="Minimum 8 caractères"
+                                autoComplete="new-password"
+                            />
+                        </Field>
+                    </div>
+
+                    {/* Type de compte : Particulier ou Pro */}
+                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                            Statut juridique *
+                        </span>
+                        <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+                            <label
+                                className={cn(
+                                    'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                    createAccountType === 'individual'
+                                        ? 'border-primary-600 ring-2 ring-primary-500/20'
+                                        : 'border-zinc-200 dark:border-zinc-800',
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">👤</span>
+                                    <div>
+                                        <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                            Particulier
+                                        </p>
+                                        <p className="text-[11px] text-zinc-500">
+                                            Location à titre privé
+                                        </p>
+                                    </div>
+                                </div>
+                                <input
+                                    type="radio"
+                                    name="accountTypeRadio"
+                                    value="individual"
+                                    checked={createAccountType === 'individual'}
+                                    onChange={() => setCreateAccountType('individual')}
+                                    className="accent-primary-600"
+                                />
+                            </label>
+
+                            <label
+                                className={cn(
+                                    'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                    createAccountType === 'company'
+                                        ? 'border-blue-600 ring-2 ring-blue-500/20'
+                                        : 'border-zinc-200 dark:border-zinc-800',
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">🏢</span>
+                                    <div>
+                                        <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                            Professionnel / Pro
+                                        </p>
+                                        <p className="text-[11px] text-zinc-500">
+                                            Entreprise, conciergerie ou agence
+                                        </p>
+                                    </div>
+                                </div>
+                                <input
+                                    type="radio"
+                                    name="accountTypeRadio"
+                                    value="company"
+                                    checked={createAccountType === 'company'}
+                                    onChange={() => setCreateAccountType('company')}
+                                    className="accent-blue-600"
+                                />
+                            </label>
+                        </div>
+
+                        {createAccountType === 'company' && (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                                <Field
+                                    label="Raison sociale / Nom entreprise"
+                                    htmlFor="create-owner-company-name"
+                                >
+                                    <Input
+                                        id="create-owner-company-name"
+                                        name="companyName"
+                                        placeholder="Ex : Appartements hôteliers Niro"
+                                    />
+                                </Field>
+
+                                <Field
+                                    label="N° SIRET / RCS"
+                                    htmlFor="create-owner-company-reg"
+                                >
+                                    <Input
+                                        id="create-owner-company-reg"
+                                        name="companyRegistration"
+                                        placeholder="Ex : 849 123 456 00012"
+                                    />
+                                </Field>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Activité & Métriques de réactivité */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Profession / Titre public"
+                            htmlFor="create-owner-profession"
+                            hint="Ex : Appartements hôteliers Niro, Conciergerie Azur..."
+                        >
+                            <Input
+                                id="create-owner-profession"
+                                name="profession"
+                                placeholder="Ex : Appartements hôteliers Niro"
+                            />
+                        </Field>
+
+                        <Field
+                            label="Langues parlées"
+                            htmlFor="create-owner-languages"
+                            hint="Ex : Français, Anglais, Suédois..."
+                        >
+                            <Input
+                                id="create-owner-languages"
+                                name="spokenLanguages"
+                                defaultValue="Français, Anglais"
+                            />
+                        </Field>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Délai de réponse habituel"
+                            htmlFor="create-owner-resp-time"
+                        >
+                            <Select
+                                id="create-owner-resp-time"
+                                name="responseTime"
+                                defaultValue="dans l'heure"
+                            >
+                                <option value="dans l'heure">Dans l’heure</option>
+                                <option value="en quelques heures">En quelques heures</option>
+                                <option value="dans la journée">Dans la journée</option>
+                            </Select>
+                        </Field>
+
+                        <Field
+                            label="Taux de réponse (%)"
+                            htmlFor="create-owner-resp-rate"
+                        >
+                            <Input
+                                id="create-owner-resp-rate"
+                                name="responseRate"
+                                type="number"
+                                min={50}
+                                max={100}
+                                defaultValue={100}
+                            />
+                        </Field>
+                    </div>
+
+                    {/* Présentation / Bio */}
                     <Field
-                        label="Nom et prénom du propriétaire"
-                        htmlFor="owner-name"
-                        error={createErrors.name}
+                        label="Présentation / Bio de l’hôte"
+                        htmlFor="create-owner-bio"
+                        hint="Texte affiché dans l’encadré « Faites connaissance avec votre hôte »"
                     >
-                        <Input
-                            id="owner-name"
-                            name="name"
-                            required
-                            placeholder="Ex : Jean Dupont"
-                            autoComplete="name"
+                        <Textarea
+                            id="create-owner-bio"
+                            name="bio"
+                            rows={3}
+                            placeholder="Présentation des services, engagements de confort et disponibilité pour les voyageurs..."
                         />
                     </Field>
 
-                    <Field
-                        label="Type d’hôte"
-                        htmlFor="owner-host-type"
-                        hint="Choisissez parmi les suggestions ou tapez librement votre propre type d’hôte."
-                    >
-                        <Input
-                            id="owner-host-type"
-                            name="hostType"
-                            list="host-types-list"
-                            placeholder="Ex : Hôte Premium, Hôte Vérifié, Superhôte..."
-                            defaultValue="Hôte Standard"
-                        />
-                        <datalist id="host-types-list">
-                            {DEFAULT_HOST_TYPES.map((type) => (
-                                <option key={type} value={type} />
-                            ))}
-                        </datalist>
-                    </Field>
-
-                    <Field
-                        label="Adresse e-mail"
-                        htmlFor="owner-email"
-                        error={createErrors.email}
-                    >
-                        <Input
-                            id="owner-email"
-                            name="email"
-                            type="email"
-                            required
-                            placeholder="jean.dupont@exemple.com"
-                            autoComplete="email"
-                        />
-                    </Field>
-
-                    <Field
-                        label="Mot de passe provisoire (facultatif)"
-                        htmlFor="owner-password"
-                        error={createErrors.password}
-                        hint="Laissez vide pour générer automatiquement un mot de passe sécurisé."
-                    >
-                        <Input
-                            id="owner-password"
-                            name="password"
-                            type="password"
-                            placeholder="Minimum 8 caractères (optionnel)"
-                            autoComplete="new-password"
-                        />
-                    </Field>
-
-                    <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                         <Button
                             type="button"
                             variant="ghost"
@@ -424,6 +817,323 @@ export function AdminOwnersClient({
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Modale de Modification d'un propriétaire existant */}
+            <Modal
+                open={editingOwner !== null}
+                onClose={() => setEditingOwner(null)}
+                title={editingOwner ? `Modifier le profil de « ${editingOwner.name} »` : 'Modifier le propriétaire'}
+                className="max-w-2xl"
+            >
+                {editingOwner && (
+                    <form
+                        onSubmit={(event) => void handleUpdateOwner(event)}
+                        className="flex flex-col gap-5 text-left max-h-[80vh] overflow-y-auto px-1"
+                    >
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Modifiez les paramètres, le statut juridique (Particulier ou Pro), le badge Superhôte, la photo et les informations de présentation.
+                        </p>
+
+                        {/* Photo de profil */}
+                        <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                            <div className="relative flex size-16 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-xl font-black text-secondary-800 ring-2 ring-zinc-200 dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-700 overflow-hidden">
+                                {editAvatarUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={editAvatarUrl}
+                                        alt={editingOwner.name}
+                                        className="size-full object-cover"
+                                    />
+                                ) : (
+                                    <span>{editingOwner.name.slice(0, 1).toUpperCase()}</span>
+                                )}
+                            </div>
+                            <div className="flex flex-col gap-1.5 flex-1">
+                                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                    Photo de profil de l’hôte / propriétaire
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                        <span>{editUploadingAvatar ? 'Téléversement...' : 'Changer la photo'}</span>
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,image/gif"
+                                            className="hidden"
+                                            disabled={editUploadingAvatar}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) void handleAvatarUpload(file, true);
+                                            }}
+                                        />
+                                    </label>
+                                    {editAvatarUrl && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditAvatarUrl(null)}
+                                            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                                        >
+                                            Supprimer
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Identité */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field
+                                label="Nom et prénom"
+                                htmlFor="edit-owner-name"
+                                error={editErrors.name}
+                            >
+                                <Input
+                                    id="edit-owner-name"
+                                    name="name"
+                                    defaultValue={editingOwner.name}
+                                    required
+                                    autoComplete="name"
+                                />
+                            </Field>
+
+                            <Field
+                                label="Adresse e-mail"
+                                htmlFor="edit-owner-email"
+                                error={editErrors.email}
+                            >
+                                <Input
+                                    id="edit-owner-email"
+                                    name="email"
+                                    type="email"
+                                    defaultValue={editingOwner.email}
+                                    required
+                                    autoComplete="email"
+                                />
+                            </Field>
+                        </div>
+
+                        {/* Statut / Badge d'hôte & Mot de passe */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field
+                                label="Statut / Badge d’hôte"
+                                htmlFor="edit-owner-host-type"
+                                hint="Définit le badge affiché sur les annonces"
+                            >
+                                <Select
+                                    id="edit-owner-host-type"
+                                    name="hostType"
+                                    defaultValue={editingOwner.host_type}
+                                >
+                                    {DEFAULT_HOST_TYPES.map((type) => (
+                                        <option key={type} value={type}>
+                                            {type}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <Field
+                                label="Nouveau mot de passe (optionnel)"
+                                htmlFor="edit-owner-password"
+                                error={editErrors.password}
+                                hint="Laissez vide pour conserver l'actuel"
+                            >
+                                <Input
+                                    id="edit-owner-password"
+                                    name="password"
+                                    type="password"
+                                    placeholder="Minimum 8 caractères"
+                                    autoComplete="new-password"
+                                />
+                            </Field>
+                        </div>
+
+                        {/* Type de compte : Particulier ou Pro */}
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                Statut juridique *
+                            </span>
+                            <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+                                <label
+                                    className={cn(
+                                        'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                        editAccountType === 'individual'
+                                            ? 'border-primary-600 ring-2 ring-primary-500/20'
+                                            : 'border-zinc-200 dark:border-zinc-800',
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">👤</span>
+                                        <div>
+                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                                Particulier
+                                            </p>
+                                            <p className="text-[11px] text-zinc-500">
+                                                Location à titre privé
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="radio"
+                                        name="editAccountTypeRadio"
+                                        value="individual"
+                                        checked={editAccountType === 'individual'}
+                                        onChange={() => setEditAccountType('individual')}
+                                        className="accent-primary-600"
+                                    />
+                                </label>
+
+                                <label
+                                    className={cn(
+                                        'flex cursor-pointer items-center justify-between rounded-xl border p-3 bg-white transition dark:bg-zinc-900',
+                                        editAccountType === 'company'
+                                            ? 'border-blue-600 ring-2 ring-blue-500/20'
+                                            : 'border-zinc-200 dark:border-zinc-800',
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">🏢</span>
+                                        <div>
+                                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                                Professionnel / Pro
+                                            </p>
+                                            <p className="text-[11px] text-zinc-500">
+                                                Entreprise, conciergerie ou agence
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="radio"
+                                        name="editAccountTypeRadio"
+                                        value="company"
+                                        checked={editAccountType === 'company'}
+                                        onChange={() => setEditAccountType('company')}
+                                        className="accent-blue-600"
+                                    />
+                                </label>
+                            </div>
+
+                            {editAccountType === 'company' && (
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                                    <Field
+                                        label="Raison sociale / Nom entreprise"
+                                        htmlFor="edit-owner-company-name"
+                                    >
+                                        <Input
+                                            id="edit-owner-company-name"
+                                            name="companyName"
+                                            defaultValue={editingOwner.company_name ?? ''}
+                                            placeholder="Ex : Appartements hôteliers Niro"
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="N° SIRET / RCS"
+                                        htmlFor="edit-owner-company-reg"
+                                    >
+                                        <Input
+                                            id="edit-owner-company-reg"
+                                            name="companyRegistration"
+                                            defaultValue={editingOwner.company_registration ?? ''}
+                                            placeholder="Ex : 849 123 456 00012"
+                                        />
+                                    </Field>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Activité & Métriques de réactivité */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field
+                                label="Profession / Titre public"
+                                htmlFor="edit-owner-profession"
+                                hint="Ex : Appartements hôteliers Niro, Conciergerie Azur..."
+                            >
+                                <Input
+                                    id="edit-owner-profession"
+                                    name="profession"
+                                    defaultValue={editingOwner.profession ?? ''}
+                                    placeholder="Ex : Appartements hôteliers Niro"
+                                />
+                            </Field>
+
+                            <Field
+                                label="Langues parlées"
+                                htmlFor="edit-owner-languages"
+                                hint="Ex : Français, Anglais, Suédois..."
+                            >
+                                <Input
+                                    id="edit-owner-languages"
+                                    name="spokenLanguages"
+                                    defaultValue={editingOwner.spoken_languages ?? 'Français, Anglais'}
+                                />
+                            </Field>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field
+                                label="Délai de réponse habituel"
+                                htmlFor="edit-owner-resp-time"
+                            >
+                                <Select
+                                    id="edit-owner-resp-time"
+                                    name="responseTime"
+                                    defaultValue={editingOwner.response_time ?? "dans l'heure"}
+                                >
+                                    <option value="dans l'heure">Dans l’heure</option>
+                                    <option value="en quelques heures">En quelques heures</option>
+                                    <option value="dans la journée">Dans la journée</option>
+                                </Select>
+                            </Field>
+
+                            <Field
+                                label="Taux de réponse (%)"
+                                htmlFor="edit-owner-resp-rate"
+                            >
+                                <Input
+                                    id="edit-owner-resp-rate"
+                                    name="responseRate"
+                                    type="number"
+                                    min={50}
+                                    max={100}
+                                    defaultValue={editingOwner.response_rate ?? 100}
+                                />
+                            </Field>
+                        </div>
+
+                        {/* Présentation / Bio */}
+                        <Field
+                            label="Présentation / Bio de l’hôte"
+                            htmlFor="edit-owner-bio"
+                            hint="Texte affiché dans l’encadré « Faites connaissance avec votre hôte »"
+                        >
+                            <Textarea
+                                id="edit-owner-bio"
+                                name="bio"
+                                rows={4}
+                                defaultValue={editingOwner.bio ?? ''}
+                                placeholder="Présentation des services, engagements de confort et disponibilité pour les voyageurs..."
+                            />
+                        </Field>
+
+                        <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setEditingOwner(null)}
+                            >
+                                Annuler
+                            </Button>
+                            <Button
+                                type="submit"
+                                loading={isPending}
+                                className="bg-primary-600 hover:bg-primary-700"
+                            >
+                                Enregistrer les modifications
+                            </Button>
+                        </div>
+                    </form>
+                )}
             </Modal>
         </div>
     );
