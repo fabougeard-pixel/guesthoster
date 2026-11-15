@@ -63,8 +63,8 @@ function StatusMessage({ booking }: { booking: Booking }) {
                             ? 'Séjour réglé par virement bancaire et confirmé.'
                             : 'Séjour payé et confirmé.'
                         : booking.payment_method === 'bank_transfer'
-                          ? 'Paiement par virement validé, séjour confirmé. Bon voyage !'
-                          : 'Paiement reçu, séjour confirmé. Bon voyage !'}
+                            ? 'Paiement par virement validé, séjour confirmé. Bon voyage !'
+                            : 'Paiement reçu, séjour confirmé. Bon voyage !'}
                 </Alert>
             );
         case 'declined':
@@ -137,10 +137,10 @@ export function BookingShowClient({
         }
         if (paymentFailed === 'card' || paymentFailed === 'stripe') {
             return {
-                failedMethod: 'Carte bancaire (Stripe)',
+                failedMethod: 'Stripe',
                 reason:
-                    'La passerelle de paiement par carte bancaire n’a pu aboutir ou la transaction a été interrompue.',
-                viableMethod: 'Virement bancaire (instantané ou SEPA)',
+                    'La passerelle de paiement Stripe est momentanément indisponible pour cette transaction.',
+                viableMethod: 'Virement bancaire (100% actif)',
                 targetAction: 'bank',
                 actionLabel: 'Payer par Virement bancaire',
             };
@@ -150,13 +150,9 @@ export function BookingShowClient({
                 failedMethod: 'PayPal',
                 reason:
                     'La passerelle de paiement PayPal est momentanément indisponible pour cette transaction.',
-                viableMethod: enabledMethods.includes('card')
-                    ? 'Carte bancaire sécurisée (Stripe)'
-                    : 'Virement bancaire (instantané ou SEPA)',
-                targetAction: enabledMethods.includes('card') ? 'stripe' : 'bank',
-                actionLabel: enabledMethods.includes('card')
-                    ? 'Payer par Carte bancaire sécurisée'
-                    : 'Payer par Virement bancaire',
+                viableMethod: 'Virement bancaire (100% actif)',
+                targetAction: 'bank',
+                actionLabel: 'Payer par Virement bancaire',
             };
         }
         return null;
@@ -298,13 +294,22 @@ export function BookingShowClient({
                 window.location.href = res.data.checkoutUrl;
                 return;
             }
-            // Déclenche la modale d'échec avec l'alternative viable (Virement bancaire)
+            // Déclenche la modale d'échec avec l'alternative viable 100% active (Virement bancaire)
             setPaymentFailure({
-                failedMethod: 'Carte bancaire (Stripe)',
+                failedMethod: 'Stripe',
                 reason:
                     (!res.ok && res.error) ||
-                    'La passerelle de paiement par carte bancaire est temporairement indisponible pour cette transaction.',
-                viableMethod: 'Virement bancaire (instantané ou SEPA)',
+                    'La passerelle de paiement Stripe est momentanément indisponible pour cette transaction.',
+                viableMethod: 'Virement bancaire (100% actif)',
+                targetAction: 'bank',
+                actionLabel: 'Payer par Virement bancaire',
+            });
+        } catch {
+            setPaymentFailure({
+                failedMethod: 'Stripe',
+                reason:
+                    'La passerelle de paiement Stripe est momentanément indisponible pour cette transaction.',
+                viableMethod: 'Virement bancaire (100% actif)',
                 targetAction: 'bank',
                 actionLabel: 'Payer par Virement bancaire',
             });
@@ -322,13 +327,9 @@ export function BookingShowClient({
                 failedMethod: 'PayPal',
                 reason:
                     'La passerelle de paiement PayPal est momentanément indisponible pour cette transaction.',
-                viableMethod: enabledMethods.includes('card')
-                    ? 'Carte bancaire sécurisée (Stripe)'
-                    : 'Virement bancaire (instantané ou SEPA)',
-                targetAction: enabledMethods.includes('card') ? 'stripe' : 'bank',
-                actionLabel: enabledMethods.includes('card')
-                    ? 'Payer par Carte bancaire sécurisée'
-                    : 'Payer par Virement bancaire',
+                viableMethod: 'Virement bancaire (100% actif)',
+                targetAction: 'bank',
+                actionLabel: 'Payer par Virement bancaire',
             });
         }, 800);
     }
@@ -603,52 +604,112 @@ export function BookingShowClient({
                                     </p>
                                 )}
 
-                                {/* Option 1 : Stripe CB */}
+                                {/* Option 1 : Stripe CB avec logos */}
                                 {enabledMethods.includes('card') && (
-                                <Button
-                                    type="button"
-                                    size="lg"
-                                    loading={payLoading}
-                                    onClick={() => void handlePayStripe()}
-                                    className="w-full bg-primary-600 hover:bg-primary-700"
-                                >
-                                    Payer par Carte Bancaire ({formatPrice(booking.total_price)})
-                                </Button>
+                                    <button
+                                        type="button"
+                                        disabled={payLoading}
+                                        onClick={() => void handlePayStripe()}
+                                        className="group flex h-12 w-full items-center justify-between rounded-xl bg-[#635bff] px-4 font-semibold text-white shadow-xs transition hover:bg-[#5249ea] active:bg-[#4339e3] disabled:opacity-50"
+                                    >
+                                        {payLoading ? (
+                                            <div className="flex w-full items-center justify-center gap-2 text-sm">
+                                                <svg
+                                                    className="size-4 animate-spin"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    />
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8v8H4z"
+                                                    />
+                                                </svg>
+                                                <span>Connexion à Stripe...</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl font-bold tracking-tight lowercase">stripe</span>
+                                                    <span className="text-xs font-medium text-indigo-100">
+                                                        ({formatPrice(booking.total_price)})
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {/* Badge CB */}
+                                                    <span className="flex h-5 items-center rounded bg-white px-1.5 text-[10px] font-black tracking-tight shadow-2xs">
+                                                        <span className="text-[#006633]">C</span>
+                                                        <span className="text-[#003399]">B</span>
+                                                    </span>
+                                                    {/* Badge VISA */}
+                                                    <span className="flex h-5 items-center rounded bg-white px-1.5 text-[10px] font-black italic tracking-tighter text-[#1a1f71] shadow-2xs">
+                                                        VISA
+                                                    </span>
+                                                    {/* Badge Mastercard */}
+                                                    <span className="flex h-5 items-center justify-center rounded bg-white px-1 shadow-2xs">
+                                                        <svg className="h-3 w-5" viewBox="0 0 24 16" fill="none">
+                                                            <circle cx="8" cy="8" r="6" fill="#EB001B" />
+                                                            <circle cx="16" cy="8" r="6" fill="#F79E1B" fillOpacity="0.85" />
+                                                        </svg>
+                                                    </span>
+                                                </div>
+                                            </>
+                                        )}
+                                    </button>
                                 )}
 
                                 {/* Option 2 : PayPal */}
                                 {enabledMethods.includes('paypal') && (
-                                <button
-                                    type="button"
-                                    disabled={paypalLoading}
-                                    onClick={() => void handlePayPaypal()}
-                                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-[#ffc439] font-semibold text-zinc-900 transition hover:bg-[#f2ba32] disabled:opacity-50"
-                                >
-                                    {paypalLoading ? (
-                                        'Connexion à PayPal...'
-                                    ) : (
-                                        <>
-                                            <span className="font-bold italic">Pay</span>
-                                            <span className="font-bold italic text-[#003087]">Pal</span>
-                                        </>
-                                    )}
-                                </button>
+                                    <button
+                                        type="button"
+                                        disabled={paypalLoading}
+                                        onClick={() => void handlePayPaypal()}
+                                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-[#ffc439] font-semibold text-zinc-900 transition hover:bg-[#f2ba32] disabled:opacity-50"
+                                    >
+                                        {paypalLoading ? (
+                                            'Connexion à PayPal...'
+                                        ) : (
+                                            <>
+                                                <span className="font-bold italic">Pay</span>
+                                                <span className="font-bold italic text-[#003087]">Pal</span>
+                                            </>
+                                        )}
+                                    </button>
                                 )}
 
                                 {/* Option 3 : Virement bancaire */}
                                 {enabledMethods.includes('bank_transfer') && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="md"
-                                    onClick={() => {
-                                        setBankStep('details');
-                                        setBankModalOpen(true);
-                                    }}
-                                    className="w-full"
-                                >
-                                    Payer par Virement bancaire SEPA
-                                </Button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setBankStep('details');
+                                            setBankModalOpen(true);
+                                        }}
+                                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 font-semibold text-white shadow-xs transition hover:bg-blue-700 active:bg-blue-800"
+                                    >
+                                        <svg
+                                            className="size-5 shrink-0"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                                            />
+                                        </svg>
+                                        <span>Virement bancaire</span>
+                                    </button>
                                 )}
 
                                 <p className="text-center text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -847,9 +908,10 @@ export function BookingShowClient({
                     setBankModalOpen(false);
                     setBankStep('details');
                 }}
+                className="max-w-xl"
                 title={
                     bankStep === 'details'
-                        ? 'Règlement par Virement bancaire SEPA'
+                        ? 'Règlement par Virement bancaire'
                         : 'Joindre l’ordre de virement bancaire'
                 }
             >
@@ -928,8 +990,8 @@ export function BookingShowClient({
                             </div>
                         </div>
 
-                        {/* Précision du type de virement requis */}
-                        <div className="grid gap-2.5 sm:grid-cols-2">
+                        {/* Précision du type de virement requis (en liste) */}
+                        <div className="flex flex-col gap-2.5">
                             <div className="flex flex-col gap-1 rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/20">
                                 <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-100">
                                     <span>⚡</span>
@@ -957,7 +1019,7 @@ export function BookingShowClient({
                             </div>
                         </div>
 
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
+                        <div className="flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
                             <Button
                                 variant="outline"
                                 onClick={() => {
@@ -973,7 +1035,7 @@ export function BookingShowClient({
                             </Button>
                             <Button
                                 onClick={() => setBankStep('upload')}
-                                className="bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold inline-flex items-center gap-2"
+                                className="inline-flex items-center justify-center gap-2 bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold"
                             >
                                 <svg
                                     className="size-4"
@@ -1002,18 +1064,17 @@ export function BookingShowClient({
                             Afin de valider votre réservation, veuillez préciser le type de virement effectué et joindre votre ordre de virement (attestation, reçu bancaire ou capture d’écran).
                         </p>
 
-                        {/* Choix du type de virement */}
+                        {/* Choix du type de virement (en liste) */}
                         <div>
                             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                                 Type de virement exécuté <span className="text-red-500">*</span>
                             </label>
-                            <div className="grid gap-2.5 sm:grid-cols-2">
+                            <div className="flex flex-col gap-2.5">
                                 <label
-                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${
-                                        transferTypeChoice === 'instant'
+                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${transferTypeChoice === 'instant'
                                             ? 'border-[#c2410c] bg-orange-50/50 ring-2 ring-orange-400/20 dark:border-orange-500 dark:bg-orange-950/20'
                                             : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 font-bold text-zinc-900 dark:text-zinc-100">
@@ -1038,11 +1099,10 @@ export function BookingShowClient({
                                 </label>
 
                                 <label
-                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${
-                                        transferTypeChoice === 'sepa'
+                                    className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${transferTypeChoice === 'sepa'
                                             ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-400/20 dark:border-blue-500 dark:bg-blue-950/20'
                                             : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 font-bold text-zinc-900 dark:text-zinc-100">
@@ -1181,18 +1241,19 @@ export function BookingShowClient({
                             </div>
                         </div>
 
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
+                        <div className="flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => setBankStep('details')}
+                                className="shrink-0"
                             >
                                 ← Coordonnées bancaires
                             </Button>
                             <Button
                                 type="submit"
                                 loading={uploadLoading}
-                                className="bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold"
+                                className="shrink-0 bg-[#c2410c] hover:bg-[#9a3412] text-white font-bold"
                             >
                                 Valider et transmettre mon ordre de virement
                             </Button>
