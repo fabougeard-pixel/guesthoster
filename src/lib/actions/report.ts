@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getFreshSessionUser } from '@/lib/auth/session';
+import { REPORT_REASON_LABELS } from '@/lib/domain/enums';
 import { notifyReportCreated } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
 import type { ActionResult } from './types';
@@ -20,15 +21,6 @@ const reportSchema = z.object({
     details: z.string().trim().max(1000).optional().or(z.literal('')),
     contactEmail: z.string().trim().email().optional().or(z.literal('')),
 });
-
-export const REPORT_REASON_LABELS: Record<string, string> = {
-    fake: 'Logement frauduleux ou annonce fictive',
-    inaccurate: 'Informations, adresse ou photos inexactes',
-    scam: 'Demande de paiement en dehors de GuestHoster',
-    inappropriate: 'Contenu déplacé, discriminatoire ou offensant',
-    security: 'Problème de salubrité ou de sécurité',
-    other: 'Autre motif',
-};
 
 export async function reportPropertyAction(input: {
     propertySlug: string;

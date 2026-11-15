@@ -6,7 +6,7 @@ import { resolveThumbnailUrl } from '@/lib/domain/properties';
 import { buildPaginated } from '@/lib/domain/properties';
 import { prisma } from '@/lib/prisma';
 import { firstParam, parsePageParam } from '@/lib/search-params';
-import { REPORT_REASON_LABELS } from '@/lib/actions/report';
+import { REPORT_REASON_LABELS } from '@/lib/domain/enums';
 import type { AdminPropertyReport } from '@/types';
 import { AdminReportsClient } from './admin-reports-client';
 

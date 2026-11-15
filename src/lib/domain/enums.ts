@@ -258,3 +258,13 @@ export function nextPropertyFormStep(
     return PROPERTY_FORM_STEPS[index + 1] ?? null;
 }
 
+export const REPORT_REASON_LABELS: Record<string, string> = {
+    fake: 'Logement frauduleux ou annonce fictive',
+    inaccurate: 'Informations, adresse ou photos inexactes',
+    scam: 'Demande de paiement en dehors de GuestHoster',
+    inappropriate: 'Contenu déplacé, discriminatoire ou offensant',
+    security: 'Problème de salubrité ou de sécurité',
+    other: 'Autre motif',
+};
+
+
