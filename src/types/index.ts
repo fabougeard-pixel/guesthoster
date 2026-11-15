@@ -253,6 +253,7 @@ export type HostProperty = {
     status_label: string;
     rejection_reason: string | null;
     city_id: number | null;
+    city_name?: string | null;
     address: string | null;
     postal_code: string | null;
     latitude: number | null;

@@ -125,6 +125,80 @@ async function resolvePropertyTypeForSave(input: {
     return found ? { ...found, created: false } : null;
 }
 
+async function resolveCityForSave(input: {
+    cityId?: number | null;
+    cityName?: string | null;
+    postalCode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+}): Promise<{ id: number; name: string } | null> {
+    if (input.cityId && input.cityId > 0) {
+        const found = await prisma.city.findFirst({
+            where: { id: input.cityId, isActive: true },
+            select: { id: true, name: true },
+        });
+        if (found) {
+            return found;
+        }
+    }
+
+    const clean = input.cityName?.trim().replace(/\s+/g, ' ');
+    if (!clean || clean.length < 2) {
+        return null;
+    }
+
+    // Chercher par nom insensible à la casse
+    const existing = await prisma.city.findFirst({
+        where: {
+            name: { equals: clean, mode: 'insensitive' },
+            isActive: true,
+        },
+        select: { id: true, name: true },
+    });
+
+    if (existing) {
+        return existing;
+    }
+
+    // Résoudre le pays par défaut (France en priorité ou premier pays actif)
+    let country = await prisma.country.findFirst({
+        where: {
+            OR: [
+                { code: 'FR' },
+                { name: { equals: 'France', mode: 'insensitive' } },
+            ],
+            isActive: true,
+        },
+        select: { id: true },
+    });
+
+    if (!country) {
+        country = await prisma.country.findFirst({
+            where: { isActive: true },
+            select: { id: true },
+        });
+    }
+
+    if (!country) {
+        const createdCountry = await resolveOrCreateCountry('France', 'FR');
+        country = { id: createdCountry.id };
+    }
+
+    const resolved = await resolveOrCreateCity({
+        countryId: country.id,
+        name: clean,
+        latitude: input.latitude,
+        longitude: input.longitude,
+    });
+
+    if (resolved.created) {
+        revalidatePath('/admin/villes');
+        revalidatePath('/logements');
+    }
+
+    return { id: resolved.id, name: resolved.name };
+}
+
 function mapPricingToDbFields(input: {
     rental_duration: RentalDuration;
     price_per_night: number;
@@ -449,9 +523,12 @@ export async function saveWizardPropertyAction(input: {
             propertyTypeId: parsed.data.property_type_id,
             customPropertyType: parsed.data.custom_property_type,
         }),
-        prisma.city.findFirst({
-            where: { id: parsed.data.city_id, isActive: true },
-            select: { id: true },
+        resolveCityForSave({
+            cityId: parsed.data.city_id,
+            cityName: parsed.data.city_name,
+            postalCode: parsed.data.postal_code,
+            latitude: parsed.data.latitude,
+            longitude: parsed.data.longitude,
         }),
         uniqueAmenityIds.length > 0
             ? prisma.amenity.findMany({
@@ -471,7 +548,7 @@ export async function saveWizardPropertyAction(input: {
     if (!cityRow) {
         return {
             ok: false,
-            fieldErrors: { city_id: 'Cette ville n’est pas disponible.' },
+            fieldErrors: { city_name: 'Indiquez le nom de la ville.' },
         };
     }
 
@@ -885,14 +962,17 @@ export async function updatePropertyStepAction(input: {
         if (!parsed.success) {
             return { ok: false, fieldErrors: zodToFieldErrors(parsed.error) };
         }
-        const cityRow = await prisma.city.findFirst({
-            where: { id: parsed.data.city_id, isActive: true },
-            select: { id: true },
+        const cityRow = await resolveCityForSave({
+            cityId: parsed.data.city_id,
+            cityName: parsed.data.city_name,
+            postalCode: parsed.data.postal_code,
+            latitude: parsed.data.latitude,
+            longitude: parsed.data.longitude,
         });
         if (!cityRow) {
             return {
                 ok: false,
-                fieldErrors: { city_id: 'Cette ville n’est pas disponible.' },
+                fieldErrors: { city_name: 'Indiquez le nom de la ville.' },
             };
         }
         await prisma.property.update({

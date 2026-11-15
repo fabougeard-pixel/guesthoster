@@ -908,6 +908,7 @@ export async function getHostPropertyForEdit(
     const row = await prisma.property.findUnique({
         where: { slug },
         include: {
+            city: { select: { name: true } },
             amenities: { select: { amenityId: true } },
             images: { orderBy: { position: 'asc' } },
         },
@@ -943,6 +944,7 @@ export async function getHostPropertyForEdit(
         status_label: PROPERTY_STATUS_LABELS[status] ?? status,
         rejection_reason: row.rejectionReason,
         city_id: row.cityId,
+        city_name: row.city?.name ?? null,
         address: row.address,
         postal_code: row.postalCode,
         latitude: row.latitude !== null ? Number(row.latitude) : null,

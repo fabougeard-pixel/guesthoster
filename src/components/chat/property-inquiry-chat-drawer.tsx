@@ -9,9 +9,9 @@ import {
     closeInquiryAndSendRecapAction,
     escalateInquiryToSupportAction,
     getOrCreateInquiryAction,
-    PAYMENT_KEYWORDS_REGEX,
     sendInquiryMessageAction,
 } from '@/lib/actions/inquiries';
+import { PAYMENT_KEYWORDS_REGEX } from '@/lib/domain/chat';
 import type { InquiryMessage, PropertyInquiryDetail } from '@/types';
 
 function formatTime(iso: string | null) {
@@ -162,8 +162,8 @@ export function PropertyInquiryChatDrawer({
         setIsEscalating(true);
         try {
             const res = await escalateInquiryToSupportAction({ reference: inquiry.reference });
-            const data = res.ok ? res.data : undefined;
-            if (data) {
+            if (res.ok && res.data) {
+                const data = res.data;
                 setInquiry(data.inquiry);
                 setMessages((prev) => [...prev, data.message]);
             } else {
@@ -221,8 +221,8 @@ export function PropertyInquiryChatDrawer({
                                 {isEscalated
                                     ? 'Support Client Officiel Guest Hoster'
                                     : isLongTerm
-                                      ? 'Chat en direct avec le propriétaire'
-                                      : 'Chat en direct avec l’hôte'}
+                                        ? 'Chat en direct avec le propriétaire'
+                                        : 'Chat en direct avec l’hôte'}
                             </p>
                         </div>
                     </div>
@@ -352,13 +352,12 @@ export function PropertyInquiryChatDrawer({
                                                 <span>{isSupportMsg ? 'Guest Hoster (Support Client)' : msg.sender_name}</span>
                                             </div>
                                             <div
-                                                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-2xs ${
-                                                    isMine
-                                                        ? 'bg-primary-600 text-white rounded-br-xs'
-                                                        : isSupportMsg
-                                                          ? 'bg-primary-50 text-primary-950 border border-primary-200 rounded-bl-xs dark:bg-primary-950/40 dark:text-primary-100 dark:border-primary-800'
-                                                          : 'bg-zinc-100 text-zinc-900 rounded-bl-xs dark:bg-zinc-800 dark:text-zinc-100'
-                                                }`}
+                                                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-2xs ${isMine
+                                                    ? 'bg-primary-600 text-white rounded-br-xs'
+                                                    : isSupportMsg
+                                                        ? 'bg-primary-50 text-primary-950 border border-primary-200 rounded-bl-xs dark:bg-primary-950/40 dark:text-primary-100 dark:border-primary-800'
+                                                        : 'bg-zinc-100 text-zinc-900 rounded-bl-xs dark:bg-zinc-800 dark:text-zinc-100'
+                                                    }`}
                                             >
                                                 {msg.body}
                                             </div>

@@ -37,7 +37,7 @@ export const DEFAULT_HOST_TYPES = [
 
 function generateHostId(): string {
     const num = Math.floor(1000 + Math.random() * 9000);
-    return `HOTE-${num}`;
+    return `GHOSTER-${num}`;
 }
 
 export type ManagedOwner = {
@@ -426,7 +426,7 @@ export function AdminOwnersClient({
                                     <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{owner.name}</span>
                                     {owner.email.endsWith('@guesthoster.local') ? (
                                         <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-primary-700 bg-primary-50 dark:bg-primary-950/40 dark:text-primary-300 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-800 w-fit mt-0.5">
-                                            ID : {owner.email.split('@')[0].toUpperCase()}
+                                            ID : {owner.email.split('@')[0].toUpperCase().replace(/^HOTE-/, 'GHOSTER-')}
                                         </span>
                                     ) : (
                                         <span className="text-xs text-zinc-500 truncate max-w-56">{owner.email}</span>
@@ -705,9 +705,9 @@ export function AdminOwnersClient({
                         </Field>
 
                         <Field
-                            label="ID Hôte / Propriétaire (auto-généré)"
+                            label="ID Propriétaire (auto-généré)"
                             htmlFor="create-owner-id"
-                            hint="Identifiant technique unique attribué au profil"
+                            hint="Identifiant technique unique attribué au profil (ex. GHOSTER-4829)"
                         >
                             <div className="flex items-center gap-2">
                                 <Input
@@ -716,7 +716,7 @@ export function AdminOwnersClient({
                                     value={createOwnerId}
                                     onChange={(e) => setCreateOwnerId(e.target.value.toUpperCase())}
                                     className="font-mono font-bold tracking-wider uppercase"
-                                    placeholder="HOTE-1234"
+                                    placeholder="GHOSTER-1234"
                                 />
                                 <button
                                     type="button"
@@ -1110,7 +1110,7 @@ export function AdminOwnersClient({
                                 <Field
                                     label={
                                         editingOwner.email.endsWith('@guesthoster.local')
-                                            ? `Adresse e-mail (ID actuel : ${editingOwner.email.split('@')[0].toUpperCase()})`
+                                            ? `Adresse e-mail (ID actuel : ${editingOwner.email.split('@')[0].toUpperCase().replace(/^HOTE-/, 'GHOSTER-')})`
                                             : 'Adresse e-mail'
                                     }
                                     htmlFor="edit-owner-email"

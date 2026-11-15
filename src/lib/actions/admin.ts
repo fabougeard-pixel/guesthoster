@@ -707,7 +707,7 @@ export async function createManagedOwnerAction(input: {
 
     const idCode = (
         parsed.data.ownerIdCode?.trim().toUpperCase() ||
-        `HOTE-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
+        `GHOSTER-${crypto.randomInt(1000, 9999)}`
     );
     let email = parsed.data.email?.trim().toLowerCase();
     if (!email) {

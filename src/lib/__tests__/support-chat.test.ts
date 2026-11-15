@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAYMENT_KEYWORDS_REGEX } from '@/lib/actions/inquiries';
+import { PAYMENT_KEYWORDS_REGEX } from '@/lib/domain/chat';
 import {
     SUPPORT_CATEGORIES,
     SUPPORT_CATEGORY_DESCRIPTIONS,

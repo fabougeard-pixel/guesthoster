@@ -132,7 +132,11 @@ export const detailsSchema = z
 
 export const locationSchema = z
     .object({
-        city_id: z.coerce.number().int().positive('Choisissez une ville.'),
+        city_id: z.preprocess(
+            (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
+            z.number().int().positive().optional().nullable(),
+        ),
+        city_name: z.string().trim().max(120).optional().nullable(),
         address: z
             .string()
             .trim()
@@ -157,6 +161,16 @@ export const locationSchema = z
         ),
     })
     .superRefine((data, ctx) => {
+        const hasCity =
+            (typeof data.city_id === 'number' && data.city_id > 0) ||
+            (typeof data.city_name === 'string' && data.city_name.trim().length >= 2);
+        if (!hasCity) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['city_name'],
+                message: 'Indiquez le nom de la ville (au moins 2 caractères).',
+            });
+        }
         const hasLat = data.latitude !== null;
         const hasLng = data.longitude !== null;
         if (hasLat !== hasLng) {
@@ -489,7 +503,11 @@ export const fullPropertyDraftSchema = z
         property_type_id: detailsSchema.shape.property_type_id,
         custom_property_type: detailsSchema.shape.custom_property_type,
         description: detailsSchema.shape.description,
-        city_id: z.coerce.number().int().positive('Choisissez une ville.'),
+        city_id: z.preprocess(
+            (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
+            z.number().int().positive().optional().nullable(),
+        ),
+        city_name: z.string().trim().max(120).optional().nullable(),
         address: z
             .string()
             .trim()
@@ -522,6 +540,17 @@ export const fullPropertyDraftSchema = z
     })
     .superRefine((data, ctx) => {
         refinePropertyTypeSelection(data, ctx);
+
+        const hasCity =
+            (typeof data.city_id === 'number' && data.city_id > 0) ||
+            (typeof data.city_name === 'string' && data.city_name.trim().length >= 2);
+        if (!hasCity) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['city_name'],
+                message: 'Indiquez le nom de la ville (au moins 2 caractères).',
+            });
+        }
 
         const hasLat = data.latitude !== null;
         const hasLng = data.longitude !== null;
@@ -561,6 +590,7 @@ export type PropertyWizardDraftValues = {
     custom_property_type: string;
     description: string;
     city_id: string;
+    city_name?: string;
     address: string;
     postal_code: string;
     latitude: string;
@@ -601,6 +631,7 @@ export const DEFAULT_WIZARD_VALUES: PropertyWizardDraftValues = {
     custom_property_type: '',
     description: '',
     city_id: '',
+    city_name: '',
     address: '',
     postal_code: '',
     latitude: '',

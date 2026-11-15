@@ -437,15 +437,32 @@ describe('Sidebar active link matching', () => {
         });
         expect(invalidCity.success).toBe(false);
 
-        const validCity = locationSchema.safeParse({
+        const invalidShortCity = locationSchema.safeParse({
+            city_name: 'A',
+            address: '10 rue de la Paix',
+        });
+        expect(invalidShortCity.success).toBe(false);
+
+        const validCityId = locationSchema.safeParse({
             city_id: 15,
             address: '10 rue de la Paix',
             postal_code: '75002',
         });
-        expect(validCity.success).toBe(true);
-        if (validCity.success) {
-            expect(validCity.data.city_id).toBe(15);
-            expect(validCity.data.postal_code).toBe('75002');
+        expect(validCityId.success).toBe(true);
+        if (validCityId.success) {
+            expect(validCityId.data.city_id).toBe(15);
+            expect(validCityId.data.postal_code).toBe('75002');
+        }
+
+        const validManualCity = locationSchema.safeParse({
+            city_name: 'Abidjan',
+            address: 'Boulevard de la République',
+            postal_code: 'BP 1234',
+        });
+        expect(validManualCity.success).toBe(true);
+        if (validManualCity.success) {
+            expect(validManualCity.data.city_name).toBe('Abidjan');
+            expect(validManualCity.data.postal_code).toBe('BP 1234');
         }
     });
 });

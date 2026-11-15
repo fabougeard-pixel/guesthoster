@@ -261,7 +261,7 @@ export default async function AdminMessagesPage({
                                                     <Badge tone="warning">Nouveau</Badge>
                                                 )}
                                                 {t.status === 'in_progress' && (
-                                                    <Badge tone="info">En cours</Badge>
+                                                    <Badge tone="primary">En cours</Badge>
                                                 )}
                                                 {t.status === 'resolved' && (
                                                     <Badge tone="success">Résolu</Badge>

@@ -172,6 +172,7 @@ const FIELD_TO_STEP: Record<string, WizardStepKey> = {
     property_type_id: 'details',
     custom_property_type: 'details',
     description: 'details',
+    city_name: 'location',
     city_id: 'location',
     address: 'location',
     postal_code: 'location',
@@ -221,6 +222,7 @@ function draftToWizardValues(
         custom_property_type: '',
         description: draft.description,
         city_id: draft.city_id ? String(draft.city_id) : '',
+        city_name: draft.city_name ?? '',
         address: draft.address ?? '',
         postal_code: draft.postal_code ?? '',
         latitude: draft.latitude !== null ? String(draft.latitude) : '',
@@ -267,6 +269,7 @@ function toEditablePropertySlice(
         custom_property_type: values.custom_property_type,
         description: values.description,
         city_id: Number(values.city_id) || null,
+        city_name: values.city_name || '',
         address: values.address || null,
         postal_code: values.postal_code || null,
         latitude: lat !== '' && !Number.isNaN(Number(lat)) ? Number(lat) : null,
@@ -335,6 +338,7 @@ function readStepValuesFromForm(
             return {
                 ...current,
                 city_id: String(fd.get('city_id') ?? ''),
+                city_name: String(fd.get('city_name') ?? current.city_name ?? ''),
                 address: String(fd.get('address') ?? ''),
                 postal_code: String(fd.get('postal_code') ?? ''),
                 latitude: String(fd.get('latitude') ?? ''),
@@ -502,6 +506,7 @@ function validateStep(
         case 'location': {
             const res = locationSchema.safeParse({
                 city_id: fd ? fd.get('city_id') : values.city_id,
+                city_name: fd ? fd.get('city_name') : values.city_name,
                 address: getStr('address', values.address),
                 postal_code: getStr('postal_code', values.postal_code),
                 latitude: fd ? fd.get('latitude') : values.latitude,
@@ -671,14 +676,15 @@ export function PropertyWizard({
         (owner) => String(owner.id) === values.owner_id,
     );
     const selectedCityName =
-        countryList
+        values.city_name ||
+        (countryList
             .flatMap((c) =>
                 c.cities.map((city) => ({
                     id: String(city.id),
                     label: `${city.name} (${c.name})`,
                 })),
             )
-            .find((item) => item.id === values.city_id)?.label ?? 'Non renseignée';
+            .find((item) => item.id === values.city_id)?.label ?? 'Non renseignée');
 
     const canSubmitPhotosRequirement =
         !options.cloudinaryDirectUpload ||
@@ -714,6 +720,7 @@ export function PropertyWizard({
                     custom_property_type: nextValues.custom_property_type,
                     description: nextValues.description,
                     city_id: nextValues.city_id,
+                    city_name: nextValues.city_name,
                     address: nextValues.address,
                     postal_code: nextValues.postal_code,
                     latitude: nextValues.latitude,
