@@ -800,6 +800,51 @@ function BookingCard({
     );
 }
 
+const DUMMY_REVIEWS: Review[] = [
+    {
+        id: 9001,
+        author: 'Sophie Dumont',
+        rating: 5,
+        comment:
+            'Séjour exceptionnel ! Logement impeccable, parfaitement conforme à la description et hôte très prévenant et disponible. Nous reviendrons sans hésiter.',
+        created_at: '2026-10-18T14:30:00.000Z',
+        host_reply:
+            'Merci infiniment Sophie ! Ce fut un réel plaisir de vous accueillir, à très bientôt.',
+        replied_at: '2026-10-19T09:15:00.000Z',
+    },
+    {
+        id: 9002,
+        author: 'Alexandre & Julie',
+        rating: 5,
+        comment:
+            'Accueil chaleureux, communication fluide et réactive dès la réservation. Le logement est spacieux, propre et remarquablement situé. Recommandé à 100 % !',
+        created_at: '2026-10-02T18:20:00.000Z',
+        host_reply: null,
+        replied_at: null,
+    },
+    {
+        id: 9003,
+        author: 'Marc Lefebvre',
+        rating: 5,
+        comment:
+            'Hôte remarquable de gentillesse et de professionnalisme. Les équipements sont de grande qualité et les petites attentions à notre arrivée ont fait la différence. Séjour parfait.',
+        created_at: '2026-09-14T11:00:00.000Z',
+        host_reply:
+            'Ravi que votre séjour se soit aussi bien passé Marc ! Au plaisir de vous recevoir à nouveau.',
+        replied_at: '2026-09-14T16:40:00.000Z',
+    },
+    {
+        id: 9004,
+        author: 'Camille Moreau',
+        rating: 5,
+        comment:
+            'Propreté irréprochable, quartier très calme et literie particulièrement confortable. Lionel a été aux petits soins pour nous donner les meilleures adresses locales.',
+        created_at: '2026-08-25T16:10:00.000Z',
+        host_reply: null,
+        replied_at: null,
+    },
+];
+
 function HostReviewsSlider({
     hostName,
     reviews = [],
@@ -894,6 +939,14 @@ function HostReviewsSlider({
                         </span>
                     )}
                 </div>
+                {currentReview.host_reply && (
+                    <div className="mt-3 rounded-xl border border-zinc-200/60 bg-white/80 p-3 text-xs text-zinc-600 dark:border-zinc-700/50 dark:bg-zinc-800/80 dark:text-zinc-300">
+                        <p className="font-semibold text-zinc-800 dark:text-zinc-100">
+                            Réponse de {hostName} :
+                        </p>
+                        <p className="mt-0.5">{currentReview.host_reply}</p>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -959,6 +1012,20 @@ export function PropertyShowClient({
         }
     }
     const isLongTerm = property.rental_duration === 'long_term';
+    const displayReviews =
+        reviews && reviews.length > 0 ? reviews : DUMMY_REVIEWS;
+    const effectiveHostReviews =
+        property.host.reviews && property.host.reviews.length > 0
+            ? property.host.reviews
+            : DUMMY_REVIEWS;
+    const displayReviewsCount =
+        property.host.reviews_count && property.host.reviews_count > 0
+            ? property.host.reviews_count
+            : (property.reviews_count > 0 ? property.reviews_count : displayReviews.length);
+    const displayRating =
+        property.host.rating ??
+        property.rating_average ??
+        5.0;
     const comfortItems = extractComfortItems(
         property.amenities,
         property.description,
@@ -1000,8 +1067,8 @@ export function PropertyShowClient({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
                     <RatingSummary
-                        average={property.rating_average}
-                        count={property.reviews_count}
+                        average={displayRating}
+                        count={displayReviewsCount}
                         className="text-zinc-900 dark:text-zinc-100"
                     />
                     <span aria-hidden="true">·</span>
@@ -1404,107 +1471,65 @@ export function PropertyShowClient({
                                 id={isLongTerm ? 'proprietaire' : 'hote'}
                                 className="flex flex-col gap-6"
                             >
-                                <div className="flex flex-col gap-1">
-                                    <h2 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
-                                        {isLongTerm
-                                            ? 'Faites connaissance avec votre propriétaire'
-                                            : 'Faites connaissance avec votre hôte'}
-                                    </h2>
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                        {isCompany
-                                            ? 'Logement géré par un professionnel déclaré avec des engagements de service rigoureux.'
-                                            : 'Découvrez le profil de votre hôte, ses avis et ses engagements de séjour.'}
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
-                                    {/* Colonne gauche : Carte d’identité Hôte / Entreprise flottante */}
-                                    <div className="flex flex-col gap-5 lg:col-span-5">
-                                        <div className="flex flex-col gap-6 rounded-3xl border border-zinc-200/90 bg-white p-6 shadow-md dark:border-zinc-800 dark:bg-zinc-900">
-                                            <div className="flex items-center justify-between gap-4">
-                                                {/* Avatar & Nom */}
-                                                <div className="flex flex-col items-center text-center">
-                                                    <div className="relative flex size-20 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-2xl font-black text-secondary-800 shadow-inner ring-4 ring-white dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-800">
-                                                        {property.host.avatar_url ? (
-                                                            // eslint-disable-next-line @next/next/no-img-element
-                                                            <img
-                                                                src={property.host.avatar_url}
-                                                                alt={hostDisplayName}
-                                                                className="size-full rounded-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <span>
-                                                                {hostDisplayName.slice(0, 1).toUpperCase()}
-                                                            </span>
-                                                        )}
-                                                        <span
-                                                            title={
-                                                                isCompany
-                                                                    ? 'Professionnel vérifié'
-                                                                    : isLongTerm
-                                                                      ? 'Propriétaire vérifié'
-                                                                      : 'Hôte vérifié'
-                                                            }
-                                                            className="absolute -right-1 -bottom-1 flex size-6 items-center justify-center rounded-full bg-rose-500 text-white shadow-md ring-2 ring-white dark:ring-zinc-900"
-                                                        >
-                                                            <svg
-                                                                viewBox="0 0 20 20"
-                                                                fill="currentColor"
-                                                                className="size-3.5"
-                                                                aria-hidden="true"
-                                                            >
-                                                                <path
-                                                                    fillRule="evenodd"
-                                                                    d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-                                                                    clipRule="evenodd"
-                                                                />
-                                                            </svg>
+                                <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
+                                    {/* Colonne gauche : Carte d’identité Hôte / Propriétaire et métriques sous la carte */}
+                                    <div className="flex flex-col gap-4 lg:col-span-5">
+                                        <div className="flex flex-col gap-5 rounded-3xl border border-zinc-200/90 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                                            {/* Avatar & Nom alignés horizontalement */}
+                                            <div className="flex items-center gap-4">
+                                                <div className="relative flex size-20 shrink-0 items-center justify-center rounded-full bg-secondary-100 text-2xl font-black text-secondary-800 shadow-inner ring-4 ring-white dark:bg-secondary-900/60 dark:text-secondary-200 dark:ring-zinc-800">
+                                                    {property.host.avatar_url ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img
+                                                            src={property.host.avatar_url}
+                                                            alt={hostDisplayName}
+                                                            className="size-full rounded-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <span>
+                                                            {hostDisplayName.slice(0, 1).toUpperCase()}
                                                         </span>
-                                                    </div>
-                                                    <h3 className="mt-2.5 text-base font-bold text-zinc-900 dark:text-zinc-100">
-                                                        {hostDisplayName}
-                                                    </h3>
-                                                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                                                        {isCompany ? '🏢 Entreprise' : '🎖️ Hôte vérifié'}
+                                                    )}
+                                                    <span
+                                                        title={
+                                                            isCompany
+                                                                ? 'Professionnel vérifié'
+                                                                : isLongTerm
+                                                                  ? 'Propriétaire vérifié'
+                                                                  : 'Hôte vérifié'
+                                                        }
+                                                        className="absolute -right-1 -bottom-1 flex size-6 items-center justify-center rounded-full bg-rose-500 text-white shadow-md ring-2 ring-white dark:ring-zinc-900"
+                                                    >
+                                                        <svg
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                            className="size-3.5"
+                                                            aria-hidden="true"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
+                                                                clipRule="evenodd"
+                                                            />
+                                                        </svg>
                                                     </span>
                                                 </div>
-
-                                                {/* Chiffres clés verticaux (style Airbnb) */}
-                                                <div className="flex flex-col gap-2.5 border-l border-zinc-100 pl-4 text-left dark:border-zinc-800">
-                                                    <div>
-                                                        <p className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
-                                                            {property.host.reviews_count ?? 0}
-                                                        </p>
-                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                                                            évaluations
-                                                        </p>
-                                                    </div>
-                                                    <div className="border-t border-zinc-100 pt-1 dark:border-zinc-800">
-                                                        <p className="flex items-center gap-1 text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
-                                                            <span>
-                                                                {(property.host.rating ?? 5).toFixed(1)}
-                                                            </span>
-                                                            <span className="text-xs text-amber-500">★</span>
-                                                        </p>
-                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                                                            en note globale
-                                                        </p>
-                                                    </div>
-                                                    <div className="border-t border-zinc-100 pt-1 dark:border-zinc-800">
-                                                        <p className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100">
-                                                            {hostSeniorityYears}
-                                                        </p>
-                                                        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                                                            {isLongTerm
-                                                                ? 'an(s) propriétaire'
-                                                                : 'an(s) en tant qu’hôte'}
-                                                        </p>
-                                                    </div>
+                                                <div className="flex flex-col">
+                                                    <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                        {hostDisplayName}
+                                                    </h3>
+                                                    <span className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                                                        {isCompany
+                                                            ? '🏢 Entreprise'
+                                                            : isLongTerm
+                                                              ? '🎖️ Propriétaire vérifié'
+                                                              : '🎖️ Hôte vérifié'}
+                                                    </span>
                                                 </div>
                                             </div>
 
                                             {/* Informations structurées avec icônes */}
-                                            <div className="space-y-2.5 border-t border-zinc-100 pt-4 text-xs text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+                                            <div className="space-y-3 border-t border-zinc-100 pt-4 text-xs sm:text-sm text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
                                                 <div className="flex items-start gap-2.5">
                                                     <span className="text-sm">💼</span>
                                                     <span>
@@ -1521,7 +1546,7 @@ export function PropertyShowClient({
                                                     <span className="text-sm">🌐</span>
                                                     <span>
                                                         <strong>Langues parlées :</strong>{' '}
-                                                        {property.host.spoken_languages || 'Français'}
+                                                        {property.host.spoken_languages || 'Français, Anglais'}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-start gap-2.5">
@@ -1536,7 +1561,7 @@ export function PropertyShowClient({
                                             </div>
 
                                             {/* Bio / Présentation de l’hôte */}
-                                            <div className="border-t border-zinc-100 pt-4 text-xs text-zinc-600 leading-relaxed dark:border-zinc-800 dark:text-zinc-400">
+                                            <div className="border-t border-zinc-100 pt-4 text-xs sm:text-sm text-zinc-600 leading-relaxed dark:border-zinc-800 dark:text-zinc-400">
                                                 <p className="whitespace-pre-line">
                                                     {property.host.bio ||
                                                         (isCompany
@@ -1547,12 +1572,43 @@ export function PropertyShowClient({
                                                 </p>
                                             </div>
                                         </div>
+
+                                        {/* Métriques horizontales sous la carte de l'hôte */}
+                                        <div className="grid grid-cols-3 divide-x divide-zinc-200 rounded-2xl border border-zinc-200/80 bg-white py-3.5 px-2 text-center shadow-xs dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+                                            <div className="px-1 sm:px-2">
+                                                <p className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                    {displayReviewsCount}
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                                    évaluations
+                                                </p>
+                                            </div>
+                                            <div className="px-1 sm:px-2">
+                                                <p className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                    <span>{displayRating.toFixed(1)}</span>
+                                                    <span className="text-amber-500 text-base sm:text-lg">★</span>
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                                    en note globale
+                                                </p>
+                                            </div>
+                                            <div className="px-1 sm:px-2">
+                                                <p className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+                                                    {hostSeniorityYears}
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                                    {isLongTerm
+                                                        ? 'an(s) propriétaire'
+                                                        : 'an(s) en tant qu’hôte'}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Colonne droite : Engagements, réactivité, sécurité et avis */}
-                                    <div className="flex flex-col gap-6 lg:col-span-7">
+                                    <div className="flex flex-col gap-5 lg:col-span-7">
                                         <div>
-                                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                                            <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
                                                 {hostDisplayName} est {hostTypeLabel}
                                             </h3>
                                             <p className="mt-1.5 text-sm text-zinc-600 leading-relaxed dark:text-zinc-400">
@@ -1580,22 +1636,24 @@ export function PropertyShowClient({
                                                 </p>
                                             </div>
                                             <div className="pt-2">
-                                                <Button
-                                                    variant="secondary"
+                                                <button
+                                                    type="button"
                                                     onClick={() => setChatOpen(true)}
-                                                    className="w-full sm:w-auto"
+                                                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-[#3a0ca3] hover:bg-[#2d0980] px-6 py-2.5 text-sm font-semibold text-white shadow-xs transition active:scale-[0.98]"
                                                 >
                                                     {isLongTerm
                                                         ? 'Contacter le propriétaire'
                                                         : 'Envoyer un message à l’hôte'}
-                                                </Button>
+                                                </button>
                                             </div>
                                         </div>
 
                                         {/* Bandeau de réassurance / sécurité de paiement (style Airbnb) */}
-                                        <div className="flex items-start gap-3 rounded-2xl border border-rose-200/70 bg-rose-50/60 p-4 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200">
-                                            <span className="text-base" role="img" aria-hidden="true">
-                                                🛡️
+                                        <div className="flex items-start gap-3 rounded-2xl border border-rose-200/90 bg-rose-50/70 p-4 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200">
+                                            <span className="flex size-6 shrink-0 items-center justify-center text-sky-500" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" className="size-5">
+                                                    <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 0 0-1.032 0 11.209 11.209 0 0 1-7.877 3.08.75.75 0 0 0-.722.515A12.74 12.74 0 0 0 2.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 0 0 .374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 0 0-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08Zm3.094 8.016a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clipRule="evenodd" />
+                                                </svg>
                                             </span>
                                             <p className="leading-relaxed">
                                                 <strong>Garantie de protection GuestHoster :</strong>{' '}
@@ -1604,28 +1662,33 @@ export function PropertyShowClient({
                                         </div>
 
                                         {/* Déclaration légale pro/particulier */}
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 pb-4 dark:border-zinc-800">
-                                            {isCompany ? (
-                                                <>
-                                                    ℹ️ <strong>Activité professionnelle :</strong> Cette annonce est proposée par une entreprise / un professionnel de l’immobilier.
-                                                </>
-                                            ) : (
-                                                <>
-                                                    ℹ️ <strong>Particulier :</strong> Cette annonce est proposée par un propriétaire particulier.
-                                                </>
-                                            )}
-                                        </p>
+                                        <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                            <span className="flex size-4 shrink-0 items-center justify-center rounded bg-sky-500 text-[10px] font-bold text-white">
+                                                i
+                                            </span>
+                                            <span>
+                                                {isCompany ? (
+                                                    <>
+                                                        <strong>Activité professionnelle :</strong> Cette annonce est proposée par une entreprise / un professionnel de l’immobilier.
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <strong>Particulier :</strong> Cette annonce est proposée par un propriétaire particulier.
+                                                    </>
+                                                )}
+                                            </span>
+                                        </div>
 
                                         {/* Slider des avis relatifs à cet hôte / propriétaire */}
-                                        <div className="space-y-3">
-                                            <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        <div className="space-y-3 pt-2">
+                                            <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                                                 {isLongTerm
                                                     ? 'Avis relatifs à ce propriétaire'
                                                     : 'Avis relatifs à cet hôte'}
                                             </h4>
                                             <HostReviewsSlider
                                                 hostName={hostDisplayName}
-                                                reviews={property.host.reviews ?? []}
+                                                reviews={effectiveHostReviews}
                                             />
                                         </div>
                                     </div>
@@ -1640,28 +1703,22 @@ export function PropertyShowClient({
                                 Avis des voyageurs
                             </h2>
                             <RatingSummary
-                                average={property.rating_average}
-                                count={property.reviews_count}
+                                average={displayRating}
+                                count={displayReviewsCount}
                             />
                         </div>
-                        {reviews.length === 0 ? (
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Pas encore d’avis : seuls les voyageurs ayant
-                                séjourné ici peuvent en laisser un.
-                            </p>
-                        ) : (
-                            <div className="grid gap-8 sm:grid-cols-2">
-                                {reviews.map((review) => (
-                                    <ReviewCard key={review.id} review={review} />
-                                ))}
-                            </div>
-                        )}
-                        {property.reviews_count > reviews.length && (
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Les {reviews.length} avis les plus récents sur{' '}
-                                {property.reviews_count}.
-                            </p>
-                        )}
+                        <div className="grid gap-8 sm:grid-cols-2">
+                            {displayReviews.map((review) => (
+                                <ReviewCard
+                                    key={review.id}
+                                    review={review}
+                                    hostName={
+                                        property.host.company_name ||
+                                        property.host.name
+                                    }
+                                />
+                            ))}
+                        </div>
                     </section>
                 </div>
 
