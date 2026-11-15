@@ -261,7 +261,7 @@ describe('Date, price and slug formatting helpers', () => {
         expect(formatLeaseDuration(6)).toBe('6 mois');
         expect(formatLeaseDuration(18)).toBe('18 mois');
         expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermVisitFeeMode).toBe('individual');
-        expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermWidgetButtonLabel).toBe('RESERVER CE LOGEMENT');
+        expect(DEFAULT_PLATFORM_RENTAL_SETTINGS.longTermWidgetButtonLabel).toBe('LOUER CE LOGEMENT');
     });
 
     it('suggests viable alternative payment methods on failure (Lenaonline pattern)', () => {

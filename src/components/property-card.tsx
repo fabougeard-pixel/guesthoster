@@ -199,7 +199,7 @@ export function PropertyCard({
                             </div>
                         </div>
 
-                        {/* Bouton RESERVER CE LOGEMENT avec icône calendrier et flèche */}
+                        {/* Bouton LOUER CE LOGEMENT avec icône calendrier et flèche */}
                         <div className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 py-3 px-4 text-sm font-semibold text-white shadow-md transition-all group-hover:bg-primary-600 group-hover:shadow-lg dark:bg-primary-600 dark:group-hover:bg-primary-500">
                             <svg
                                 viewBox="0 0 20 20"
@@ -213,7 +213,7 @@ export function PropertyCard({
                                     clipRule="evenodd"
                                 />
                             </svg>
-                            <span>RESERVER CE LOGEMENT</span>
+                            <span>LOUER CE LOGEMENT</span>
                             <svg
                                 viewBox="0 0 20 20"
                                 fill="currentColor"

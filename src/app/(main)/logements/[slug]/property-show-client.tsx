@@ -340,7 +340,7 @@ function BookingCard({
             rentalSettings?.longTermWidgetButtonLabel?.trim() &&
             rentalSettings.longTermWidgetButtonLabel !== 'Prendre rendez-vous'
                 ? rentalSettings.longTermWidgetButtonLabel
-                : 'RESERVER CE LOGEMENT';
+                : 'LOUER CE LOGEMENT';
 
         const showDeposit =
             rentalSettings?.longTermShowDepositOnWidget ?? true;

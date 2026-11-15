@@ -4,7 +4,7 @@ export type PlatformRentalSettings = {
     // Location classique
     longTermVisitFeeMode: 'individual' | 'global';
     longTermGlobalVisitFee: number; // en euros (ex: 20)
-    longTermWidgetButtonLabel: string; // ex: "RESERVER CE LOGEMENT"
+    longTermWidgetButtonLabel: string; // ex: "LOUER CE LOGEMENT"
     longTermDefaultMinLeaseMonths: number; // ex: 12
     longTermShowDepositOnWidget: boolean;
     longTermShowChargesOnWidget: boolean;
@@ -16,7 +16,7 @@ export type PlatformRentalSettings = {
 export const DEFAULT_PLATFORM_RENTAL_SETTINGS: PlatformRentalSettings = {
     longTermVisitFeeMode: 'individual',
     longTermGlobalVisitFee: 20,
-    longTermWidgetButtonLabel: 'RESERVER CE LOGEMENT',
+    longTermWidgetButtonLabel: 'LOUER CE LOGEMENT',
     longTermDefaultMinLeaseMonths: 12,
     longTermShowDepositOnWidget: true,
     longTermShowChargesOnWidget: true,

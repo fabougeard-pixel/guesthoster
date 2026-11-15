@@ -229,7 +229,7 @@ export function AdminSettingsClient({
                                         longTermWidgetButtonLabel: e.target.value,
                                     }))
                                 }
-                                placeholder="RESERVER CE LOGEMENT"
+                                placeholder="LOUER CE LOGEMENT"
                                 className="mt-1"
                             />
                         </Field>

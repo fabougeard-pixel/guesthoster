@@ -56,8 +56,15 @@ export function VisitBookingModal({
     );
 
     const today = todayIso();
+    const minVisitDate = (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+        return d.toISOString().slice(0, 10);
+    })();
+
+    const [entryDate, setEntryDate] = useState<string>('');
     const [visitDate, setVisitDate] = useState<string>('');
-    const [timeSlot, setTimeSlot] = useState<string>(TIME_SLOTS[1]);
+    const [timeSlot, setTimeSlot] = useState<string>('');
     const [name, setName] = useState<string>('');
     const [email, setEmail] = useState<string>('');
     const [phone, setPhone] = useState<string>('');
@@ -108,13 +115,25 @@ export function VisitBookingModal({
         setErrorMsg(null);
         setPaymentError(null);
 
-        if (!visitDate) {
+        if (!entryDate) {
             setErrorMsg('Veuillez sélectionner une date d\'entrée souhaitée.');
             return;
         }
 
+        if (!visitDate) {
+            setErrorMsg('Veuillez sélectionner une date de visite disponible.');
+            return;
+        }
+
+        if (visitDate < minVisitDate) {
+            setErrorMsg(
+                `La date de visite doit être au minimum le ${formatDate(minVisitDate)} (délai de 3 jours).`,
+            );
+            return;
+        }
+
         if (!timeSlot) {
-            setErrorMsg('Veuillez choisir un horaire de visite.');
+            setErrorMsg('Veuillez choisir un créneau horaire de visite.');
             return;
         }
 
@@ -170,15 +189,22 @@ export function VisitBookingModal({
         setIsSubmitting(true);
 
         try {
+            const combinedNotes = [
+                `Date d'entrée souhaitée : ${formatDate(entryDate)}`,
+                notes.trim(),
+            ]
+                .filter(Boolean)
+                .join('\n');
+
             const res = await createPropertyVisitAction({
                 propertySlug: property.slug,
                 visitDate,
                 timeSlot,
-                name,
-                email,
+                name: name.trim(),
+                email: email.trim(),
                 phone: phone.trim() || undefined,
                 situation,
-                notes: notes.trim() || undefined,
+                notes: combinedNotes || undefined,
                 paymentMethod: visitFee > 0 ? paymentMethod : undefined,
             });
 
@@ -274,11 +300,11 @@ export function VisitBookingModal({
 
                             {confirmedVisit.visitFee > 0 && (
                                 <div className="mt-4 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                    Forfait de validation réglé :{' '}
+                                    Caution réglée :{' '}
                                     <strong className="text-zinc-900 dark:text-zinc-100">
                                         {formatPrice(confirmedVisit.visitFee)}
                                     </strong>
-                                    . Ce montant garantit votre créneau exclusif avec le propriétaire et sera déduit à la signature du bail.
+                                    . Le versement de la caution permet de bloquer la disponibilité de ce bien et de bénéficier d’un accès privilégié à celui-ci, sous réserve de la présentation d’un dossier complet.
                                 </div>
                             )}
                         </div>
@@ -297,18 +323,9 @@ export function VisitBookingModal({
                                 <Badge tone="secondary">
                                     Location classique · Min. {formatLeaseDuration(property.min_lease_months)}
                                 </Badge>
-                                {visitFee > 0 ? (
-                                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                                        Forfait validation : {formatPrice(visitFee)}
-                                    </span>
-                                ) : (
-                                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                                        Visite sans frais
-                                    </span>
-                                )}
                             </div>
                             <h2 id="visit-modal-title" className="text-xl font-bold text-zinc-900 sm:text-2xl dark:text-zinc-100">
-                                Prendre rendez-vous pour visiter ce bien
+                                Louer ce bien dès aujourd&apos;hui
                             </h2>
                             <p className="text-xs text-zinc-500 dark:text-zinc-400">
                                 {property.title} · {property.city}, {property.country}
@@ -335,37 +352,68 @@ export function VisitBookingModal({
                         <div className="grid gap-4 sm:grid-cols-2">
                             {/* Date d'entrée souhaitée */}
                             <div>
-                                <Label htmlFor="visit_date">Date d&apos;entrée souhaitée *</Label>
+                                <Label htmlFor="entry_date">Date d&apos;entrée souhaitée *</Label>
                                 <input
-                                    id="visit_date"
+                                    id="entry_date"
                                     type="date"
                                     min={today}
-                                    value={visitDate}
-                                    onChange={(e) => setVisitDate(e.target.value)}
+                                    value={entryDate}
+                                    onChange={(e) => setEntryDate(e.target.value)}
                                     required
                                     className="mt-1 flex h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 transition hover:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                                 />
                             </div>
 
-                            {/* Créneau horaire */}
+                            {/* Date visite disponible */}
                             <div>
-                                <Label htmlFor="time_slot">Créneau horaire disponible *</Label>
-                                <div className="mt-1 grid grid-cols-3 gap-1.5">
-                                    {TIME_SLOTS.map((slot) => (
-                                        <button
-                                            key={slot}
-                                            type="button"
-                                            onClick={() => setTimeSlot(slot)}
-                                            className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${timeSlot === slot
-                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-500/20 dark:border-primary-400 dark:bg-primary-950/60 dark:text-primary-300'
-                                                    : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                                                }`}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
-                                </div>
+                                <Label htmlFor="visit_date">Date visite disponible *</Label>
+                                <input
+                                    id="visit_date"
+                                    type="date"
+                                    min={minVisitDate}
+                                    value={visitDate}
+                                    onChange={(e) => {
+                                        setVisitDate(e.target.value);
+                                        if (!timeSlot) {
+                                            setTimeSlot(TIME_SLOTS[1]);
+                                        }
+                                    }}
+                                    required
+                                    className="mt-1 flex h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 transition hover:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                />
+                                <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                    Disponible à partir du {formatDate(minVisitDate)} (+3 jours de préavis).
+                                </p>
                             </div>
+
+                            {/* Créneau horaire : affiché uniquement après sélection de la date de visite souhaitée */}
+                            {visitDate ? (
+                                <div className="sm:col-span-2 rounded-2xl border border-primary-200/80 bg-primary-50/40 p-4 dark:border-primary-900/60 dark:bg-primary-950/20">
+                                    <Label htmlFor="time_slot" className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                        Créneau horaire disponible pour le {formatDate(visitDate)} *
+                                    </Label>
+                                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                                        {TIME_SLOTS.map((slot) => (
+                                            <button
+                                                key={slot}
+                                                type="button"
+                                                onClick={() => setTimeSlot(slot)}
+                                                className={`rounded-xl border py-2 text-xs font-semibold transition ${
+                                                    timeSlot === slot
+                                                        ? 'border-primary-500 bg-primary-600 text-white shadow-xs ring-2 ring-primary-500/20'
+                                                        : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                                                }`}
+                                            >
+                                                {slot}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="sm:col-span-2 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/50 p-3 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+                                    ⏰ Sélectionnez une <strong>Date visite disponible</strong> ci-dessus pour afficher et choisir vos créneaux horaires.
+                                </div>
+                            )}
                         </div>
 
                         {/* Coordonnées du candidat */}
@@ -435,16 +483,16 @@ export function VisitBookingModal({
                             </div>
                         </div>
 
-                        {/* Modalités financières du rendez-vous */}
+                        {/* Modalités financières - Caution à payer */}
                         {visitFee > 0 ? (
                             <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
                                 <div className="flex items-baseline justify-between">
                                     <div>
                                         <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                            Forfait de validation du créneau de visite
+                                            Caution à payer pour intégrer le logement
                                         </h4>
                                         <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-                                            Ce montant bloque votre créneau avec le propriétaire et vous garantit la disponibilité du créneau.
+                                            Le versement de la caution permet de bloquer la disponibilité de ce bien et de bénéficier d’un accès privilégié à celui-ci, sous réserve de la présentation d’un dossier complet.
                                         </p>
                                     </div>
                                     <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -453,7 +501,7 @@ export function VisitBookingModal({
                                 </div>
 
                                 <div className="mt-3 border-t border-amber-200/80 pt-3 dark:border-amber-900/60">
-                                    <Label>Mode de règlement du forfait</Label>
+                                    <Label>Mode de règlement de la caution</Label>
                                     <div className="mt-2 grid gap-2 sm:grid-cols-3">
                                         {enabledMethods.includes('card') && (
                                             <label className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition ${paymentMethod === 'card'
@@ -509,7 +557,7 @@ export function VisitBookingModal({
                             <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
                                 <span>✓</span>
                                 <span>
-                                    <strong>Visite gratuite :</strong> aucun règlement requis pour confirmer votre visite.
+                                    <strong>Réservation sans frais :</strong> aucun versement de caution requis pour ce bien.
                                 </span>
                             </div>
                         )}
@@ -525,8 +573,8 @@ export function VisitBookingModal({
                             </Button>
                             <Button type="submit" loading={isSubmitting}>
                                 {visitFee > 0
-                                    ? `Valider le créneau (${formatPrice(visitFee)})`
-                                    : 'Confirmer mon rendez-vous de visite'}
+                                    ? `Régler la caution (${formatPrice(visitFee)})`
+                                    : 'Confirmer ma demande de location'}
                             </Button>
                         </div>
                     </form>
