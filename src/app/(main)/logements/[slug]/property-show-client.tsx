@@ -6,6 +6,11 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import type { StaySelection } from '@/components/availability-calendar';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
+import {
+    CapacityIcon,
+    AmenityIcon,
+    extractComfortItems,
+} from '@/components/amenity-icons';
 import { Button, buttonClasses } from '@/components/button';
 import { Badge, Card, Container } from '@/components/card';
 import { PropertyInquiryChatDrawer } from '@/components/chat/property-inquiry-chat-drawer';
@@ -954,6 +959,11 @@ export function PropertyShowClient({
         }
     }
     const isLongTerm = property.rental_duration === 'long_term';
+    const comfortItems = extractComfortItems(
+        property.amenities,
+        property.description,
+        property.title,
+    );
     const longTermQuote = isLongTerm
         ? quoteLongTermUpfront({
             monthlyRent: property.monthly_rent,
@@ -1050,35 +1060,75 @@ export function PropertyShowClient({
                                             : (property.host.host_type ?? 'Hôte Standard')}
                                     </span>
                                 </div>
-                                <p className="text-zinc-600 dark:text-zinc-400">
-                                    {[
-                                        isLongTerm
-                                            ? (property.furnishing_label ?? 'Meublé')
-                                            : plural(
-                                                property.max_guests,
-                                                'voyageur',
-                                            ),
-                                        property.bedrooms > 0
-                                            ? plural(
-                                                property.bedrooms,
-                                                'chambre',
-                                            )
-                                            : 'Studio',
-                                        property.beds > 0
-                                            ? plural(property.beds, 'lit')
-                                            : null,
-                                        plural(
-                                            property.bathrooms,
-                                            'salle de bain',
-                                            'salles de bain',
-                                        ),
-                                        isLongTerm
-                                            ? `Bail min. ${formatLeaseDuration(property.min_lease_months)} renouvelable`
-                                            : null,
-                                    ]
-                                        .filter(Boolean)
-                                        .join(' · ')}
-                                </p>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                    <span className="inline-flex items-center gap-1.5 font-medium">
+                                        <CapacityIcon
+                                            type={isLongTerm ? 'furnishing' : 'guests'}
+                                            className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+                                        />
+                                        <span>
+                                            {isLongTerm
+                                                ? (property.furnishing_label ?? 'Meublé')
+                                                : plural(property.max_guests, 'voyageur')}
+                                        </span>
+                                    </span>
+
+                                    <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>
+
+                                    <span className="inline-flex items-center gap-1.5 font-medium">
+                                        <CapacityIcon
+                                            type="bedrooms"
+                                            className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+                                        />
+                                        <span>
+                                            {property.bedrooms > 0
+                                                ? plural(property.bedrooms, 'chambre')
+                                                : 'Studio'}
+                                        </span>
+                                    </span>
+
+                                    {property.beds > 0 && (
+                                        <>
+                                            <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>
+                                            <span className="inline-flex items-center gap-1.5 font-medium">
+                                                <CapacityIcon
+                                                    type="beds"
+                                                    className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+                                                />
+                                                <span>{plural(property.beds, 'lit')}</span>
+                                            </span>
+                                        </>
+                                    )}
+
+                                    <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>
+
+                                    <span className="inline-flex items-center gap-1.5 font-medium">
+                                        <CapacityIcon
+                                            type="bathrooms"
+                                            className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+                                        />
+                                        <span>
+                                            {plural(
+                                                property.bathrooms,
+                                                'salle de bain',
+                                                'salles de bain',
+                                            )}
+                                        </span>
+                                    </span>
+
+                                    {isLongTerm && property.min_lease_months && (
+                                        <>
+                                            <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>
+                                            <span className="inline-flex items-center gap-1.5 font-medium">
+                                                <CapacityIcon
+                                                    type="lease"
+                                                    className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+                                                />
+                                                <span>{`Bail min. ${formatLeaseDuration(property.min_lease_months)} renouvelable`}</span>
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                             <Button
                                 variant="outline"
@@ -1164,6 +1214,61 @@ export function PropertyShowClient({
                         </p>
                     </section>
 
+                    {/* Section Confort, détente & loisirs */}
+                    {comfortItems.length > 0 && (
+                        <section className="flex flex-col gap-4 rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/40 p-6 shadow-xs dark:border-amber-900/40 dark:from-amber-950/25 dark:via-zinc-900 dark:to-orange-950/15">
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:bg-amber-400/10 dark:text-amber-400 dark:ring-amber-400/20">
+                                        <AmenityIcon slug="jacuzzi" className="size-5.5" />
+                                    </span>
+                                    <h2 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                                        Confort & Loisirs
+                                    </h2>
+                                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
+                                        {comfortItems.length} équipement{comfortItems.length > 1 ? 's' : ''} bien-être & détente
+                                    </span>
+                                </div>
+                                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                                    Profitez d’installations exclusives pensées pour votre bien-être, vos moments conviviaux et vos divertissements.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+                                {comfortItems.map((item) => (
+                                    <div
+                                        key={item.slug}
+                                        className={cn(
+                                            'flex items-center gap-3.5 rounded-2xl border p-3.5 shadow-2xs transition-all hover:shadow-md',
+                                            item.highlight
+                                                ? 'border-amber-300/90 bg-white ring-1 ring-amber-300/40 dark:border-amber-700/60 dark:bg-zinc-900 dark:ring-amber-700/30'
+                                                : 'border-zinc-200/80 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/90',
+                                        )}
+                                    >
+                                        <div
+                                            className={cn(
+                                                'flex size-11 shrink-0 items-center justify-center rounded-xl',
+                                                item.highlight
+                                                    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-700/50'
+                                                    : 'bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700',
+                                            )}
+                                        >
+                                            <AmenityIcon slug={item.slug} name={item.name} className="size-5.5" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-sm text-zinc-900 truncate dark:text-zinc-100">
+                                                {item.name}
+                                            </p>
+                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                                {item.badge}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     {property.amenities.length > 0 && (
                         <section className="flex flex-col gap-5">
                             <h2 className="text-lg font-semibold">
@@ -1172,28 +1277,23 @@ export function PropertyShowClient({
                             <div className="grid gap-6 sm:grid-cols-2">
                                 {property.amenities.map((group) => (
                                     <div key={group.category}>
-                                        <h3 className="mb-2 text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                                             {group.category}
                                         </h3>
-                                        <ul className="flex flex-col gap-1.5">
+                                        <ul className="flex flex-col gap-2.5">
                                             {group.items.map((amenity) => (
                                                 <li
                                                     key={amenity.slug}
-                                                    className="flex items-center gap-2"
+                                                    className="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300"
                                                 >
-                                                    <svg
-                                                        viewBox="0 0 20 20"
-                                                        fill="currentColor"
-                                                        className="size-4 text-primary-600"
-                                                        aria-hidden="true"
-                                                    >
-                                                        <path
-                                                            fillRule="evenodd"
-                                                            d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-                                                            clipRule="evenodd"
+                                                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-950/40 dark:text-primary-400 dark:ring-primary-900/50">
+                                                        <AmenityIcon
+                                                            slug={amenity.slug}
+                                                            name={amenity.name}
+                                                            className="size-4"
                                                         />
-                                                    </svg>
-                                                    {amenity.name}
+                                                    </span>
+                                                    <span>{amenity.name}</span>
                                                 </li>
                                             ))}
                                         </ul>

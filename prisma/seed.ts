@@ -93,6 +93,12 @@ const AMENITIES: Record<string, Record<string, [string, string]>> = {
         microwave: ['Micro-ondes', 'microwave'],
     },
     comfort: {
+        jacuzzi: ['Jacuzzi / Spa de relaxation', 'bath'],
+        sauna: ['Sauna', 'flame'],
+        'board-games': ['Jeux de société', 'puzzle'],
+        foosball: ['Baby-foot', 'trophy'],
+        billiards: ['Billard', 'circle-dot'],
+        fitness: ['Espace fitness / Salle de sport', 'dumbbell'],
         tv: ['Télévision', 'tv'],
         elevator: ['Ascenseur', 'arrow-up-down'],
         'pets-allowed': ['Animaux acceptés', 'paw-print'],
