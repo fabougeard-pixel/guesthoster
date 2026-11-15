@@ -38,6 +38,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             icon: 'home',
                         },
                         {
+                            label: 'Signalements d’annonces',
+                            href: '/admin/signalements',
+                            icon: 'shield',
+                        },
+                        {
                             label: 'Ajouter un logement',
                             href: '/admin/logements/nouveau',
                             exact: true,
@@ -47,6 +52,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                             label: 'Réservations',
                             href: '/admin/reservations',
                             icon: 'calendar',
+                        },
+                        {
+                            label: 'Visites de logements',
+                            href: '/admin/visites',
+                            icon: 'map-pin',
                         },
                         {
                             label: 'Messages & Conciergerie',

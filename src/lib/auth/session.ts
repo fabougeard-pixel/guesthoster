@@ -109,26 +109,30 @@ export async function hasConfirmedPasswordRecently(
 }
 
 async function fetchActiveUserFromCookies(): Promise<PrismaUser | null> {
-    const cookieStore = await cookies();
-    const raw = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!raw) {
+    try {
+        const cookieStore = await cookies();
+        const raw = cookieStore.get(SESSION_COOKIE)?.value;
+        if (!raw) {
+            return null;
+        }
+
+        const payload = verifySignedToken<SessionTokenPayload>(raw);
+        if (!payload || typeof payload.uid !== 'number') {
+            return null;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: payload.uid },
+        });
+
+        if (!user || user.suspendedAt !== null) {
+            return null;
+        }
+
+        return user;
+    } catch {
         return null;
     }
-
-    const payload = verifySignedToken<SessionTokenPayload>(raw);
-    if (!payload || typeof payload.uid !== 'number') {
-        return null;
-    }
-
-    const user = await prisma.user.findUnique({
-        where: { id: payload.uid },
-    });
-
-    if (!user || user.suspendedAt !== null) {
-        return null;
-    }
-
-    return user;
 }
 
 /**

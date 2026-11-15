@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createPropertyVisitAction } from '@/lib/actions/visits';
+import {
+    createPropertyVisitAction,
+    updatePropertyVisitStatusAction,
+} from '@/lib/actions/visits';
 import { RENTAL_DURATION_LABELS } from '@/lib/domain/enums';
 import { pricingSchema } from '@/lib/domain/property-schemas';
 
@@ -64,5 +67,18 @@ describe('Rental duration & classic rentals', () => {
             expect(result.error).toContain('e-mail');
         }
     });
+
+    it('requires authentication to update a visit status', async () => {
+        const result = await updatePropertyVisitStatusAction({
+            visitId: 9999,
+            status: 'completed',
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.error).toContain('Authentification');
+        }
+    });
 });
+
 

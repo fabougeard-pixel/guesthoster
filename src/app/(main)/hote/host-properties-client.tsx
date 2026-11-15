@@ -99,28 +99,39 @@ export function HostPropertiesClient({
                                 </p>
                             </div>
 
-                            {/* Actions avec icônes Calendrier, Stylo (Modifier), Poubelle (Supprimer) */}
+                            {/* Actions avec icônes Calendrier/Visites, Stylo (Modifier), Poubelle (Supprimer) */}
                             <div className="flex items-center gap-2 self-end sm:self-center">
-                                {/* Calendrier */}
-                                <Link
-                                    href={`/hote/logements/${property.slug}/calendrier`}
-                                    title="Calendrier & Disponibilités"
-                                    aria-label="Calendrier"
-                                    className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-2xs transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-                                >
-                                    <svg
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                        className="size-4.5"
-                                        aria-hidden="true"
+                                {/* Calendrier ou Visites selon type de bail */}
+                                {property.rental_duration === 'long_term' ? (
+                                    <Link
+                                        href={`/hote/visites?search=${encodeURIComponent(property.title)}`}
+                                        title="Voir les rendez-vous de visite de ce logement"
+                                        aria-label="Visites"
+                                        className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-2xs transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                                     >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </Link>
+                                        <span className="text-sm">📍</span>
+                                    </Link>
+                                ) : (
+                                    <Link
+                                        href={`/hote/logements/${property.slug}/calendrier`}
+                                        title="Calendrier & Disponibilités"
+                                        aria-label="Calendrier"
+                                        className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-2xs transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                                    >
+                                        <svg
+                                            viewBox="0 0 20 20"
+                                            fill="currentColor"
+                                            className="size-4.5"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                    </Link>
+                                )}
 
                                 {/* Stylo (Modifier) */}
                                 <Link

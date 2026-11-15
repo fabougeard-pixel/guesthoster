@@ -864,7 +864,10 @@ export async function getHostFormOptions(): Promise<HostFormOptions> {
         countries: countries
             .filter((c) => c.cities.length > 0)
             .map((c) => ({
+                id: c.id,
                 name: c.name,
+                code: c.code,
+                flagEmoji: c.flagEmoji,
                 cities: c.cities,
             })),
         amenities: AMENITY_CATEGORIES.map((category) => ({

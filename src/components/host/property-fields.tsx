@@ -5,7 +5,10 @@ import { Button } from '@/components/button';
 import { Badge } from '@/components/card';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/form';
 import { useActionFeedback } from '@/components/use-action-feedback';
-import { createCustomPropertyTypeAction } from '@/lib/actions/host';
+import {
+    createCustomPropertyTypeAction,
+    createCustomCityAction,
+} from '@/lib/actions/host';
 import {
     FURNISHING_TYPES,
     FURNISHING_TYPE_DESCRIPTIONS,
@@ -322,6 +325,7 @@ export function LocationFields({
     errors,
     property,
     countries,
+    onCityAdded,
 }: {
     errors: Errors;
     property: Pick<
@@ -329,31 +333,333 @@ export function LocationFields({
         'city_id' | 'address' | 'postal_code' | 'latitude' | 'longitude'
     >;
     countries: HostFormOptions['countries'];
+    onCityAdded?: (data: {
+        city: { id: number; name: string; country_id: number };
+        country: { id: number; name: string; code?: string; flag_emoji?: string | null };
+        postal_code?: string | null;
+    }) => void;
 }) {
+    const { pushToast } = useActionFeedback();
+    const [countryList, setCountryList] = useState(countries);
+    const [selectedCityId, setSelectedCityId] = useState<string>(
+        property.city_id ? String(property.city_id) : '',
+    );
+    const [postalCode, setPostalCode] = useState<string>(
+        property.postal_code ?? '',
+    );
+
+    // Ajout manuel d'une ville / pays
+    const [isAddingCity, setIsAddingCity] = useState(false);
+    const [countryMode, setCountryMode] = useState<'existing' | 'new'>('existing');
+    const [selectedCountryName, setSelectedCountryName] = useState<string>(
+        countries[0]?.name ?? '',
+    );
+    const [newCountryName, setNewCountryName] = useState('');
+    const [newCityName, setNewCityName] = useState('');
+    const [newPostalCode, setNewPostalCode] = useState('');
+    const [isSavingCity, setIsSavingCity] = useState(false);
+    const [addCityError, setAddCityError] = useState<string | null>(null);
+
+    async function handleSaveNewCity() {
+        const cleanCity = newCityName.trim();
+        if (cleanCity.length < 2) {
+            setAddCityError('Indiquez un nom de ville d’au moins 2 caractères.');
+            return;
+        }
+
+        let cName = '';
+        let cId: number | undefined;
+
+        if (countryMode === 'existing') {
+            const existingCountry = countryList.find(
+                (c) => c.name.toLowerCase() === selectedCountryName.toLowerCase(),
+            );
+            if (!existingCountry) {
+                setAddCityError('Sélectionnez un pays existant.');
+                return;
+            }
+            cId = existingCountry.id;
+            cName = existingCountry.name;
+        } else {
+            cName = newCountryName.trim();
+            if (cName.length < 2) {
+                setAddCityError('Indiquez un nom de pays valide.');
+                return;
+            }
+        }
+
+        setIsSavingCity(true);
+        setAddCityError(null);
+
+        try {
+            const res = await createCustomCityAction({
+                cityName: cleanCity,
+                countryId: cId,
+                countryName: cId ? undefined : cName,
+                postalCode: newPostalCode.trim() || undefined,
+            });
+
+            if (!res.ok) {
+                setAddCityError(
+                    res.fieldErrors?.cityName ||
+                        res.fieldErrors?.countryName ||
+                        res.error ||
+                        'Erreur lors de l’enregistrement.',
+                );
+                return;
+            }
+
+            if (res.data) {
+                const { city, country, postal_code } = res.data;
+
+                setCountryList((prev) => {
+                    const index = prev.findIndex(
+                        (c) => c.name.toLowerCase() === country.name.toLowerCase(),
+                    );
+                    if (index >= 0) {
+                        const updated = [...prev];
+                        if (!updated[index].cities.some((ci) => ci.id === city.id)) {
+                            updated[index] = {
+                                ...updated[index],
+                                cities: [
+                                    ...updated[index].cities,
+                                    { id: city.id, name: city.name },
+                                ].sort((a, b) => a.name.localeCompare(b.name)),
+                            };
+                        }
+                        return updated;
+                    } else {
+                        return [
+                            ...prev,
+                            {
+                                id: country.id,
+                                name: country.name,
+                                code: country.code,
+                                flagEmoji: country.flag_emoji,
+                                cities: [{ id: city.id, name: city.name }],
+                            },
+                        ].sort((a, b) => a.name.localeCompare(b.name));
+                    }
+                });
+
+                setSelectedCityId(String(city.id));
+                if (postal_code && !postalCode) {
+                    setPostalCode(postal_code);
+                }
+
+                setIsAddingCity(false);
+                setNewCityName('');
+                setNewCountryName('');
+                setNewPostalCode('');
+
+                onCityAdded?.({
+                    city: { id: city.id, name: city.name, country_id: city.country_id },
+                    country: {
+                        id: country.id,
+                        name: country.name,
+                        code: country.code,
+                        flag_emoji: country.flag_emoji,
+                    },
+                    postal_code,
+                });
+
+                if (res.toast) {
+                    pushToast(res.toast);
+                }
+            }
+        } finally {
+            setIsSavingCity(false);
+        }
+    }
+
     return (
         <>
-            <Field label="Ville" htmlFor="city_id" error={errors.city_id}>
-                <Select
-                    id="city_id"
-                    name="city_id"
-                    required
-                    defaultValue={property.city_id ? String(property.city_id) : ''}
-                    aria-invalid={Boolean(errors.city_id)}
+            <div className="space-y-3">
+                <Field
+                    label="Ville"
+                    htmlFor="city_id"
+                    error={errors.city_id}
+                    hint="Sélectionnez une ville existante ou ajoutez-en une directement ci-dessous."
                 >
-                    <option value="" disabled>
-                        Choisir une ville…
-                    </option>
-                    {countries.map((country) => (
-                        <optgroup key={country.name} label={country.name}>
-                            {country.cities.map((city) => (
-                                <option key={city.id} value={city.id}>
-                                    {city.name}
-                                </option>
-                            ))}
-                        </optgroup>
-                    ))}
-                </Select>
-            </Field>
+                    <Select
+                        id="city_id"
+                        name="city_id"
+                        required
+                        value={selectedCityId}
+                        onChange={(e) => {
+                            if (e.target.value === '__custom_city__') {
+                                setIsAddingCity(true);
+                            } else {
+                                setSelectedCityId(e.target.value);
+                            }
+                        }}
+                        aria-invalid={Boolean(errors.city_id)}
+                    >
+                        <option value="" disabled>
+                            Choisir une ville…
+                        </option>
+                        {countryList.map((country) => (
+                            <optgroup
+                                key={country.name}
+                                label={`${country.flagEmoji ? country.flagEmoji + ' ' : ''}${country.name}`}
+                            >
+                                {country.cities.map((city) => (
+                                    <option key={city.id} value={city.id}>
+                                        {city.name}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        ))}
+                        <option value="__custom_city__">
+                            + Autre ville / pays (ajouter manuellement)…
+                        </option>
+                    </Select>
+                </Field>
+
+                {!isAddingCity ? (
+                    <div className="flex items-center justify-between pt-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsAddingCity(true)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition"
+                        >
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                                +
+                            </span>
+                            <span>Ville ou pays absent de la liste ? Ajouter directement</span>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="rounded-2xl border border-primary-200 bg-primary-50/50 p-4.5 space-y-4 dark:border-primary-900/60 dark:bg-primary-950/25">
+                        <div className="flex items-center justify-between border-b border-primary-200/60 pb-3 dark:border-primary-900/40">
+                            <div>
+                                <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                    Ajouter une ville & un pays
+                                </h4>
+                                <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                                    Enregistrez une nouvelle destination pour vos annonces et la recherche du catalogue.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsAddingCity(false);
+                                    setAddCityError(null);
+                                }}
+                                className="text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                            >
+                                Fermer
+                            </button>
+                        </div>
+
+                        {addCityError && (
+                            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400">
+                                {addCityError}
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                    Pays
+                                </label>
+                                <div className="flex gap-4 text-xs mb-2">
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-zinc-700 dark:text-zinc-300">
+                                        <input
+                                            type="radio"
+                                            name="country_mode"
+                                            checked={countryMode === 'existing'}
+                                            onChange={() => setCountryMode('existing')}
+                                            className="accent-primary-600"
+                                        />
+                                        <span>Pays existant ({countryList.length})</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-zinc-700 dark:text-zinc-300">
+                                        <input
+                                            type="radio"
+                                            name="country_mode"
+                                            checked={countryMode === 'new'}
+                                            onChange={() => setCountryMode('new')}
+                                            className="accent-primary-600"
+                                        />
+                                        <span>Nouveau pays</span>
+                                    </label>
+                                </div>
+
+                                {countryMode === 'existing' ? (
+                                    <Select
+                                        value={selectedCountryName}
+                                        onChange={(e) => setSelectedCountryName(e.target.value)}
+                                        className="text-sm"
+                                    >
+                                        {countryList.map((c) => (
+                                            <option key={c.name} value={c.name}>
+                                                {c.flagEmoji ? `${c.flagEmoji} ` : ''}{c.name}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                ) : (
+                                    <Input
+                                        placeholder="Ex. Sénégal, Suisse, Côte d'Ivoire, Canada…"
+                                        value={newCountryName}
+                                        onChange={(e) => setNewCountryName(e.target.value)}
+                                        className="text-sm"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                        Nom de la ville *
+                                    </label>
+                                    <Input
+                                        placeholder="Ex. Dakar, Marseille, Abidjan…"
+                                        value={newCityName}
+                                        onChange={(e) => setNewCityName(e.target.value)}
+                                        className="text-sm"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                        Code postal (optionnel)
+                                    </label>
+                                    <Input
+                                        placeholder="Ex. 13001, 75008…"
+                                        value={newPostalCode}
+                                        onChange={(e) => setNewPostalCode(e.target.value)}
+                                        className="text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setIsAddingCity(false);
+                                        setAddCityError(null);
+                                    }}
+                                >
+                                    Annuler
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="sm"
+                                    loading={isSavingCity}
+                                    onClick={() => void handleSaveNewCity()}
+                                >
+                                    Enregistrer la ville
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
             <Field
                 label="Adresse"
                 htmlFor="address"
@@ -379,7 +685,8 @@ export function LocationFields({
                     name="postal_code"
                     autoComplete="postal-code"
                     className="max-w-40"
-                    defaultValue={property.postal_code ?? ''}
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
                 />
             </Field>
             <div className="grid gap-6 sm:grid-cols-2">

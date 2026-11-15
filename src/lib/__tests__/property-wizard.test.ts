@@ -429,6 +429,25 @@ describe('Sidebar active link matching', () => {
             'Prestations & Équipements',
         );
     });
+
+    it('validates city selection and required fields for newly created locations', () => {
+        const invalidCity = locationSchema.safeParse({
+            city_id: '',
+            address: '10 rue de la Paix',
+        });
+        expect(invalidCity.success).toBe(false);
+
+        const validCity = locationSchema.safeParse({
+            city_id: 15,
+            address: '10 rue de la Paix',
+            postal_code: '75002',
+        });
+        expect(validCity.success).toBe(true);
+        if (validCity.success) {
+            expect(validCity.data.city_id).toBe(15);
+            expect(validCity.data.postal_code).toBe('75002');
+        }
+    });
 });
 
 

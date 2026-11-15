@@ -116,6 +116,16 @@ export default async function AdminBookingsPage({
                 email: row.guest.email,
             },
             created_at: row.createdAt?.toISOString() ?? null,
+            payment_method: row.paymentMethod,
+            transfer_type:
+                row.transferType === 'instant' || row.transferType === 'sepa'
+                    ? row.transferType
+                    : null,
+            transfer_receipt_url: row.transferReceiptUrl,
+            transfer_declared_at: row.transferDeclaredAt
+                ? row.transferDeclaredAt.toISOString()
+                : null,
+            transfer_bank_reference: row.transferBankReference,
         };
     });
 

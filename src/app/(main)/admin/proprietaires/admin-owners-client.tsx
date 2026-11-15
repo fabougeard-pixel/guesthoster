@@ -20,6 +20,7 @@ import {
     updateManagedOwnerAction,
     uploadOwnerAvatarAction,
 } from '@/lib/actions/admin';
+import { switchManagedHostAction } from '@/lib/actions/managed-host';
 import type { FieldErrors } from '@/lib/actions/types';
 import { formatDate, plural } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -81,8 +82,33 @@ export function AdminOwnersClient({
     const [editAccountType, setEditAccountType] = useState<'individual' | 'company'>('individual');
     const [editAvatarUrl, setEditAvatarUrl] = useState<string | null>(null);
     const [editUploadingAvatar, setEditUploadingAvatar] = useState(false);
+    const [switchingHostId, setSwitchingHostId] = useState<number | null>(null);
 
     const [isPending, startTransition] = useTransition();
+
+    function handleSwitchToHost(owner: ManagedOwner) {
+        setSwitchingHostId(owner.id);
+        startTransition(async () => {
+            try {
+                const res = await switchManagedHostAction(owner.id);
+                if (res.ok) {
+                    pushToast({
+                        type: 'success',
+                        message: `Espace hôte de « ${owner.name} » activé.`,
+                    });
+                    router.push('/hote');
+                } else {
+                    pushToast({
+                        type: 'error',
+                        message:
+                            res.error || 'Erreur lors de la bascule vers cet espace.',
+                    });
+                }
+            } finally {
+                setSwitchingHostId(null);
+            }
+        });
+    }
 
     function applyFilter(next: Partial<Props['filters']>) {
         const merged = { ...filters, ...next };
@@ -474,6 +500,33 @@ export function AdminOwnersClient({
                         {/* Actions */}
                         <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
+                                {/* Ouvrir / Gérer l'espace hôte de ce propriétaire */}
+                                <button
+                                    type="button"
+                                    disabled={switchingHostId === owner.id || isPending}
+                                    onClick={() => handleSwitchToHost(owner)}
+                                    title={`Ouvrir et administrer l'espace hôte de « ${owner.name} »`}
+                                    aria-label={`Gérer l'espace hôte de ${owner.name}`}
+                                    className="flex size-8 items-center justify-center rounded-lg border border-purple-200 bg-purple-50/80 text-purple-700 transition hover:bg-purple-100 hover:text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                                >
+                                    {switchingHostId === owner.id ? (
+                                        <span className="size-3.5 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+                                    ) : (
+                                        <svg
+                                            viewBox="0 0 20 20"
+                                            fill="currentColor"
+                                            className="size-4"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                    )}
+                                </button>
+
                                 {/* Modifier le profil de l'hôte */}
                                 <button
                                     type="button"

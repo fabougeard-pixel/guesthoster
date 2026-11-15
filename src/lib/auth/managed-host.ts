@@ -1,9 +1,7 @@
 import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
 import type { User as PrismaUser } from '@prisma/client';
-import { getFreshSessionUser, isAdmin, requireVerifiedUser } from '@/lib/auth/session';
+import { requireVerifiedUser } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
-import type { ActionResult } from '@/lib/actions/types';
 
 export type ManagedHostItem = {
     id: number;
@@ -20,6 +18,7 @@ export type ManagedHostItem = {
     short_term_count: number;
     long_term_count: number;
     pending_bookings_count: number;
+    upcoming_visits_count: number;
     unread_messages_count: number;
     notifications_count: number;
 };
@@ -36,11 +35,27 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
     const user = await requireVerifiedUser();
     const isAdminUser = user.role === 'admin';
 
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
     if (!isAdminUser) {
         // Hôte standard : isolation stricte, aucun accès aux autres profils
-        const [pendingBookings, unreadBookingMsgs, unreadInquiries, properties] = await Promise.all([
+        const [pendingBookings, upcomingVisits, unreadBookingMsgs, unreadInquiries, properties] = await Promise.all([
             prisma.booking.count({
-                where: { property: { userId: user.id }, status: 'pending' },
+                where: {
+                    property: { userId: user.id },
+                    OR: [
+                        { status: 'pending' },
+                        { status: 'awaiting_payment', paymentMethod: 'bank_transfer' },
+                    ],
+                },
+            }),
+            prisma.propertyVisit.count({
+                where: {
+                    property: { userId: user.id },
+                    status: { in: ['confirmed', 'pending'] },
+                    visitDate: { gte: todayDate },
+                },
             }),
             prisma.message.count({
                 where: {
@@ -64,7 +79,7 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
 
         const shortTerm = properties.filter((p) => p.rentalDuration === 'short_term').length;
         const longTerm = properties.filter((p) => p.rentalDuration === 'long_term').length;
-        const totalNotifs = pendingBookings + unreadBookingMsgs + unreadInquiries;
+        const totalNotifs = pendingBookings + upcomingVisits + unreadBookingMsgs + unreadInquiries;
 
         const selfHost: ManagedHostItem = {
             id: user.id,
@@ -81,6 +96,7 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
             short_term_count: shortTerm,
             long_term_count: longTerm,
             pending_bookings_count: pendingBookings,
+            upcoming_visits_count: upcomingVisits,
             unread_messages_count: unreadBookingMsgs + unreadInquiries,
             notifications_count: totalNotifs,
         };
@@ -124,12 +140,24 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
 
     const hostIds = rawHosts.map((h) => h.id);
 
-    const [pendingBookingsByProperty, unreadBookingMsgsByHost, unreadInquiryMsgsByHost] = await Promise.all([
+    const [pendingBookingsByProperty, upcomingVisitsByProperty, unreadBookingMsgsByHost, unreadInquiryMsgsByHost] = await Promise.all([
         prisma.booking.groupBy({
             by: ['propertyId'],
             where: {
                 property: { userId: { in: hostIds } },
-                status: 'pending',
+                OR: [
+                    { status: 'pending' },
+                    { status: 'awaiting_payment', paymentMethod: 'bank_transfer' },
+                ],
+            },
+            _count: { _all: true },
+        }),
+        prisma.propertyVisit.groupBy({
+            by: ['propertyId'],
+            where: {
+                property: { userId: { in: hostIds } },
+                status: { in: ['confirmed', 'pending'] },
+                visitDate: { gte: todayDate },
             },
             _count: { _all: true },
         }),
@@ -171,6 +199,14 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
         }
     }
 
+    const visitsCountMap = new Map<number, number>();
+    for (const item of upcomingVisitsByProperty) {
+        const hId = propToHostMap.get(item.propertyId);
+        if (hId) {
+            visitsCountMap.set(hId, (visitsCountMap.get(hId) ?? 0) + item._count._all);
+        }
+    }
+
     const unreadMsgMap = new Map<number, number>();
     for (const msg of unreadBookingMsgsByHost) {
         const ownerId = msg.booking.property.userId;
@@ -189,8 +225,9 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
         const shortTerm = h.properties.filter((p) => p.rentalDuration === 'short_term').length;
         const longTerm = h.properties.filter((p) => p.rentalDuration === 'long_term').length;
         const pending = pendingCountMap.get(h.id) ?? 0;
+        const visits = visitsCountMap.get(h.id) ?? 0;
         const unread = unreadMsgMap.get(h.id) ?? 0;
-        const totalNotifs = pending + unread;
+        const totalNotifs = pending + visits + unread;
 
         // Définition Hôte (courte durée) vs Propriétaire (longue durée / bailleur)
         const isOwner = longTerm > 0 || h.accountType === 'company' || Boolean(h.hostType?.toLowerCase().includes('propriétaire'));
@@ -211,6 +248,7 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
             short_term_count: shortTerm,
             long_term_count: longTerm,
             pending_bookings_count: pending,
+            upcoming_visits_count: visits,
             unread_messages_count: unread,
             notifications_count: totalNotifs,
         };
@@ -235,33 +273,5 @@ export async function getEffectiveHostContext(): Promise<HostContext> {
         isManaging: true,
         activeHost,
         allHosts,
-    };
-}
-
-export async function switchManagedHostAction(hostId: number): Promise<ActionResult> {
-    const user = await getFreshSessionUser();
-    if (!user || !isAdmin(user)) {
-        return { ok: false, error: 'Accès administrateur requis.' };
-    }
-
-    const cookieStore = await cookies();
-    cookieStore.set('gh_managed_host_id', String(hostId), {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30, // 30 jours
-    });
-
-    revalidatePath('/hote', 'layout');
-    revalidatePath('/hote');
-    revalidatePath('/hote/reservations');
-    revalidatePath('/hote/messages');
-
-    return {
-        ok: true,
-        toast: {
-            type: 'success',
-            message: 'Espace géré mis à jour.',
-        },
     };
 }

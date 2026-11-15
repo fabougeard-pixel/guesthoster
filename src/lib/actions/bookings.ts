@@ -25,8 +25,10 @@ import {
     todayIso,
 } from '@/lib/format';
 import {
+    notifyBookingCancelled,
     notifyBookingConfirmed,
     notifyNewMessage,
+    notifyTransferProofSubmitted,
 } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
 import {
@@ -708,6 +710,12 @@ export async function submitTransferProofAction(
             },
         });
 
+        try {
+            await notifyTransferProofSubmitted(booking.id);
+        } catch (e) {
+            console.warn('[declareBankTransfer] Failed to dispatch transfer proof notification:', e);
+        }
+
         revalidatePath(`/reservations/${booking.reference}`);
         revalidatePath('/voyages');
         revalidatePath('/hote/reservations');
@@ -785,6 +793,80 @@ export async function confirmBankTransferPaymentAction(
         toast: {
             type: 'success',
             message: 'Paiement par virement validé avec succès. Séjour confirmé.',
+        },
+    };
+}
+
+export async function rejectBankTransferPaymentAction(input: {
+    reference: string;
+    reason?: string;
+}): Promise<ActionResult> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const booking = await prisma.booking.findUnique({
+        where: { reference: input.reference },
+        include: {
+            property: { select: { userId: true } },
+        },
+    });
+
+    if (!booking) {
+        return { ok: false, error: 'Réservation introuvable.' };
+    }
+
+    const isHost = booking.property.userId === user.id;
+    const isAdmin = user.role === 'admin';
+    if (!isHost && !isAdmin) {
+        return { ok: false, error: 'Action non autorisée.' };
+    }
+
+    if (booking.status !== 'awaiting_payment' && booking.status !== 'pending') {
+        return { ok: false, error: 'Cette réservation ne peut plus être rejetée.' };
+    }
+
+    const now = new Date();
+    const reasonText =
+        input.reason?.trim() ||
+        'Virement bancaire non reçu ou justificatif non conforme.';
+
+    await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+            status: 'cancelled',
+            cancelledAt: now,
+            cancelledBy: user.id,
+            cancellationReason: reasonText,
+            expiresAt: null,
+        },
+    });
+
+    await prisma.message.create({
+        data: {
+            bookingId: booking.id,
+            userId: user.id,
+            body: `❌ Paiement par virement non validé : ${reasonText}. Les dates ont été libérées.`,
+        },
+    });
+
+    try {
+        await notifyBookingCancelled(booking.id, isAdmin ? 'admin' : 'host');
+    } catch (e) {
+        console.error('Failed to send cancellation notification', e);
+    }
+
+    revalidatePath(`/reservations/${input.reference}`);
+    revalidatePath('/voyages');
+    revalidatePath('/hote/reservations');
+    revalidatePath('/admin/reservations');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'info',
+            message: 'Réservation annulée pour défaut de virement.',
         },
     };
 }

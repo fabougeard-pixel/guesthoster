@@ -636,6 +636,7 @@ export function PropertyWizard({
     );
     const [ownerList, setOwnerList] = useState<AdminOwnerOption[]>(owners);
     const [typeOptions, setTypeOptions] = useState<Option[]>(options.types);
+    const [countryList, setCountryList] = useState(options.countries);
     const [ownerSearch, setOwnerSearch] = useState('');
     const [createdProperty, setCreatedProperty] = useState<HostProperty | null>(
         initialDraft,
@@ -670,12 +671,14 @@ export function PropertyWizard({
         (owner) => String(owner.id) === values.owner_id,
     );
     const selectedCityName =
-        options.countries
-            .flatMap((c) => c.cities.map((city) => `${city.name} (${c.name})`))
-            .find((_, index) => {
-                const flatCities = options.countries.flatMap((c) => c.cities);
-                return String(flatCities[index]?.id) === values.city_id;
-            }) ?? 'Non renseignée';
+        countryList
+            .flatMap((c) =>
+                c.cities.map((city) => ({
+                    id: String(city.id),
+                    label: `${city.name} (${c.name})`,
+                })),
+            )
+            .find((item) => item.id === values.city_id)?.label ?? 'Non renseignée';
 
     const canSubmitPhotosRequirement =
         !options.cloudinaryDirectUpload ||
@@ -1555,7 +1558,63 @@ export function PropertyWizard({
                             <LocationFields
                                 errors={errors}
                                 property={editableSlice}
-                                countries={options.countries}
+                                countries={countryList}
+                                onCityAdded={({ city, country, postal_code }) => {
+                                    setCountryList((prev) => {
+                                        const index = prev.findIndex(
+                                            (c) =>
+                                                c.name.toLowerCase() ===
+                                                country.name.toLowerCase(),
+                                        );
+                                        if (index >= 0) {
+                                            const updated = [...prev];
+                                            if (
+                                                !updated[index].cities.some(
+                                                    (ci) => ci.id === city.id,
+                                                )
+                                            ) {
+                                                updated[index] = {
+                                                    ...updated[index],
+                                                    cities: [
+                                                        ...updated[index].cities,
+                                                        {
+                                                            id: city.id,
+                                                            name: city.name,
+                                                        },
+                                                    ].sort((a, b) =>
+                                                        a.name.localeCompare(b.name),
+                                                    ),
+                                                };
+                                            }
+                                            return updated;
+                                        } else {
+                                            return [
+                                                ...prev,
+                                                {
+                                                    id: country.id,
+                                                    name: country.name,
+                                                    code: country.code,
+                                                    flagEmoji: country.flag_emoji,
+                                                    cities: [
+                                                        {
+                                                            id: city.id,
+                                                            name: city.name,
+                                                        },
+                                                    ],
+                                                },
+                                            ].sort((a, b) =>
+                                                a.name.localeCompare(b.name),
+                                            );
+                                        }
+                                    });
+                                    setValues((prev) => ({
+                                        ...prev,
+                                        city_id: String(city.id),
+                                        ...(postal_code && !prev.postal_code
+                                            ? { postal_code }
+                                            : {}),
+                                    }));
+                                }}
                             />
                         )}
 

@@ -10,7 +10,10 @@ import {
     getPlatformRentalSettings,
     listEnabledPaymentMethods,
 } from '@/lib/domain/platform-settings';
-import { notifyVisitRequested } from '@/lib/notifications/service';
+import {
+    notifyVisitCancelled,
+    notifyVisitRequested,
+} from '@/lib/notifications/service';
 
 const visitBookingSchema = z.object({
     propertySlug: z.string().min(1, 'Logement introuvable.'),
@@ -222,3 +225,150 @@ export async function createPropertyVisitAction(
         },
     };
 }
+
+export async function updatePropertyVisitStatusAction(input: {
+    visitId: number;
+    status: 'completed' | 'cancelled';
+    cancelReason?: string;
+}): Promise<ActionResult> {
+    const user = await getCurrentUser();
+    if (!user) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const visit = await prisma.propertyVisit.findUnique({
+        where: { id: input.visitId },
+        include: {
+            property: {
+                select: {
+                    id: true,
+                    title: true,
+                    slug: true,
+                    userId: true,
+                },
+            },
+        },
+    });
+
+    if (!visit) {
+        return { ok: false, error: 'Rendez-vous de visite introuvable.' };
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isOwner = visit.property.userId === user.id;
+
+    if (!isAdmin && !isOwner) {
+        return {
+            ok: false,
+            error: 'Vous n’avez pas les droits pour modifier cette visite.',
+        };
+    }
+
+    if (input.status === 'cancelled') {
+        await prisma.propertyVisit.update({
+            where: { id: visit.id },
+            data: {
+                status: 'cancelled',
+                cancelledAt: new Date(),
+            },
+        });
+
+        try {
+            await notifyVisitCancelled({
+                propertyTitle: visit.property.title,
+                propertySlug: visit.property.slug,
+                candidateName: visit.name,
+                candidateEmail: visit.email,
+                candidateUserId: visit.userId,
+                visitDate: visit.visitDate.toISOString().slice(0, 10),
+                timeSlot: visit.timeSlot,
+                reference: visit.reference,
+                reason: input.cancelReason?.trim() || null,
+                cancelledBy: isAdmin ? 'admin' : 'owner',
+            });
+        } catch (e) {
+            console.warn('[updatePropertyVisitStatusAction] Error sending cancel notification:', e);
+        }
+
+        revalidatePath('/hote/visites');
+        revalidatePath('/admin/visites');
+        revalidatePath('/hote');
+
+        return {
+            ok: true,
+            toast: {
+                type: 'info',
+                message: 'Le rendez-vous de visite a été annulé.',
+            },
+        };
+    }
+
+    if (input.status === 'completed') {
+        await prisma.propertyVisit.update({
+            where: { id: visit.id },
+            data: {
+                status: 'completed',
+            },
+        });
+
+        revalidatePath('/hote/visites');
+        revalidatePath('/admin/visites');
+        revalidatePath('/hote');
+
+        return {
+            ok: true,
+            toast: {
+                type: 'success',
+                message: 'La visite a été marquée comme effectuée.',
+            },
+        };
+    }
+
+    return { ok: false, error: 'Statut de visite invalide.' };
+}
+
+export async function confirmVisitBankTransferAction(
+    visitId: number,
+): Promise<ActionResult> {
+    const user = await getCurrentUser();
+    if (!user) {
+        return { ok: false, error: 'Authentification requise.' };
+    }
+
+    const visit = await prisma.propertyVisit.findUnique({
+        where: { id: visitId },
+        include: {
+            property: { select: { userId: true } },
+        },
+    });
+
+    if (!visit) {
+        return { ok: false, error: 'Visite introuvable.' };
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isOwner = visit.property.userId === user.id;
+
+    if (!isAdmin && !isOwner) {
+        return { ok: false, error: 'Accès refusé.' };
+    }
+
+    await prisma.propertyVisit.update({
+        where: { id: visit.id },
+        data: {
+            paymentStatus: 'paid',
+        },
+    });
+
+    revalidatePath('/hote/visites');
+    revalidatePath('/admin/visites');
+
+    return {
+        ok: true,
+        toast: {
+            type: 'success',
+            message: 'Le règlement des frais de visite par virement a été validé.',
+        },
+    };
+}
+

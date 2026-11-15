@@ -7,6 +7,7 @@ import {
     rejectPropertyAction,
 } from '@/lib/actions/admin';
 import { deletePropertyAction } from '@/lib/actions/host';
+import { switchManagedHostAction } from '@/lib/actions/managed-host';
 import type { FieldErrors } from '@/lib/actions/types';
 import { canPropertyTransitionTo } from '@/lib/domain/enums';
 import { formatDateTime, formatPrice, plural } from '@/lib/format';
@@ -39,12 +40,37 @@ export function AdminPropertiesClient({
     statusTabs,
     filters,
 }: Props) {
-    const { applyResult, router } = useActionFeedback();
+    const { applyResult, pushToast, router } = useActionFeedback();
     const [pendingSlug, setPendingSlug] = useState<string | null>(null);
+    const [switchingHostId, setSwitchingHostId] = useState<number | null>(null);
     const [rejecting, setRejecting] = useState<AdminProperty | null>(null);
     const [reason, setReason] = useState('');
     const [errors, setErrors] = useState<FieldErrors>({});
     const [isPending, startTransition] = useTransition();
+
+    function handleSwitchToHost(hostId: number, hostName: string) {
+        setSwitchingHostId(hostId);
+        startTransition(async () => {
+            try {
+                const res = await switchManagedHostAction(hostId);
+                if (res.ok) {
+                    pushToast({
+                        type: 'success',
+                        message: `Espace hôte de « ${hostName} » activé.`,
+                    });
+                    router.push('/hote');
+                } else {
+                    pushToast({
+                        type: 'error',
+                        message:
+                            res.error || 'Erreur lors de la bascule vers cet espace.',
+                    });
+                }
+            } finally {
+                setSwitchingHostId(null);
+            }
+        });
+    }
 
     function applyFilter(next: Partial<Props['filters']>) {
         const merged = { ...filters, ...next };
@@ -219,6 +245,28 @@ export function AdminPropertiesClient({
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-44">
                                         {property.host.email}
                                     </p>
+                                    {property.host.id && (
+                                        <button
+                                            type="button"
+                                            disabled={switchingHostId === property.host.id}
+                                            onClick={() =>
+                                                property.host.id &&
+                                                handleSwitchToHost(
+                                                    property.host.id,
+                                                    property.host.name,
+                                                )
+                                            }
+                                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 disabled:opacity-50"
+                                            title={`Ouvrir l'espace hôte de ${property.host.name}`}
+                                        >
+                                            {switchingHostId === property.host.id ? (
+                                                <span className="size-2.5 animate-spin rounded-full border border-purple-600 border-t-transparent" />
+                                            ) : (
+                                                <span>🏠</span>
+                                            )}
+                                            <span>Gérer son espace</span>
+                                        </button>
+                                    )}
                                 </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">

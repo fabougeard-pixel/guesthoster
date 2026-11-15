@@ -97,6 +97,7 @@ export async function notifyBookingRequested(bookingId: number): Promise<void> {
             property: {
                 select: {
                     title: true,
+                    managedByAdmin: true,
                     owner: { select: { id: true, email: true } },
                 },
             },
@@ -133,6 +134,36 @@ export async function notifyBookingRequested(bookingId: number): Promise<void> {
             actionUrl: appUrl('/hote/reservations'),
         },
     });
+
+    if (booking.property.managedByAdmin) {
+        const adminUser = await prisma.user.findFirst({
+            where: { role: 'admin' },
+            select: { id: true, email: true },
+        });
+
+        if (adminUser && adminUser.id !== booking.property.owner.id) {
+            await dispatchUserNotification({
+                userId: adminUser.id,
+                email: adminUser.email,
+                type: 'App\\Notifications\\AdminBookingRequestAlert',
+                inApp: {
+                    title: 'Conciergerie : Nouvelle demande de réservation',
+                    body: `${booking.guest.name} pour le logement géré « ${booking.property.title} » ${shortStay}.`,
+                    url: appUrl('/admin/reservations'),
+                },
+                mail: {
+                    subject: `Conciergerie · Nouvelle demande de réservation · ${booking.property.title}`,
+                    greeting: 'Bonjour l’équipe Conciergerie,',
+                    lines: [
+                        `Une nouvelle demande de réservation a été soumise par ${booking.guest.name} pour le logement en gestion « ${booking.property.title} » ${stay} (${booking.guests} voyageur(s)).`,
+                        `Cette demande expirera le ${expiresLabel} si elle n’est pas traitée.`,
+                    ],
+                    actionLabel: 'Gérer la demande (Admin)',
+                    actionUrl: appUrl('/admin/reservations'),
+                },
+            });
+        }
+    }
 }
 
 export async function notifyBookingAwaitingPayment(
@@ -760,5 +791,294 @@ export async function notifyVisitRequested({
         actionUrl: appUrl(`/logements/${propertySlug}`),
     });
 }
+
+export async function notifyVisitCancelled({
+    propertyTitle,
+    propertySlug,
+    candidateName,
+    candidateEmail,
+    candidateUserId,
+    visitDate,
+    timeSlot,
+    reference,
+    reason,
+    cancelledBy,
+}: {
+    propertyTitle: string;
+    propertySlug: string;
+    candidateName: string;
+    candidateEmail: string;
+    candidateUserId?: number | null;
+    visitDate: string;
+    timeSlot: string;
+    reference: string;
+    reason?: string | null;
+    cancelledBy: 'owner' | 'admin' | 'candidate';
+}): Promise<void> {
+    const actorLabel =
+        cancelledBy === 'admin'
+            ? 'La conciergerie / conciergerie'
+            : cancelledBy === 'owner'
+              ? 'Le propriétaire'
+              : 'Le candidat';
+
+    if (candidateUserId) {
+        await dispatchUserNotification({
+            userId: candidateUserId,
+            email: candidateEmail,
+            type: 'App\\Notifications\\VisitCancelled',
+            inApp: {
+                title: 'Rendez-vous de visite annulé',
+                body: `${actorLabel} a annulé votre visite du bien « ${propertyTitle} » prévue le ${visitDate} (${timeSlot}).${reason ? ` Motif : « ${reason} »` : ''}`,
+                url: appUrl(`/logements/${propertySlug}`),
+            },
+            mail: {
+                subject: `Annulation du rendez-vous de visite · ${propertyTitle}`,
+                greeting: `Bonjour ${candidateName},`,
+                lines: [
+                    `Nous vous informons que votre rendez-vous de visite pour le logement « ${propertyTitle} » prévu le ${visitDate} à ${timeSlot} a été annulé par ${actorLabel.toLowerCase()}.`,
+                    `Référence : ${reference}`,
+                    ...(reason ? [`Motif de l'annulation : « ${reason} »`] : []),
+                    `Vous pouvez consulter les autres créneaux disponibles sur l'annonce ou rechercher un autre logement disponible.`,
+                ],
+                actionLabel: 'Voir l’annonce',
+                actionUrl: appUrl(`/logements/${propertySlug}`),
+            },
+        });
+    } else {
+        await safeSendMail(candidateEmail, {
+            subject: `Annulation du rendez-vous de visite · ${propertyTitle}`,
+            greeting: `Bonjour ${candidateName},`,
+            lines: [
+                `Nous vous informons que votre rendez-vous de visite pour le logement « ${propertyTitle} » prévu le ${visitDate} à ${timeSlot} a été annulé par ${actorLabel.toLowerCase()}.`,
+                `Référence : ${reference}`,
+                ...(reason ? [`Motif de l'annulation : « ${reason} »`] : []),
+                `Vous pouvez consulter les autres créneaux disponibles sur l'annonce ou rechercher un autre logement disponible.`,
+            ],
+            actionLabel: 'Voir l’annonce',
+            actionUrl: appUrl(`/logements/${propertySlug}`),
+        });
+    }
+}
+
+export async function notifyTransferProofSubmitted(bookingId: number): Promise<void> {
+    const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+            guest: { select: { id: true, name: true, email: true } },
+            property: {
+                select: {
+                    title: true,
+                    managedByAdmin: true,
+                    owner: { select: { id: true, name: true, email: true } },
+                },
+            },
+        },
+    });
+
+    if (!booking) return;
+
+    const stay = stayRangeText(booking.checkIn, booking.checkOut);
+    const total = formatPrice(booking.totalPrice);
+    const hostBookingUrl = appUrl('/hote/reservations');
+    const guestBookingUrl = appUrl(`/reservations/${booking.reference}`);
+    const bankRefSnippet = booking.transferBankReference ? ` (Réf virement : ${booking.transferBankReference})` : '';
+
+    const dispatches: Promise<void>[] = [
+        // 1. Notifier l'hôte / propriétaire
+        dispatchUserNotification({
+            userId: booking.property.owner.id,
+            email: booking.property.owner.email,
+            type: 'App\\Notifications\\TransferProofSubmitted',
+            inApp: {
+                title: 'Ordre de virement reçu · Validation requise',
+                body: `${booking.guest.name} a transmis un ordre de virement de ${total} pour son séjour. En attente de validation des fonds.`,
+                url: hostBookingUrl,
+            },
+            mail: {
+                subject: `Ordre de virement reçu · ${booking.property.title}`,
+                greeting: `Bonjour ${booking.property.owner.name},`,
+                lines: [
+                    `${booking.guest.name} a effectué le virement bancaire pour son séjour à « ${booking.property.title} » ${stay} d'un montant de ${total}${bankRefSnippet}.`,
+                    'Un justificatif de virement a été téléversé. Les dates du calendrier sont bloquées pendant 48 heures ouvrées.',
+                    'Une fois les fonds reçus sur le compte bancaire, vous pouvez valider la réservation d’un clic depuis votre espace hôte.',
+                ],
+                actionLabel: 'Vérifier & Valider le virement',
+                actionUrl: hostBookingUrl,
+            },
+        }),
+        // 2. Accusé de réception au voyageur
+        dispatchUserNotification({
+            userId: booking.guest.id,
+            email: booking.guest.email,
+            type: 'App\\Notifications\\TransferProofReceived',
+            inApp: {
+                title: 'Ordre de virement bien reçu',
+                body: `Votre justificatif de virement de ${total} est en cours de validation. Vos dates sont bloquées.`,
+                url: guestBookingUrl,
+            },
+            mail: {
+                subject: `Ordre de virement bien reçu · ${booking.property.title}`,
+                greeting: `Bonjour ${booking.guest.name},`,
+                lines: [
+                    `Nous avons bien reçu votre ordre de virement de ${total} pour votre séjour à « ${booking.property.title} » ${stay}.`,
+                    'Vos dates sont réservées et bloquées dans le calendrier pendant le délai interbancaire.',
+                    'Dès que les fonds sont crédités (généralement sous 24 à 48 heures ouvrées), votre réservation sera officiellement confirmée.',
+                ],
+                actionLabel: 'Suivre ma réservation',
+                actionUrl: guestBookingUrl,
+            },
+        }),
+    ];
+
+    // 3. Si le bien est en gestion de conciergerie admin, alerter aussi l'équipe conciergerie
+    if (booking.property.managedByAdmin) {
+        const adminUser = await prisma.user.findFirst({
+            where: { role: 'admin' },
+            select: { id: true, email: true },
+        });
+
+        if (adminUser && adminUser.id !== booking.property.owner.id) {
+            dispatches.push(
+                dispatchUserNotification({
+                    userId: adminUser.id,
+                    email: adminUser.email,
+                    type: 'App\\Notifications\\AdminTransferProofAlert',
+                    inApp: {
+                        title: 'Conciergerie : Ordre de virement à vérifier',
+                        body: `Virement de ${total} pour le logement en gestion « ${booking.property.title} » (Réf: ${booking.reference}).`,
+                        url: appUrl('/admin/reservations'),
+                    },
+                    mail: {
+                        subject: `Conciergerie · Ordre de virement à valider · ${booking.reference}`,
+                        greeting: 'Bonjour l’équipe Conciergerie,',
+                        lines: [
+                            `Un ordre de virement de ${total} a été transmis par ${booking.guest.name} pour le logement géré « ${booking.property.title} » ${stay}.`,
+                            'Vérifiez la bonne réception des fonds et validez ou rejetez le virement depuis l’espace d’administration.',
+                        ],
+                        actionLabel: 'Superviser les réservations',
+                        actionUrl: appUrl('/admin/reservations'),
+                    },
+                }),
+            );
+        }
+    }
+
+    await Promise.all(dispatches);
+}
+
+export async function notifyInquiryMessage(messageId: number): Promise<void> {
+    const message = await prisma.propertyInquiryMessage.findUnique({
+        where: { id: messageId },
+        include: {
+            sender: { select: { id: true, name: true, email: true } },
+            inquiry: {
+                include: {
+                    guest: { select: { id: true, name: true, email: true } },
+                    host: { select: { id: true, name: true, email: true } },
+                    property: { select: { title: true, slug: true, managedByAdmin: true } },
+                },
+            },
+        },
+    });
+
+    if (!message) return;
+
+    // Éviter le flood : ne pas renvoyer d'e-mail si un message du même expéditeur a été envoyé il y a moins de 10 min et n'est pas encore lu
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentUnreadSibling = await prisma.propertyInquiryMessage.findFirst({
+        where: {
+            inquiryId: message.inquiryId,
+            senderId: message.senderId,
+            id: { lt: message.id },
+            readAt: null,
+            createdAt: { gte: tenMinutesAgo },
+        },
+        select: { id: true },
+    });
+
+    if (recentUnreadSibling) return;
+
+    const isGuestSender = message.senderId === message.inquiry.guestId;
+    const recipient = isGuestSender ? message.inquiry.host : message.inquiry.guest;
+    const senderName = message.sender.name;
+    const targetUrl = isGuestSender ? appUrl('/hote/messages') : appUrl(`/logements/${message.inquiry.property.slug}`);
+
+    const snippet =
+        message.body.length > 300
+            ? `${message.body.slice(0, 297)}...`
+            : message.body;
+
+    await dispatchUserNotification({
+        userId: recipient.id,
+        email: recipient.email,
+        type: 'App\\Notifications\\InquiryMessageReceived',
+        inApp: {
+            title: `Nouveau message de ${senderName}`,
+            body: `${senderName} au sujet de « ${message.inquiry.property.title} » : « ${snippet} »`,
+            url: targetUrl,
+        },
+        mail: {
+            subject: `Nouveau message au sujet de « ${message.inquiry.property.title} »`,
+            greeting: `Bonjour ${recipient.name},`,
+            lines: [
+                `${senderName} vous a envoyé un nouveau message au sujet du logement « ${message.inquiry.property.title} » :`,
+                `« ${snippet} »`,
+            ],
+            actionLabel: 'Voir la conversation & Répondre',
+            actionUrl: targetUrl,
+        },
+    });
+}
+
+export async function notifyReportCreated({
+    propertyTitle,
+    propertySlug,
+    reasonLabel,
+    details,
+    reporterName,
+    reporterEmail,
+}: {
+    propertyTitle: string;
+    propertySlug: string;
+    reasonLabel: string;
+    details?: string | null;
+    reporterName: string;
+    reporterEmail: string;
+}): Promise<void> {
+    const adminUser = await prisma.user.findFirst({
+        where: { role: 'admin' },
+        select: { id: true, email: true },
+    });
+
+    if (!adminUser) return;
+
+    await dispatchUserNotification({
+        userId: adminUser.id,
+        email: adminUser.email,
+        type: 'App\\Notifications\\PropertyReportAlert',
+        inApp: {
+            title: 'Alerte modération : Annonce signalée',
+            body: `Le logement « ${propertyTitle} » a été signalé pour : ${reasonLabel}.`,
+            url: appUrl('/admin/signalements'),
+        },
+        mail: {
+            subject: `Alerte modération : Annonce signalée · ${propertyTitle}`,
+            greeting: 'Bonjour l’équipe de Modération,',
+            lines: [
+                `Un signalement a été déposé pour l’annonce « ${propertyTitle} » (${propertySlug}).`,
+                `Motif du signalement : ${reasonLabel}`,
+                `Signalé par : ${reporterName} (${reporterEmail})`,
+                ...(details ? [`Détails transmis : « ${details} »`] : []),
+                'Vérifiez cette annonce sur le tableau de bord des signalements et prenez les mesures appropriées.',
+            ],
+            actionLabel: 'Consulter les signalements',
+            actionUrl: appUrl('/admin/signalements'),
+        },
+    });
+}
+
+
+
 
 

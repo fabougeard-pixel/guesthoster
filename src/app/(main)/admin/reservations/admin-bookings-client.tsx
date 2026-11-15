@@ -10,6 +10,7 @@ import {
     buildFilterUrl,
 } from '@/components/admin/filters';
 import { BookingStatusBadge } from '@/components/booking-status-badge';
+import { BookingTransferActions } from '@/components/booking-transfer-actions';
 import { Select } from '@/components/form';
 import { Pagination } from '@/components/pagination';
 import type { AdminBooking, Paginated } from '@/types';
@@ -74,7 +75,7 @@ export function AdminBookingsClient({ bookings, filters }: Props) {
                     'Voyageur',
                     'Séjour',
                     'Montant',
-                    'Statut',
+                    'Statut & Règlements',
                 ]}
                 empty={
                     bookings.data.length === 0
@@ -132,10 +133,44 @@ export function AdminBookingsClient({ bookings, filters }: Props) {
                             </p>
                         </td>
                         <td className="px-4 py-3">
-                            <BookingStatusBadge
-                                status={booking.status}
-                                label={booking.status_label}
-                            />
+                            <div className="flex flex-col gap-1.5 items-start">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <BookingStatusBadge
+                                        status={booking.status}
+                                        label={booking.status_label}
+                                    />
+                                    {booking.payment_method === 'bank_transfer' && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
+                                            <span>💳</span>
+                                            <span>
+                                                {booking.transfer_type === 'instant'
+                                                    ? 'Instantané'
+                                                    : 'SEPA'}
+                                            </span>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {booking.status === 'awaiting_payment' &&
+                                    booking.payment_method === 'bank_transfer' && (
+                                        <BookingTransferActions
+                                            booking={booking}
+                                            compact
+                                        />
+                                    )}
+
+                                {booking.status !== 'awaiting_payment' &&
+                                    booking.transfer_receipt_url && (
+                                        <a
+                                            href={booking.transfer_receipt_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                                        >
+                                            <span>📄 Justificatif virement</span>
+                                        </a>
+                                    )}
+                            </div>
                         </td>
                     </tr>
                 ))}

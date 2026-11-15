@@ -12,6 +12,7 @@ export function HostLayout({
 }) {
     const activeHost = hostContext?.activeHost;
     const pendingBookings = activeHost?.pending_bookings_count ?? 0;
+    const upcomingVisits = activeHost?.upcoming_visits_count ?? 0;
     const unreadMessages = activeHost?.unread_messages_count ?? 0;
 
     const subtitle =
@@ -51,6 +52,12 @@ export function HostLayout({
                             href: '/hote/reservations',
                             icon: 'calendar',
                             badge: pendingBookings > 0 ? pendingBookings : undefined,
+                        },
+                        {
+                            label: 'Visites de logements',
+                            href: '/hote/visites',
+                            icon: 'map-pin',
+                            badge: upcomingVisits > 0 ? upcomingVisits : undefined,
                         },
                         {
                             label: 'Messages & Chat',

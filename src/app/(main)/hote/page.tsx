@@ -69,6 +69,21 @@ export default async function HostDashboardPage() {
         };
     });
 
+    const hasLongTerm = properties.some((p) => p.rental_duration === 'long_term');
+    const hasShortTerm = properties.some((p) => p.rental_duration === 'short_term');
+
+    const [upcomingVisitsCount] = await Promise.all([
+        hasLongTerm
+            ? prisma.propertyVisit.count({
+                  where: {
+                      property: { userId: targetUserId },
+                      status: { in: ['confirmed', 'pending'] },
+                      visitDate: { gte: todayDate },
+                  },
+              })
+            : 0,
+    ]);
+
     const stats = {
         published: properties.filter((p) => p.status === 'published').length,
         pending: properties.filter((p) => p.status === 'pending').length,
@@ -81,12 +96,27 @@ export default async function HostDashboardPage() {
         ),
     };
 
-    const tiles = [
+    const tiles: { label: string; value: number; href?: string }[] = [
         { label: 'En ligne', value: stats.published },
         { label: 'En validation', value: stats.pending },
         { label: 'Brouillons à compléter', value: stats.drafts },
-        { label: 'Séjours à venir', value: stats.upcoming_bookings },
     ];
+
+    if (hasShortTerm || !hasLongTerm) {
+        tiles.push({
+            label: 'Séjours à venir',
+            value: stats.upcoming_bookings,
+            href: '/hote/reservations?filtre=a-venir',
+        });
+    }
+
+    if (hasLongTerm) {
+        tiles.push({
+            label: 'Visites programmées',
+            value: upcomingVisitsCount,
+            href: '/hote/visites?status=upcoming',
+        });
+    }
 
     const pageHeading =
         hostContext.isAdmin && activeHost
@@ -109,17 +139,30 @@ export default async function HostDashboardPage() {
                 </Link>
             </div>
 
-            <dl className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                {tiles.map((tile) => (
-                    <Card key={tile.label} className="p-5">
-                        <dt className="text-sm text-zinc-500 dark:text-zinc-400">
-                            {tile.label}
-                        </dt>
-                        <dd className="mt-1 text-3xl font-semibold">
-                            {tile.value}
-                        </dd>
-                    </Card>
-                ))}
+            <dl className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5">
+                {tiles.map((tile) => {
+                    const content = (
+                        <Card
+                            key={tile.label}
+                            className={`p-5 transition ${tile.href ? 'hover:border-primary-500 hover:shadow-xs cursor-pointer' : ''}`}
+                        >
+                            <dt className="text-sm text-zinc-500 dark:text-zinc-400">
+                                {tile.label}
+                            </dt>
+                            <dd className="mt-1 text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+                                {tile.value}
+                            </dd>
+                        </Card>
+                    );
+
+                    return tile.href ? (
+                        <Link key={tile.label} href={tile.href} className="block">
+                            {content}
+                        </Link>
+                    ) : (
+                        content
+                    );
+                })}
             </dl>
 
             {properties.length === 0 ? (

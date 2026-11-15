@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { BookingResponse } from '@/components/booking-response';
 import { BookingReview } from '@/components/booking-review';
 import { BookingStatusBadge } from '@/components/booking-status-badge';
+import { BookingTransferActions } from '@/components/booking-transfer-actions';
 import { Button, buttonClasses } from '@/components/button';
 import { Badge, Card, Container } from '@/components/card';
 import { Alert, Field, Textarea } from '@/components/form';
@@ -14,7 +15,6 @@ import { PriceBreakdown } from '@/components/price-breakdown';
 import { useActionFeedback } from '@/components/use-action-feedback';
 import {
     cancelBookingAction,
-    confirmBankTransferPaymentAction,
     initiateBookingPaymentAction,
     submitTransferProofAction,
 } from '@/lib/actions/bookings';
@@ -124,7 +124,6 @@ export function BookingShowClient({
     const [bankRefInput, setBankRefInput] = useState('');
     const [uploadLoading, setUploadLoading] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
-    const [confirmTransferLoading, setConfirmTransferLoading] = useState(false);
     const [paymentFailure, setPaymentFailure] = useState<{
         failedMethod: string;
         reason: string;
@@ -241,29 +240,6 @@ export function BookingShowClient({
             }
         } finally {
             setUploadLoading(false);
-        }
-    }
-
-    async function handleConfirmBankTransfer() {
-        setConfirmTransferLoading(true);
-        try {
-            const res = await confirmBankTransferPaymentAction(booking.reference);
-            if (res.ok) {
-                pushToast(
-                    res.toast ?? {
-                        type: 'success',
-                        message: 'Paiement par virement validé. Séjour confirmé.',
-                    },
-                );
-                router.refresh();
-            } else {
-                pushToast({
-                    type: 'error',
-                    message: res.error || 'Erreur lors de la validation.',
-                });
-            }
-        } finally {
-            setConfirmTransferLoading(false);
         }
     }
 
@@ -766,16 +742,9 @@ export function BookingShowClient({
 
                                     {isHost &&
                                         booking.status === 'awaiting_payment' && (
-                                            <Button
-                                                size="sm"
-                                                loading={confirmTransferLoading}
-                                                onClick={() =>
-                                                    void handleConfirmBankTransfer()
-                                                }
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700"
-                                            >
-                                                Valider la réception des fonds
-                                            </Button>
+                                            <div className="pt-2">
+                                                <BookingTransferActions booking={booking} />
+                                            </div>
                                         )}
                                 </div>
                             </div>
@@ -1072,8 +1041,8 @@ export function BookingShowClient({
                             <div className="flex flex-col gap-2.5">
                                 <label
                                     className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${transferTypeChoice === 'instant'
-                                            ? 'border-[#c2410c] bg-orange-50/50 ring-2 ring-orange-400/20 dark:border-orange-500 dark:bg-orange-950/20'
-                                            : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
+                                        ? 'border-[#c2410c] bg-orange-50/50 ring-2 ring-orange-400/20 dark:border-orange-500 dark:bg-orange-950/20'
+                                        : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
@@ -1100,8 +1069,8 @@ export function BookingShowClient({
 
                                 <label
                                     className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3.5 transition ${transferTypeChoice === 'sepa'
-                                            ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-400/20 dark:border-blue-500 dark:bg-blue-950/20'
-                                            : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
+                                        ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-400/20 dark:border-blue-500 dark:bg-blue-950/20'
+                                        : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">

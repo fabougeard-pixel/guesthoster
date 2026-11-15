@@ -37,7 +37,11 @@ import {
     locationSchema,
     pricingSchema,
 } from '@/lib/domain/property-schemas';
-import { resolveOrCreatePropertyType } from '@/lib/domain/taxonomy';
+import {
+    resolveOrCreatePropertyType,
+    resolveOrCreateCountry,
+    resolveOrCreateCity,
+} from '@/lib/domain/taxonomy';
 import { addDays, isValidIsoDate, parseDate, todayIso } from '@/lib/format';
 import { notifyPropertyPublished } from '@/lib/notifications/service';
 import { prisma } from '@/lib/prisma';
@@ -222,6 +226,118 @@ export async function createCustomPropertyTypeAction(
             message: resolved.created
                 ? `Type « ${resolved.name} » ajouté à la taxonomie.`
                 : `Type « ${resolved.name} » sélectionné.`,
+        },
+    };
+}
+
+export async function createCustomCityAction(input: {
+    cityName: string;
+    countryId?: number;
+    countryName?: string;
+    countryCode?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    postalCode?: string | null;
+}): Promise<
+    ActionResult<{
+        city: { id: number; name: string; country_id: number };
+        country: { id: number; name: string; code: string; flag_emoji: string | null };
+        postal_code?: string | null;
+    }>
+> {
+    const user = await getFreshSessionUser();
+    if (!user || !user.emailVerifiedAt || !isHostOrAdmin(user)) {
+        return { ok: false, error: 'Accès réservé aux hôtes vérifiés.' };
+    }
+
+    const cleanCity = input.cityName?.trim();
+    if (!cleanCity || cleanCity.length < 2) {
+        return {
+            ok: false,
+            fieldErrors: { cityName: 'Indiquez un nom de ville d’au moins 2 caractères.' },
+        };
+    }
+
+    let resolvedCountry: {
+        id: number;
+        name: string;
+        code: string;
+        flagEmoji: string | null;
+        created: boolean;
+    };
+
+    if (input.countryId) {
+        const country = await prisma.country.findUnique({
+            where: { id: input.countryId },
+            select: { id: true, name: true, code: true, flagEmoji: true, isActive: true },
+        });
+        if (!country) {
+            return { ok: false, error: 'Pays introuvable.' };
+        }
+        if (!country.isActive) {
+            await prisma.country.update({
+                where: { id: country.id },
+                data: { isActive: true },
+            });
+        }
+        resolvedCountry = {
+            id: country.id,
+            name: country.name,
+            code: country.code,
+            flagEmoji: country.flagEmoji,
+            created: false,
+        };
+    } else if (input.countryName?.trim()) {
+        const cleanCountry = input.countryName.trim();
+        if (cleanCountry.length < 2) {
+            return {
+                ok: false,
+                fieldErrors: { countryName: 'Indiquez un nom de pays valide.' },
+            };
+        }
+        resolvedCountry = await resolveOrCreateCountry(cleanCountry, input.countryCode);
+    } else {
+        return {
+            ok: false,
+            fieldErrors: { countryName: 'Choisissez un pays ou saisissez un nom de pays.' },
+        };
+    }
+
+    const resolvedCity = await resolveOrCreateCity({
+        countryId: resolvedCountry.id,
+        name: cleanCity,
+        latitude: input.latitude,
+        longitude: input.longitude,
+    });
+
+    revalidatePath('/admin/villes');
+    revalidatePath('/admin/pays');
+    revalidatePath('/hote/logements/nouveau');
+    revalidatePath('/admin/logements/nouveau');
+    revalidatePath('/logements');
+    revalidatePath('/recherche');
+
+    return {
+        ok: true,
+        data: {
+            city: {
+                id: resolvedCity.id,
+                name: resolvedCity.name,
+                country_id: resolvedCountry.id,
+            },
+            country: {
+                id: resolvedCountry.id,
+                name: resolvedCountry.name,
+                code: resolvedCountry.code,
+                flag_emoji: resolvedCountry.flagEmoji,
+            },
+            postal_code: input.postalCode?.trim() || null,
+        },
+        toast: {
+            type: 'success',
+            message: resolvedCity.created
+                ? `Ville « ${resolvedCity.name} » (${resolvedCountry.name}) ajoutée avec succès.`
+                : `Ville « ${resolvedCity.name} » (${resolvedCountry.name}) sélectionnée.`,
         },
     };
 }

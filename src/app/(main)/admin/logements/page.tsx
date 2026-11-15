@@ -85,7 +85,7 @@ export default async function AdminPropertiesPage({
                 propertyType: { select: { name: true } },
                 city: { select: { name: true } },
                 owner: {
-                    select: { name: true, email: true, suspendedAt: true },
+                    select: { id: true, name: true, email: true, suspendedAt: true },
                 },
                 images: {
                     orderBy: { position: 'asc' },
@@ -159,6 +159,7 @@ export default async function AdminPropertiesPage({
             status_label: PROPERTY_STATUS_LABELS[propertyStatus] ?? row.status,
             rejection_reason: row.rejectionReason,
             host: {
+                id: row.owner.id,
                 name: row.owner.name,
                 email: row.owner.email,
                 suspended: Boolean(row.owner.suspendedAt),

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 import { BookingResponse } from '@/components/booking-response';
 import { BookingSummary } from '@/components/booking-summary';
+import { BookingTransferActions } from '@/components/booking-transfer-actions';
 import { Card } from '@/components/card';
 import { Pagination } from '@/components/pagination';
 import { getEffectiveHostContext } from '@/lib/auth/managed-host';
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 type HostBookingFilter = 'demandes' | 'a-venir' | 'historique';
 
 const emptyMessages: Record<HostBookingFilter, string> = {
-    demandes: 'Aucune demande en attente.',
+    demandes: 'Aucune demande en attente ou virement à valider.',
     'a-venir': 'Aucun séjour à venir.',
     historique: 'Aucune réservation passée.',
 };
@@ -56,7 +57,10 @@ export default async function HostBookingsPage({
 
     const requestsWhere: Prisma.BookingWhereInput = {
         ...baseWhere,
-        status: 'pending',
+        OR: [
+            { status: 'pending' },
+            { status: 'awaiting_payment', paymentMethod: 'bank_transfer' },
+        ],
     };
 
     const upcomingWhere: Prisma.BookingWhereInput = {
@@ -125,8 +129,12 @@ export default async function HostBookingsPage({
         label: string;
         count: number | null;
     }[] = [
-        { value: 'demandes', label: 'Demandes en attente', count: demandesCount },
-        { value: 'a-venir', label: 'À venir', count: upcomingCount },
+        {
+            value: 'demandes',
+            label: 'Demandes & Virements à valider',
+            count: demandesCount,
+        },
+        { value: 'a-venir', label: 'Séjours à venir', count: upcomingCount },
         { value: 'historique', label: 'Historique', count: null },
     ];
 
@@ -200,6 +208,12 @@ export default async function HostBookingsPage({
                                     actions={
                                         booking.can.respond ? (
                                             <BookingResponse booking={booking} />
+                                        ) : booking.status === 'awaiting_payment' &&
+                                          booking.payment_method === 'bank_transfer' ? (
+                                            <BookingTransferActions
+                                                booking={booking}
+                                                compact
+                                            />
                                         ) : undefined
                                     }
                                 />

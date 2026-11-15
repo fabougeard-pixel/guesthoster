@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getFreshSessionUser } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/services/resend';
+import { notifyInquiryMessage } from '@/lib/notifications/service';
 import type { ActionResult } from './types';
 import type { InquiryMessage, PropertyInquiryDetail } from '@/types';
 
@@ -209,6 +210,12 @@ export async function sendInquiryMessageAction(input: {
         where: { id: inquiry.id },
         data: { updatedAt: new Date() },
     });
+
+    try {
+        await notifyInquiryMessage(message.id);
+    } catch (e) {
+        console.warn('[sendPropertyInquiryMessageAction] Failed to dispatch notification:', e);
+    }
 
     let senderName = user.name;
     if (senderRole === 'admin') {

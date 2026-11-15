@@ -288,7 +288,13 @@ export type HostFormOptions = {
     rentalDurations: Option[];
     furnishingTypes?: Option[];
     bookingModes: Option[];
-    countries: { name: string; cities: { id: number; name: string }[] }[];
+    countries: {
+        id?: number;
+        name: string;
+        code?: string;
+        flagEmoji?: string | null;
+        cities: { id: number; name: string }[];
+    }[];
     amenities: { category: string; items: { id: number; name: string }[] }[];
     minPhotos: number;
     maxPhotos: number;
@@ -330,7 +336,7 @@ export type AdminProperty = {
     status: PropertyStatus;
     status_label: string;
     rejection_reason: string | null;
-    host: { name: string; email: string; suspended: boolean };
+    host: { id?: number; name: string; email: string; suspended: boolean };
     submitted_at: string | null;
     published_at: string | null;
 };
@@ -365,6 +371,32 @@ export type AdminBooking = {
     host: string;
     guest: { name: string; email: string };
     created_at: string | null;
+    payment_method?: string | null;
+    transfer_type?: 'instant' | 'sepa' | null;
+    transfer_receipt_url?: string | null;
+    transfer_declared_at?: string | null;
+    transfer_bank_reference?: string | null;
+};
+
+export type AdminPropertyReport = {
+    id: number;
+    property_id: number;
+    property_title: string;
+    property_slug: string;
+    property_status: string;
+    property_cover_url: string | null;
+    host_id: number;
+    host_name: string;
+    host_email: string;
+    reporter_name: string;
+    reporter_email: string;
+    reason: string;
+    reason_label: string;
+    details: string | null;
+    status: 'pending' | 'resolved' | 'dismissed';
+    admin_notes: string | null;
+    created_at: string | null;
+    resolved_at: string | null;
 };
 
 export type AdminCountry = {
@@ -455,6 +487,12 @@ export type PropertyVisit = {
     property_id: number;
     property_title?: string;
     property_slug?: string;
+    property_cover_url?: string | null;
+    property_city?: string | null;
+    monthly_rent?: number;
+    host_id?: number;
+    host_name?: string;
+    host_email?: string;
     name: string;
     email: string;
     phone: string | null;
@@ -466,6 +504,7 @@ export type PropertyVisit = {
     payment_status: string;
     status: string;
     confirmed_at: string | null;
+    cancelled_at: string | null;
     created_at: string | null;
 };
 
