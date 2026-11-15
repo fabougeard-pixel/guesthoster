@@ -12,12 +12,11 @@ export function PropertyCard({
     property: PropertyCardData;
     query?: Record<string, string>;
 }) {
-    const qs = query ? new URLSearchParams(query).toString() : '';
-    const href = qs
-        ? `/logements/${property.slug}?${qs}`
-        : `/logements/${property.slug}`;
-
     const isLongTerm = property.rental_duration === 'long_term';
+    const qs = query ? new URLSearchParams(query).toString() : '';
+    const href = isLongTerm
+        ? (qs ? `/logements/${property.slug}?${qs}&reserver=true` : `/logements/${property.slug}?reserver=true`)
+        : (qs ? `/logements/${property.slug}?${qs}` : `/logements/${property.slug}`);
 
     return (
         <article className="group relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/90 bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-300 hover:border-zinc-300 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700">
@@ -200,7 +199,7 @@ export function PropertyCard({
                             </div>
                         </div>
 
-                        {/* Bouton Prendre rendez-vous avec icône calendrier et flèche */}
+                        {/* Bouton RESERVER CE LOGEMENT avec icône calendrier et flèche */}
                         <div className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 py-3 px-4 text-sm font-semibold text-white shadow-md transition-all group-hover:bg-primary-600 group-hover:shadow-lg dark:bg-primary-600 dark:group-hover:bg-primary-500">
                             <svg
                                 viewBox="0 0 20 20"
@@ -214,7 +213,7 @@ export function PropertyCard({
                                     clipRule="evenodd"
                                 />
                             </svg>
-                            <span>Prendre rendez-vous</span>
+                            <span>RESERVER CE LOGEMENT</span>
                             <svg
                                 viewBox="0 0 20 20"
                                 fill="currentColor"

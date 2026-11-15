@@ -229,7 +229,7 @@ export function AdminSettingsClient({
                                         longTermWidgetButtonLabel: e.target.value,
                                     }))
                                 }
-                                placeholder="Prendre rendez-vous"
+                                placeholder="RESERVER CE LOGEMENT"
                                 className="mt-1"
                             />
                         </Field>

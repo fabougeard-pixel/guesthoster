@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import type { StaySelection } from '@/components/availability-calendar';
@@ -307,7 +308,11 @@ function BookingCard({
     const [calendarStep, setCalendarStep] = useState<
         'checkIn' | 'checkOut' | null
     >(null);
-    const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
+    const searchParams = useSearchParams();
+    const shouldAutoOpen =
+        searchParams?.get('reserver') === 'true' ||
+        searchParams?.get('visite') === 'true';
+    const [isVisitModalOpen, setIsVisitModalOpen] = useState(shouldAutoOpen);
 
     // ==========================================
     // LOCATION CLASSIQUE (BAIL D'HABITATION)
@@ -327,8 +332,10 @@ function BookingCard({
                 : (property.visit_fee ?? 0);
 
         const buttonLabel =
-            rentalSettings?.longTermWidgetButtonLabel?.trim() ||
-            'Prendre rendez-vous';
+            rentalSettings?.longTermWidgetButtonLabel?.trim() &&
+            rentalSettings.longTermWidgetButtonLabel !== 'Prendre rendez-vous'
+                ? rentalSettings.longTermWidgetButtonLabel
+                : 'RESERVER CE LOGEMENT';
 
         const showDeposit =
             rentalSettings?.longTermShowDepositOnWidget ?? true;

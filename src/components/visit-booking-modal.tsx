@@ -109,7 +109,7 @@ export function VisitBookingModal({
         setPaymentError(null);
 
         if (!visitDate) {
-            setErrorMsg('Veuillez sélectionner une date de visite.');
+            setErrorMsg('Veuillez sélectionner une date d\'entrée souhaitée.');
             return;
         }
 
@@ -333,9 +333,9 @@ export function VisitBookingModal({
                         )}
 
                         <div className="grid gap-4 sm:grid-cols-2">
-                            {/* Date de la visite */}
+                            {/* Date d'entrée souhaitée */}
                             <div>
-                                <Label htmlFor="visit_date">Date de visite souhaitée *</Label>
+                                <Label htmlFor="visit_date">Date d&apos;entrée souhaitée *</Label>
                                 <input
                                     id="visit_date"
                                     type="date"
