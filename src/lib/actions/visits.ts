@@ -142,8 +142,8 @@ export async function createPropertyVisitAction(
                 visitFee === 0
                     ? 'free'
                     : data.paymentMethod === 'bank_transfer'
-                      ? 'pending_transfer'
-                      : 'pending',
+                        ? 'pending_transfer'
+                        : 'pending',
             status: 'confirmed',
             confirmedAt: new Date(),
         },
