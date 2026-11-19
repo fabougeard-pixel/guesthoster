@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
         '/**': ['./node_modules/.prisma/client/**/*'],
     },
     images: {
+        unoptimized: true,
         remotePatterns: [
             {
                 protocol: 'https',

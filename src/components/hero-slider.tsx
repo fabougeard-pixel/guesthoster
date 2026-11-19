@@ -127,6 +127,7 @@ export function HeroSlider({
                                     fill
                                     priority={index === 0}
                                     sizes="100vw"
+                                    unoptimized
                                     className="object-cover object-right md:object-center"
                                 />
                                 {/* Dégradé clair sur la gauche pour garantir un contraste net façon maquette */}
